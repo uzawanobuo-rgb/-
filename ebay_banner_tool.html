@@ -4,76 +4,126 @@
 <meta charset="UTF-8">
 <title>eBay バナー合成ツール</title>
 <style>
+  * { box-sizing: border-box; }
   body {
     font-family: Arial, sans-serif;
-    max-width: 900px;
-    margin: 30px auto;
-    padding: 0 20px;
+    margin: 0;
+    padding: 16px;
     background: #f5f5f5;
+    height: 100vh;
+    overflow: hidden;
   }
-  h1 { color: #333; }
+  h1 { margin: 0 0 12px; font-size: 1.2em; color: #333; }
+  .app {
+    display: flex;
+    gap: 16px;
+    height: calc(100vh - 60px);
+  }
+  /* 左列：操作パネル */
+  .left-panel {
+    width: 360px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+  }
+  /* 右列：プレビュー */
+  .right-panel {
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .right-panel h2 {
+    margin: 0;
+    padding: 12px 16px;
+    font-size: 0.9em;
+    color: #555;
+    border-left: 4px solid #0064d2;
+    border-bottom: 1px solid #eee;
+  }
+  .preview-area {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: #f9f9f9;
+  }
   .section {
     background: #fff;
     border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
+    padding: 14px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
-  .section h2 { margin-top: 0; font-size: 1em; color: #555; border-left: 4px solid #0064d2; padding-left: 8px; }
+  .section h2 { margin-top: 0; font-size: 0.9em; color: #555; border-left: 4px solid #0064d2; padding-left: 8px; }
   label.btn {
     display: inline-block;
     cursor: pointer;
     background: #0064d2;
     color: white;
-    padding: 10px 20px;
+    padding: 8px 16px;
     border-radius: 5px;
-    margin-bottom: 10px;
+    font-size: 0.85em;
+    margin-bottom: 8px;
   }
   label.btn:hover { background: #0053b3; }
   input[type="file"] { display: none; }
-  .preview-box { text-align: center; }
-  .preview-box img {
-    max-width: 100%;
-    max-height: 220px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    display: block;
-    margin: 0 auto;
+  .upload-row {
+    display: flex;
+    gap: 12px;
   }
+  .upload-col {
+    flex: 1;
+  }
+  .upload-col p { margin: 0 0 6px; font-size: 0.8em; color: #555; }
   .drop-zone {
     border: 2px dashed #0064d2;
     border-radius: 8px;
-    padding: 20px;
+    padding: 12px;
     text-align: center;
     cursor: pointer;
     transition: background 0.2s;
   }
   .drop-zone.dragover { background: #e8f0fe; border-color: #0053b3; }
-  .drop-zone p { margin: 8px 0 0; font-size: 0.8em; color: #999; }
+  .drop-zone p { margin: 4px 0 0; font-size: 0.75em; color: #999; }
+  .thumb {
+    margin-top: 8px;
+    max-width: 100%;
+    max-height: 100px;
+    border-radius: 4px;
+    display: none;
+  }
   .controls {
     display: flex;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 10px;
     align-items: flex-end;
-    margin-top: 14px;
+    margin-top: 10px;
   }
-  .control-group { display: flex; flex-direction: column; gap: 4px; }
+  .control-group { display: flex; flex-direction: column; gap: 3px; }
   .control-group > label {
     background: none;
     color: #555;
     padding: 0;
-    font-size: 0.85em;
+    font-size: 0.8em;
     cursor: default;
   }
   .control-group input[type="range"],
-  .control-group select { width: 160px; }
-  select { padding: 6px; border-radius: 4px; border: 1px solid #ccc; }
-  .range-val { font-size: 0.85em; color: #333; }
+  .control-group select { width: 130px; }
+  select { padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85em; }
+  .range-val { font-size: 0.8em; color: #333; }
   #btn-download {
+    width: 100%;
     background: #aaa;
     color: white;
     border: none;
-    padding: 12px 30px;
+    padding: 12px;
     font-size: 1em;
     border-radius: 5px;
     cursor: not-allowed;
@@ -81,77 +131,87 @@
   #btn-download:not([disabled]) { background: #43a843; cursor: pointer; }
   canvas {
     max-width: 100%;
+    max-height: 100%;
     border: 1px solid #ddd;
     border-radius: 4px;
     display: block;
-    margin: 10px auto 0;
   }
+  #preview-hint { color: #aaa; font-size: 0.85em; text-align: center; }
 </style>
 </head>
 <body>
 
 <h1>eBay バナー合成ツール</h1>
 
-<div class="section">
-  <h2>1. 画像を選択</h2>
-  <div style="display:flex; gap:20px; flex-wrap:wrap;">
-    <div style="flex:1; min-width:200px;">
-      <p style="margin:0 0 8px; font-size:0.85em; color:#555;">商品画像</p>
-      <div class="drop-zone" id="drop-product">
-        <label class="btn" for="input-product">商品画像を選択</label>
-        <input type="file" id="input-product" accept="image/*">
-        <p>またはドラッグ＆ドロップ</p>
+<div class="app">
+  <!-- 左列 -->
+  <div class="left-panel">
+
+    <div class="section">
+      <h2>1. 画像を選択</h2>
+      <div class="upload-row">
+        <div class="upload-col">
+          <p>商品画像</p>
+          <div class="drop-zone" id="drop-product">
+            <label class="btn" for="input-product">選択</label>
+            <input type="file" id="input-product" accept="image/*">
+            <p>またはドロップ</p>
+          </div>
+          <img class="thumb" id="prev-product">
+        </div>
+        <div class="upload-col">
+          <p>バナー画像</p>
+          <div class="drop-zone" id="drop-banner">
+            <label class="btn" for="input-banner">選択</label>
+            <input type="file" id="input-banner" accept="image/*">
+            <p>またはドロップ</p>
+          </div>
+          <img class="thumb" id="prev-banner">
+        </div>
       </div>
-      <img id="prev-product" style="display:none; margin-top:10px; max-width:100%; max-height:200px;">
     </div>
-    <div style="flex:1; min-width:200px;">
-      <p style="margin:0 0 8px; font-size:0.85em; color:#555;">バナー画像</p>
-      <div class="drop-zone" id="drop-banner">
-        <label class="btn" for="input-banner">バナー画像を選択</label>
-        <input type="file" id="input-banner" accept="image/*">
-        <p>またはドラッグ＆ドロップ</p>
+
+    <div class="section">
+      <h2>2. バナーの設定</h2>
+      <div class="controls">
+        <div class="control-group">
+          <label>位置</label>
+          <select id="banner-position">
+            <option value="top">上</option>
+            <option value="bottom" selected>下</option>
+            <option value="left">左</option>
+            <option value="right">右</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>高さ: <span id="banner-size-val" class="range-val">100%</span></label>
+          <input type="range" id="banner-size" min="10" max="200" value="100">
+        </div>
+        <div class="control-group">
+          <label>透明度: <span id="banner-opacity-val" class="range-val">100%</span></label>
+          <input type="range" id="banner-opacity" min="0" max="100" value="100">
+        </div>
+        <div class="control-group">
+          <label>すき間(px): <span id="banner-gap-val" class="range-val">0</span></label>
+          <input type="range" id="banner-gap" min="0" max="100" value="0">
+        </div>
       </div>
-      <img id="prev-banner" style="display:none; margin-top:10px; max-width:100%; max-height:200px;">
+    </div>
+
+    <div class="section">
+      <button id="btn-download" disabled>ダウンロード</button>
+    </div>
+
+  </div>
+
+  <!-- 右列：プレビュー -->
+  <div class="right-panel">
+    <h2>プレビュー</h2>
+    <div class="preview-area">
+      <p id="preview-hint">画像を両方アップロードすると自動でプレビューされます</p>
+      <canvas id="canvas" style="display:none;"></canvas>
     </div>
   </div>
-</div>
-
-<div class="section">
-  <h2>2. バナーの設定</h2>
-  <div class="controls">
-    <div class="control-group">
-      <label>位置</label>
-      <select id="banner-position">
-        <option value="top">上</option>
-        <option value="bottom" selected>下</option>
-        <option value="left">左</option>
-        <option value="right">右</option>
-      </select>
-    </div>
-    <div class="control-group">
-      <label>高さ: <span id="banner-size-val" class="range-val">100%</span></label>
-      <input type="range" id="banner-size" min="10" max="200" value="100">
-    </div>
-    <div class="control-group">
-      <label>透明度: <span id="banner-opacity-val" class="range-val">100%</span></label>
-      <input type="range" id="banner-opacity" min="0" max="100" value="100">
-    </div>
-    <div class="control-group">
-      <label>すき間(px): <span id="banner-gap-val" class="range-val">0</span></label>
-      <input type="range" id="banner-gap" min="0" max="100" value="0">
-    </div>
-  </div>
-</div>
-
-<div class="section">
-  <h2>3. プレビュー</h2>
-  <canvas id="canvas" style="display:none;"></canvas>
-  <p id="preview-hint" style="color:#aaa; font-size:0.85em;">画像を両方アップロードすると自動でプレビューされます</p>
-</div>
-
-<div class="section">
-  <h2>4. ダウンロード</h2>
-  <button id="btn-download" disabled>ダウンロード</button>
 </div>
 
 <script>
@@ -229,8 +289,6 @@
     const bOpacity = parseInt(document.getElementById('banner-opacity').value) / 100;
     const isHorizontal = (pos === 'top' || pos === 'bottom');
 
-    // 上・下：キャンバス幅いっぱいに伸ばしたときの自然な高さを基準にスライダー調整
-    // 左・右：キャンバス高さいっぱいにしたときの自然な幅を基準にスライダー調整
     let naturalH, naturalW;
     if (isHorizontal) {
       naturalH = bannerImg.height * (cW / bannerImg.width);
@@ -270,7 +328,6 @@
         break;
     }
 
-    // 商品画像：縦横比維持でエリア内に収める
     if (productAreaW > 0 && productAreaH > 0) {
       const r = Math.min(productAreaW / productImg.width, productAreaH / productImg.height);
       const pW = productImg.width * r;
@@ -280,7 +337,6 @@
       ctx.drawImage(productImg, pX, pY, pW, pH);
     }
 
-    // バナー描画
     ctx.globalAlpha = bOpacity;
     ctx.drawImage(bannerImg, bX, bY, bW, bH);
     ctx.globalAlpha = 1;
