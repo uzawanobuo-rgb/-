@@ -41,7 +41,6 @@
     flex: 1;
     min-width: 200px;
   }
-  .preview-box p { margin: 5px 0; font-size: 0.85em; color: #777; }
   .preview-box img {
     max-width: 100%;
     max-height: 250px;
@@ -86,30 +85,16 @@
     border-radius: 4px;
     border: 1px solid #ccc;
   }
-  #btn-compose {
-    background: #e53238;
-    color: white;
-    border: none;
-    padding: 12px 30px;
-    font-size: 1em;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-top: 10px;
-  }
-  #btn-compose:hover { background: #c0272c; }
-  #btn-compose:disabled { background: #aaa; cursor: not-allowed; }
   #btn-download {
-    background: #43a843;
+    background: #aaa;
     color: white;
     border: none;
     padding: 12px 30px;
     font-size: 1em;
     border-radius: 5px;
-    cursor: pointer;
-    margin-top: 10px;
-    display: none;
+    cursor: not-allowed;
   }
-  #btn-download:hover { background: #369036; }
+  #btn-download:not(:disabled) { background: #43a843; cursor: pointer; }
   canvas {
     max-width: 100%;
     border: 1px solid #ddd;
@@ -152,37 +137,36 @@
     <div class="control-group">
       <label>位置</label>
       <select id="position">
-        <option value="top-left">左上</option>
-        <option value="top-right">右上</option>
-        <option value="bottom-left">左下</option>
-        <option value="bottom-right" selected>右下</option>
-        <option value="center">中央</option>
+        <option value="top">上</option>
+        <option value="bottom" selected>下</option>
+        <option value="left">左</option>
+        <option value="right">右</option>
       </select>
     </div>
     <div class="control-group">
-      <label>バナーサイズ: <span id="size-val" class="range-val">40%</span></label>
-      <input type="range" id="banner-size" min="5" max="100" value="40">
+      <label>バナーの高さ: <span id="size-val" class="range-val">100%</span></label>
+      <input type="range" id="banner-size" min="10" max="200" value="100">
     </div>
     <div class="control-group">
       <label>透明度: <span id="opacity-val" class="range-val">100%</span></label>
       <input type="range" id="banner-opacity" min="0" max="100" value="100">
     </div>
     <div class="control-group">
-      <label>余白(px): <span id="margin-val" class="range-val">10</span></label>
-      <input type="range" id="banner-margin" min="0" max="100" value="10">
+      <label>すき間(px): <span id="margin-val" class="range-val">0</span></label>
+      <input type="range" id="banner-margin" min="0" max="100" value="0">
     </div>
   </div>
 </div>
 
 <div class="section">
   <h2>3. プレビュー</h2>
-  <canvas id="canvas" style="display:none; max-width:100%;"></canvas>
+  <canvas id="canvas" style="display:none;"></canvas>
   <p id="preview-hint" style="color:#aaa; font-size:0.85em;">画像を両方アップロードすると自動でプレビューされます</p>
 </div>
 
 <div class="section">
   <h2>4. ダウンロード</h2>
-  <button id="btn-download" disabled style="background:#aaa; color:white; border:none; padding:12px 30px; font-size:1em; border-radius:5px; cursor:not-allowed;">ダウンロード</button>
+  <button id="btn-download" disabled>ダウンロード</button>
 </div>
 
 <script>
@@ -217,20 +201,23 @@
       zone.classList.remove('dragover');
       const file = e.dataTransfer.files[0];
       if (file && file.type.startsWith('image/')) {
-        const img = await loadImage(file, imgEl);
-        onLoad(img);
+        onLoad(await loadImage(file, imgEl));
       }
     });
     input.addEventListener('change', async (e) => {
       if (e.target.files[0]) {
-        const img = await loadImage(e.target.files[0], imgEl);
-        onLoad(img);
+        onLoad(await loadImage(e.target.files[0], imgEl));
       }
     });
   }
 
   setupDrop('drop-product', 'input-product', 'prev-product', (img) => { productImg = img; updatePreview(); });
-  setupDrop('drop-banner', 'input-banner', 'prev-banner', (img) => { bannerImg = img; updatePreview(); });
+  setupDrop('drop-banner', 'input-banner', 'prev-banner', (img) => {
+    bannerImg = img;
+    document.getElementById('banner-size').value = 100;
+    document.getElementById('size-val').textContent = '100%';
+    updatePreview();
+  });
 
   document.getElementById('banner-size').addEventListener('input', (e) => {
     document.getElementById('size-val').textContent = e.target.value + '%';
@@ -252,28 +239,63 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    canvas.width = productImg.width;
-    canvas.height = productImg.height;
-    ctx.drawImage(productImg, 0, 0);
-
-    const sizeRatio = parseInt(document.getElementById('banner-size').value) / 100;
-    const bannerW = productImg.width * sizeRatio;
-    const bannerH = bannerW * (bannerImg.height / bannerImg.width);
-    const margin = parseInt(document.getElementById('banner-margin').value);
+    const heightRatio = parseInt(document.getElementById('banner-size').value) / 100;
+    const bannerH = bannerImg.height * heightRatio;
+    const bannerW = bannerH * (bannerImg.width / bannerImg.height);
+    const gap = parseInt(document.getElementById('banner-margin').value);
     const opacity = parseInt(document.getElementById('banner-opacity').value) / 100;
     const position = document.getElementById('position').value;
 
-    let x = 0, y = 0;
+    const pW = productImg.width;
+    const pH = productImg.height;
+
+    let canvasW, canvasH, productX, productY, bannerX, bannerY;
+
     switch (position) {
-      case 'top-left':     x = margin; y = margin; break;
-      case 'top-right':    x = canvas.width - bannerW - margin; y = margin; break;
-      case 'bottom-left':  x = margin; y = canvas.height - bannerH - margin; break;
-      case 'bottom-right': x = canvas.width - bannerW - margin; y = canvas.height - bannerH - margin; break;
-      case 'center':       x = (canvas.width - bannerW) / 2; y = (canvas.height - bannerH) / 2; break;
+      case 'top':
+        canvasW = Math.max(pW, bannerW);
+        canvasH = pH + gap + bannerH;
+        productX = Math.round((canvasW - pW) / 2);
+        productY = Math.round(bannerH + gap);
+        bannerX = Math.round((canvasW - bannerW) / 2);
+        bannerY = 0;
+        break;
+      case 'bottom':
+        canvasW = Math.max(pW, bannerW);
+        canvasH = pH + gap + bannerH;
+        productX = Math.round((canvasW - pW) / 2);
+        productY = 0;
+        bannerX = Math.round((canvasW - bannerW) / 2);
+        bannerY = pH + gap;
+        break;
+      case 'left':
+        canvasW = pW + gap + bannerW;
+        canvasH = Math.max(pH, bannerH);
+        productX = Math.round(bannerW + gap);
+        productY = Math.round((canvasH - pH) / 2);
+        bannerX = 0;
+        bannerY = Math.round((canvasH - bannerH) / 2);
+        break;
+      case 'right':
+        canvasW = pW + gap + bannerW;
+        canvasH = Math.max(pH, bannerH);
+        productX = 0;
+        productY = Math.round((canvasH - pH) / 2);
+        bannerX = pW + gap;
+        bannerY = Math.round((canvasH - bannerH) / 2);
+        break;
     }
 
+    canvas.width = Math.round(canvasW);
+    canvas.height = Math.round(canvasH);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.drawImage(productImg, productX, productY, pW, pH);
+
     ctx.globalAlpha = opacity;
-    ctx.drawImage(bannerImg, x, y, bannerW, bannerH);
+    ctx.drawImage(bannerImg, bannerX, bannerY, Math.round(bannerW), Math.round(bannerH));
     ctx.globalAlpha = 1;
 
     canvas.style.display = 'block';
@@ -281,8 +303,6 @@
 
     const btn = document.getElementById('btn-download');
     btn.disabled = false;
-    btn.style.background = '#43a843';
-    btn.style.cursor = 'pointer';
   }
 
   document.getElementById('btn-download').addEventListener('click', () => {
