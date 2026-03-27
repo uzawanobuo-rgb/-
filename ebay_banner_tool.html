@@ -19,7 +19,6 @@
     gap: 12px;
     height: calc(100vh - 46px);
   }
-  /* 左列：操作パネル */
   .left-panel {
     width: 40%;
     flex-shrink: 0;
@@ -28,7 +27,6 @@
     gap: 8px;
     overflow-y: auto;
   }
-  /* 右列：プレビュー */
   .right-panel {
     flex: 1;
     background: #fff;
@@ -40,7 +38,7 @@
   }
   .right-panel h2 {
     margin: 0;
-    padding: 12px 16px;
+    padding: 10px 16px;
     font-size: 0.9em;
     color: #555;
     border-left: 4px solid #0064d2;
@@ -70,18 +68,13 @@
     padding: 8px 16px;
     border-radius: 5px;
     font-size: 0.85em;
-    margin-bottom: 8px;
+    margin-bottom: 0;
   }
   label.btn:hover { background: #0053b3; }
   input[type="file"] { display: none; }
-  .upload-row {
-    display: flex;
-    gap: 12px;
-  }
-  .upload-col {
-    flex: 1;
-  }
-  .upload-col p { margin: 0 0 6px; font-size: 0.8em; color: #555; }
+  .upload-row { display: flex; gap: 12px; }
+  .upload-col { flex: 1; }
+  .upload-col > p { margin: 0 0 6px; font-size: 0.8em; color: #555; }
   .drop-zone {
     border: 2px dashed #0064d2;
     border-radius: 8px;
@@ -96,7 +89,7 @@
     overflow: hidden;
   }
   .drop-zone.dragover { background: #e8f0fe; border-color: #0053b3; }
-  .drop-zone label.btn { text-align: center; margin-bottom: 0; }
+  .drop-zone label.btn { text-align: center; }
   .drop-zone p { margin: 0; font-size: 0.75em; color: #999; text-align: center; }
   .thumb {
     flex: 1;
@@ -106,17 +99,30 @@
     display: none;
     border-radius: 4px;
   }
-  .controls {
+
+  /* タブ */
+  .tab-bar {
     display: flex;
-    flex-direction: column;
-    gap: 6px;
-    margin-top: 6px;
+    border-bottom: 2px solid #e0e0e0;
+    margin-bottom: 10px;
   }
-  .control-group {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .tab-btn {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    background: none;
+    font-size: 0.82em;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
   }
+  .tab-btn.active { color: #0064d2; border-bottom-color: #0064d2; font-weight: bold; }
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  .controls { display: flex; flex-direction: column; gap: 6px; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
   .control-group > label {
     background: none;
     color: #555;
@@ -124,13 +130,13 @@
     font-size: 0.8em;
     cursor: default;
     white-space: nowrap;
-    width: 110px;
+    width: 115px;
     flex-shrink: 0;
   }
-  .control-group input[type="range"],
-  .control-group select { flex: 1; }
+  .control-group input[type="range"], .control-group select { flex: 1; }
   select { padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85em; }
   .range-val { font-size: 0.8em; color: #333; }
+
   #btn-download {
     width: 100%;
     background: #aaa;
@@ -142,13 +148,7 @@
     cursor: not-allowed;
   }
   #btn-download:not([disabled]) { background: #43a843; cursor: pointer; }
-  canvas {
-    max-width: 100%;
-    max-height: 100%;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    display: block;
-  }
+  canvas { max-width: 100%; max-height: 100%; border: 1px solid #ddd; border-radius: 4px; display: block; }
   #preview-hint { color: #aaa; font-size: 0.85em; text-align: center; }
 </style>
 </head>
@@ -157,7 +157,6 @@
 <h1>eBay バナー合成ツール</h1>
 
 <div class="app">
-  <!-- 左列 -->
   <div class="left-panel">
 
     <div class="section">
@@ -185,28 +184,65 @@
     </div>
 
     <div class="section">
-      <h2>2. バナーの設定</h2>
-      <div class="controls">
-        <div class="control-group">
-          <label>位置</label>
-          <select id="banner-position">
-            <option value="top">上</option>
-            <option value="bottom" selected>下</option>
-            <option value="left">左</option>
-            <option value="right">右</option>
-          </select>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="banner">2. バナーの設定</button>
+        <button class="tab-btn" data-tab="correction">3. 画像補正</button>
+      </div>
+
+      <!-- バナー設定タブ -->
+      <div class="tab-content active" id="tab-banner">
+        <div class="controls">
+          <div class="control-group">
+            <label>位置</label>
+            <select id="banner-position">
+              <option value="top">上</option>
+              <option value="bottom" selected>下</option>
+              <option value="left">左</option>
+              <option value="right">右</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label>高さ: <span id="banner-size-val" class="range-val">100%</span></label>
+            <input type="range" id="banner-size" min="10" max="200" value="100">
+          </div>
+          <div class="control-group">
+            <label>透明度: <span id="banner-opacity-val" class="range-val">100%</span></label>
+            <input type="range" id="banner-opacity" min="0" max="100" value="100">
+          </div>
+          <div class="control-group">
+            <label>すき間(px): <span id="banner-gap-val" class="range-val">0</span></label>
+            <input type="range" id="banner-gap" min="0" max="100" value="0">
+          </div>
         </div>
-        <div class="control-group">
-          <label>高さ: <span id="banner-size-val" class="range-val">100%</span></label>
-          <input type="range" id="banner-size" min="10" max="200" value="100">
-        </div>
-        <div class="control-group">
-          <label>透明度: <span id="banner-opacity-val" class="range-val">100%</span></label>
-          <input type="range" id="banner-opacity" min="0" max="100" value="100">
-        </div>
-        <div class="control-group">
-          <label>すき間(px): <span id="banner-gap-val" class="range-val">0</span></label>
-          <input type="range" id="banner-gap" min="0" max="100" value="0">
+      </div>
+
+      <!-- 画像補正タブ -->
+      <div class="tab-content" id="tab-correction">
+        <div class="controls">
+          <div class="control-group">
+            <label>明るさ: <span id="corr-brightness-val" class="range-val">0</span></label>
+            <input type="range" id="corr-brightness" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>コントラスト: <span id="corr-contrast-val" class="range-val">0</span></label>
+            <input type="range" id="corr-contrast" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>ハイライト: <span id="corr-highlights-val" class="range-val">0</span></label>
+            <input type="range" id="corr-highlights" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>シャドウ: <span id="corr-shadows-val" class="range-val">0</span></label>
+            <input type="range" id="corr-shadows" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>ホワイトポイント: <span id="corr-white-val" class="range-val">255</span></label>
+            <input type="range" id="corr-white" min="128" max="255" value="255">
+          </div>
+          <div class="control-group">
+            <label>ブラックポイント: <span id="corr-black-val" class="range-val">0</span></label>
+            <input type="range" id="corr-black" min="0" max="128" value="0">
+          </div>
         </div>
       </div>
     </div>
@@ -217,7 +253,6 @@
 
   </div>
 
-  <!-- 右列：プレビュー -->
   <div class="right-panel">
     <h2>プレビュー</h2>
     <div class="preview-area">
@@ -230,6 +265,16 @@
 <script>
   let productImg = null;
   let bannerImg = null;
+
+  // タブ切り替え
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
 
   function loadImage(file, imgEl) {
     return new Promise((resolve) => {
@@ -276,6 +321,7 @@
     updatePreview();
   });
 
+  // バナー設定スライダー
   [
     ['banner-size', 'banner-size-val', '%'],
     ['banner-opacity', 'banner-opacity-val', '%'],
@@ -287,6 +333,80 @@
     });
   });
   document.getElementById('banner-position').addEventListener('change', updatePreview);
+
+  // 補正スライダー
+  [
+    ['corr-brightness', 'corr-brightness-val'],
+    ['corr-contrast', 'corr-contrast-val'],
+    ['corr-highlights', 'corr-highlights-val'],
+    ['corr-shadows', 'corr-shadows-val'],
+    ['corr-white', 'corr-white-val'],
+    ['corr-black', 'corr-black-val'],
+  ].forEach(([id, valId]) => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      document.getElementById(valId).textContent = e.target.value;
+      updatePreview();
+    });
+  });
+
+  function applyCorrections(ctx, img, dx, dy, dw, dh) {
+    const tmp = document.createElement('canvas');
+    tmp.width = dw; tmp.height = dh;
+    const tc = tmp.getContext('2d');
+    tc.drawImage(img, 0, 0, dw, dh);
+
+    const brightness  = parseInt(document.getElementById('corr-brightness').value);
+    const contrast    = parseInt(document.getElementById('corr-contrast').value);
+    const highlights  = parseInt(document.getElementById('corr-highlights').value);
+    const shadows     = parseInt(document.getElementById('corr-shadows').value);
+    const whitePoint  = parseInt(document.getElementById('corr-white').value);
+    const blackPoint  = parseInt(document.getElementById('corr-black').value);
+
+    // 補正が全部デフォルトならそのまま描画
+    if (brightness === 0 && contrast === 0 && highlights === 0 && shadows === 0 && whitePoint === 255 && blackPoint === 0) {
+      ctx.drawImage(img, dx, dy, dw, dh);
+      return;
+    }
+
+    const imageData = tc.getImageData(0, 0, dw, dh);
+    const d = imageData.data;
+    const cf = (259 * (contrast + 255)) / (255 * (259 - contrast));
+    const range = whitePoint - blackPoint || 1;
+
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], g = d[i+1], b = d[i+2];
+
+      // レベル補正
+      r = (r - blackPoint) * 255 / range;
+      g = (g - blackPoint) * 255 / range;
+      b = (b - blackPoint) * 255 / range;
+
+      // 明るさ
+      r += brightness; g += brightness; b += brightness;
+
+      // コントラスト
+      r = cf * (r - 128) + 128;
+      g = cf * (g - 128) + 128;
+      b = cf * (b - 128) + 128;
+
+      // ハイライト・シャドウ
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (lum > 128 && highlights !== 0) {
+        const t = (lum - 128) / 127;
+        r += highlights * t; g += highlights * t; b += highlights * t;
+      } else if (lum <= 128 && shadows !== 0) {
+        const t = (128 - lum) / 128;
+        r += shadows * t; g += shadows * t; b += shadows * t;
+      }
+
+      d[i]   = Math.max(0, Math.min(255, r));
+      d[i+1] = Math.max(0, Math.min(255, g));
+      d[i+2] = Math.max(0, Math.min(255, b));
+    }
+
+    tc.putImageData(imageData, 0, 0);
+    ctx.drawImage(tmp, dx, dy);
+  }
 
   function updatePreview() {
     if (!productImg || !bannerImg) return;
@@ -319,28 +439,22 @@
 
     switch (pos) {
       case 'top':
-        bH = Math.min(naturalH * bRatio, cH - gap);
-        bW = cW;
+        bH = Math.min(naturalH * bRatio, cH - gap); bW = cW;
         bX = 0; bY = 0;
-        productAreaY = bH + gap;
-        productAreaH = cH - bH - gap;
+        productAreaY = bH + gap; productAreaH = cH - bH - gap;
         break;
       case 'bottom':
-        bH = Math.min(naturalH * bRatio, cH - gap);
-        bW = cW;
+        bH = Math.min(naturalH * bRatio, cH - gap); bW = cW;
         bX = 0; bY = cH - bH;
         productAreaH = cH - bH - gap;
         break;
       case 'left':
-        bW = Math.min(naturalW * bRatio, cW - gap);
-        bH = cH;
+        bW = Math.min(naturalW * bRatio, cW - gap); bH = cH;
         bX = 0; bY = 0;
-        productAreaX = bW + gap;
-        productAreaW = cW - bW - gap;
+        productAreaX = bW + gap; productAreaW = cW - bW - gap;
         break;
       case 'right':
-        bW = Math.min(naturalW * bRatio, cW - gap);
-        bH = cH;
+        bW = Math.min(naturalW * bRatio, cW - gap); bH = cH;
         bX = cW - bW; bY = 0;
         productAreaW = cW - bW - gap;
         break;
@@ -348,11 +462,11 @@
 
     if (productAreaW > 0 && productAreaH > 0) {
       const r = Math.min(productAreaW / productImg.width, productAreaH / productImg.height);
-      const pW = productImg.width * r;
-      const pH = productImg.height * r;
-      const pX = productAreaX + (productAreaW - pW) / 2;
-      const pY = productAreaY + (productAreaH - pH) / 2;
-      ctx.drawImage(productImg, pX, pY, pW, pH);
+      const pW = Math.round(productImg.width * r);
+      const pH = Math.round(productImg.height * r);
+      const pX = Math.round(productAreaX + (productAreaW - pW) / 2);
+      const pY = Math.round(productAreaY + (productAreaH - pH) / 2);
+      applyCorrections(ctx, productImg, pX, pY, pW, pH);
     }
 
     ctx.globalAlpha = bOpacity;
