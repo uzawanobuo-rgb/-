@@ -219,8 +219,10 @@
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, cW, cH);
 
+    // 自然な高さ = キャンバス幅に合わせたアスペクト比維持の高さ
+    const naturalH = bannerImg.height * (cW / bannerImg.width);
     const bRatio = parseInt(document.getElementById('banner-size').value) / 100;
-    const bHorig = bannerImg.height * bRatio;
+    const bHorig = naturalH * bRatio;
     const bWorig = bHorig * (bannerImg.width / bannerImg.height);
     const gap = parseInt(document.getElementById('banner-gap').value);
     const bOpacity = parseInt(document.getElementById('banner-opacity').value) / 100;
