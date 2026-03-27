@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>eBay バナー合成ツール</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    max-width: 900px;
+    margin: 30px auto;
+    padding: 0 20px;
+    background: #f5f5f5;
+  }
+  h1 { color: #333; }
+  .section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .section h2 { margin-top: 0; font-size: 1em; color: #555; }
+  label {
+    display: inline-block;
+    cursor: pointer;
+    background: #0064d2;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+  }
+  label:hover { background: #0053b3; }
+  input[type="file"] { display: none; }
+  .preview-wrap {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .preview-box {
+    text-align: center;
+    flex: 1;
+    min-width: 200px;
+  }
+  .preview-box p { margin: 5px 0; font-size: 0.85em; color: #777; }
+  .preview-box img {
+    max-width: 100%;
+    max-height: 250px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: block;
+    margin: 0 auto;
+  }
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: flex-end;
+  }
+  .control-group { display: flex; flex-direction: column; gap: 4px; }
+  .control-group label {
+    background: none;
+    color: #555;
+    padding: 0;
+    font-size: 0.85em;
+    cursor: default;
+  }
+  .control-group input[type="range"],
+  .control-group select {
+    width: 160px;
+  }
+  select {
+    padding: 6px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+  }
+  #btn-compose {
+    background: #e53238;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1em;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+  }
+  #btn-compose:hover { background: #c0272c; }
+  #btn-compose:disabled { background: #aaa; cursor: not-allowed; }
+  #btn-download {
+    background: #43a843;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 1em;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+    display: none;
+  }
+  #btn-download:hover { background: #369036; }
+  canvas {
+    max-width: 100%;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    display: block;
+    margin: 10px auto 0;
+  }
+  .range-val { font-size: 0.85em; color: #333; }
+</style>
+</head>
+<body>
+
+<h1>eBay バナー合成ツール</h1>
+
+<div class="section">
+  <h2>1. 画像をアップロード</h2>
+  <div class="preview-wrap">
+    <div class="preview-box">
+      <label for="input-product">商品画像を選択</label>
+      <input type="file" id="input-product" accept="image/*">
+      <p>商品画像</p>
+      <img id="prev-product" style="display:none">
+    </div>
+    <div class="preview-box">
+      <label for="input-banner">バナー画像を選択</label>
+      <input type="file" id="input-banner" accept="image/*">
+      <p>バナー画像</p>
+      <img id="prev-banner" style="display:none">
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>2. バナーの設定</h2>
+  <div class="controls">
+    <div class="control-group">
+      <label>位置</label>
+      <select id="position">
+        <option value="top-left">左上</option>
+        <option value="top-right">右上</option>
+        <option value="bottom-left">左下</option>
+        <option value="bottom-right" selected>右下</option>
+        <option value="center">中央</option>
+      </select>
+    </div>
+    <div class="control-group">
+      <label>バナーサイズ: <span id="size-val" class="range-val">40%</span></label>
+      <input type="range" id="banner-size" min="5" max="100" value="40">
+    </div>
+    <div class="control-group">
+      <label>透明度: <span id="opacity-val" class="range-val">100%</span></label>
+      <input type="range" id="banner-opacity" min="0" max="100" value="100">
+    </div>
+    <div class="control-group">
+      <label>余白(px): <span id="margin-val" class="range-val">10</span></label>
+      <input type="range" id="banner-margin" min="0" max="100" value="10">
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h2>3. 合成 &amp; ダウンロード</h2>
+  <button id="btn-compose">合成する</button>
+  <button id="btn-download">ダウンロード</button>
+  <canvas id="canvas" style="display:none"></canvas>
+</div>
+
+<script>
+  let productImg = null;
+  let bannerImg = null;
+
+  function loadImage(file, imgEl) {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          imgEl.src = e.target.result;
+          imgEl.style.display = 'block';
+          resolve(img);
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  document.getElementById('input-product').addEventListener('change', async (e) => {
+    if (e.target.files[0]) {
+      productImg = await loadImage(e.target.files[0], document.getElementById('prev-product'));
+    }
+  });
+
+  document.getElementById('input-banner').addEventListener('change', async (e) => {
+    if (e.target.files[0]) {
+      bannerImg = await loadImage(e.target.files[0], document.getElementById('prev-banner'));
+    }
+  });
+
+  document.getElementById('banner-size').addEventListener('input', (e) => {
+    document.getElementById('size-val').textContent = e.target.value + '%';
+  });
+  document.getElementById('banner-opacity').addEventListener('input', (e) => {
+    document.getElementById('opacity-val').textContent = e.target.value + '%';
+  });
+  document.getElementById('banner-margin').addEventListener('input', (e) => {
+    document.getElementById('margin-val').textContent = e.target.value;
+  });
+
+  document.getElementById('btn-compose').addEventListener('click', () => {
+    if (!productImg) { alert('商品画像をアップロードしてください'); return; }
+    if (!bannerImg) { alert('バナー画像をアップロードしてください'); return; }
+
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = productImg.width;
+    canvas.height = productImg.height;
+
+    // 商品画像を描画
+    ctx.drawImage(productImg, 0, 0);
+
+    // バナーサイズ計算（商品画像の幅に対する割合）
+    const sizeRatio = parseInt(document.getElementById('banner-size').value) / 100;
+    const bannerW = productImg.width * sizeRatio;
+    const bannerH = bannerW * (bannerImg.height / bannerImg.width);
+    const margin = parseInt(document.getElementById('banner-margin').value);
+    const opacity = parseInt(document.getElementById('banner-opacity').value) / 100;
+    const position = document.getElementById('position').value;
+
+    let x = 0, y = 0;
+    switch (position) {
+      case 'top-left':     x = margin; y = margin; break;
+      case 'top-right':    x = canvas.width - bannerW - margin; y = margin; break;
+      case 'bottom-left':  x = margin; y = canvas.height - bannerH - margin; break;
+      case 'bottom-right': x = canvas.width - bannerW - margin; y = canvas.height - bannerH - margin; break;
+      case 'center':       x = (canvas.width - bannerW) / 2; y = (canvas.height - bannerH) / 2; break;
+    }
+
+    ctx.globalAlpha = opacity;
+    ctx.drawImage(bannerImg, x, y, bannerW, bannerH);
+    ctx.globalAlpha = 1;
+
+    canvas.style.display = 'block';
+    document.getElementById('btn-download').style.display = 'inline-block';
+  });
+
+  document.getElementById('btn-download').addEventListener('click', () => {
+    const canvas = document.getElementById('canvas');
+    const a = document.createElement('a');
+    a.download = 'ebay_banner_' + Date.now() + '.png';
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  });
+</script>
+</body>
+</html>
