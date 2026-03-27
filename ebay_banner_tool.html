@@ -19,8 +19,8 @@
     margin-bottom: 20px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
-  .section h2 { margin-top: 0; font-size: 1em; color: #555; }
-  label {
+  .section h2 { margin-top: 0; font-size: 1em; color: #555; border-left: 4px solid #0064d2; padding-left: 8px; }
+  label.btn {
     display: inline-block;
     cursor: pointer;
     background: #0064d2;
@@ -29,21 +29,12 @@
     border-radius: 5px;
     margin-bottom: 10px;
   }
-  label:hover { background: #0053b3; }
+  label.btn:hover { background: #0053b3; }
   input[type="file"] { display: none; }
-  .preview-wrap {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-  }
-  .preview-box {
-    text-align: center;
-    flex: 1;
-    min-width: 200px;
-  }
+  .preview-box { text-align: center; }
   .preview-box img {
     max-width: 100%;
-    max-height: 250px;
+    max-height: 220px;
     border: 1px solid #ddd;
     border-radius: 4px;
     display: block;
@@ -57,19 +48,17 @@
     cursor: pointer;
     transition: background 0.2s;
   }
-  .drop-zone.dragover {
-    background: #e8f0fe;
-    border-color: #0053b3;
-  }
+  .drop-zone.dragover { background: #e8f0fe; border-color: #0053b3; }
   .drop-zone p { margin: 8px 0 0; font-size: 0.8em; color: #999; }
   .controls {
     display: flex;
     flex-wrap: wrap;
     gap: 15px;
     align-items: flex-end;
+    margin-top: 14px;
   }
   .control-group { display: flex; flex-direction: column; gap: 4px; }
-  .control-group label {
+  .control-group > label {
     background: none;
     color: #555;
     padding: 0;
@@ -77,14 +66,9 @@
     cursor: default;
   }
   .control-group input[type="range"],
-  .control-group select {
-    width: 160px;
-  }
-  select {
-    padding: 6px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-  }
+  .control-group select { width: 160px; }
+  select { padding: 6px; border-radius: 4px; border: 1px solid #ccc; }
+  .range-val { font-size: 0.85em; color: #333; }
   #btn-download {
     background: #aaa;
     color: white;
@@ -94,7 +78,7 @@
     border-radius: 5px;
     cursor: not-allowed;
   }
-  #btn-download:not(:disabled) { background: #43a843; cursor: pointer; }
+  #btn-download:not([disabled]) { background: #43a843; cursor: pointer; }
   canvas {
     max-width: 100%;
     border: 1px solid #ddd;
@@ -102,7 +86,6 @@
     display: block;
     margin: 10px auto 0;
   }
-  .range-val { font-size: 0.85em; color: #333; }
 </style>
 </head>
 <body>
@@ -110,33 +93,31 @@
 <h1>eBay バナー合成ツール</h1>
 
 <div class="section">
-  <h2>1. 画像をアップロード（クリックまたはドラッグ＆ドロップ）</h2>
-  <div class="preview-wrap">
-    <div class="preview-box">
-      <div class="drop-zone" id="drop-product">
-        <label for="input-product">商品画像を選択</label>
-        <input type="file" id="input-product" accept="image/*">
-        <p>またはここにドラッグ＆ドロップ</p>
-      </div>
-      <img id="prev-product" style="display:none; margin-top:10px;">
+  <h2>1. 商品画像</h2>
+  <div class="preview-box">
+    <div class="drop-zone" id="drop-product">
+      <label class="btn" for="input-product">商品画像を選択</label>
+      <input type="file" id="input-product" accept="image/*">
+      <p>またはここにドラッグ＆ドロップ</p>
     </div>
-    <div class="preview-box">
-      <div class="drop-zone" id="drop-banner">
-        <label for="input-banner">バナー画像を選択</label>
-        <input type="file" id="input-banner" accept="image/*">
-        <p>またはここにドラッグ＆ドロップ</p>
-      </div>
-      <img id="prev-banner" style="display:none; margin-top:10px;">
-    </div>
+    <img id="prev-product" style="display:none; margin-top:10px;">
   </div>
 </div>
 
 <div class="section">
-  <h2>2. バナーの設定</h2>
+  <h2>2. バナー（商品画像の外側に配置）</h2>
+  <div class="preview-box">
+    <div class="drop-zone" id="drop-banner">
+      <label class="btn" for="input-banner">バナー画像を選択</label>
+      <input type="file" id="input-banner" accept="image/*">
+      <p>またはここにドラッグ＆ドロップ</p>
+    </div>
+    <img id="prev-banner" style="display:none; margin-top:10px;">
+  </div>
   <div class="controls">
     <div class="control-group">
       <label>位置</label>
-      <select id="position">
+      <select id="banner-position">
         <option value="top">上</option>
         <option value="bottom" selected>下</option>
         <option value="left">左</option>
@@ -144,16 +125,16 @@
       </select>
     </div>
     <div class="control-group">
-      <label>バナーの高さ: <span id="size-val" class="range-val">100%</span></label>
+      <label>高さ: <span id="banner-size-val" class="range-val">100%</span></label>
       <input type="range" id="banner-size" min="10" max="200" value="100">
     </div>
     <div class="control-group">
-      <label>透明度: <span id="opacity-val" class="range-val">100%</span></label>
+      <label>透明度: <span id="banner-opacity-val" class="range-val">100%</span></label>
       <input type="range" id="banner-opacity" min="0" max="100" value="100">
     </div>
     <div class="control-group">
-      <label>すき間(px): <span id="margin-val" class="range-val">0</span></label>
-      <input type="range" id="banner-margin" min="0" max="100" value="0">
+      <label>すき間(px): <span id="banner-gap-val" class="range-val">0</span></label>
+      <input type="range" id="banner-gap" min="0" max="100" value="0">
     </div>
   </div>
 </div>
@@ -179,8 +160,7 @@
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          imgEl.src = e.target.result;
-          imgEl.style.display = 'block';
+          if (imgEl) { imgEl.src = e.target.result; imgEl.style.display = 'block'; }
           resolve(img);
         };
         img.src = e.target.result;
@@ -189,25 +169,20 @@
     });
   }
 
-  function setupDrop(dropZoneId, inputId, imgElId, onLoad) {
-    const zone = document.getElementById(dropZoneId);
+  function setupDrop(dropId, inputId, previewId, onLoad) {
+    const zone = document.getElementById(dropId);
     const input = document.getElementById(inputId);
-    const imgEl = document.getElementById(imgElId);
-
+    const imgEl = previewId ? document.getElementById(previewId) : null;
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
     zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
     zone.addEventListener('drop', async (e) => {
       e.preventDefault();
       zone.classList.remove('dragover');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) {
-        onLoad(await loadImage(file, imgEl));
-      }
+      if (file && file.type.startsWith('image/')) onLoad(await loadImage(file, imgEl));
     });
     input.addEventListener('change', async (e) => {
-      if (e.target.files[0]) {
-        onLoad(await loadImage(e.target.files[0], imgEl));
-      }
+      if (e.target.files[0]) onLoad(await loadImage(e.target.files[0], imgEl));
     });
   }
 
@@ -215,95 +190,87 @@
   setupDrop('drop-banner', 'input-banner', 'prev-banner', (img) => {
     bannerImg = img;
     document.getElementById('banner-size').value = 100;
-    document.getElementById('size-val').textContent = '100%';
+    document.getElementById('banner-size-val').textContent = '100%';
     updatePreview();
   });
 
-  document.getElementById('banner-size').addEventListener('input', (e) => {
-    document.getElementById('size-val').textContent = e.target.value + '%';
-    updatePreview();
+  [
+    ['banner-size', 'banner-size-val', '%'],
+    ['banner-opacity', 'banner-opacity-val', '%'],
+    ['banner-gap', 'banner-gap-val', ''],
+  ].forEach(([id, valId, unit]) => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      document.getElementById(valId).textContent = e.target.value + unit;
+      updatePreview();
+    });
   });
-  document.getElementById('banner-opacity').addEventListener('input', (e) => {
-    document.getElementById('opacity-val').textContent = e.target.value + '%';
-    updatePreview();
-  });
-  document.getElementById('banner-margin').addEventListener('input', (e) => {
-    document.getElementById('margin-val').textContent = e.target.value;
-    updatePreview();
-  });
-  document.getElementById('position').addEventListener('change', updatePreview);
+  document.getElementById('banner-position').addEventListener('change', updatePreview);
 
   function updatePreview() {
     if (!productImg || !bannerImg) return;
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-
     const cW = productImg.width;
     const cH = productImg.height;
     canvas.width = cW;
     canvas.height = cH;
 
-    const heightRatio = parseInt(document.getElementById('banner-size').value) / 100;
-    const bannerH = bannerImg.height * heightRatio;
-    const bannerW = bannerH * (bannerImg.width / bannerImg.height);
-    const gap = parseInt(document.getElementById('banner-margin').value);
-    const opacity = parseInt(document.getElementById('banner-opacity').value) / 100;
-    const position = document.getElementById('position').value;
-
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, cW, cH);
 
-    let productAreaX, productAreaY, productAreaW, productAreaH;
-    let bannerX, bannerY, drawBannerW, drawBannerH;
+    const bRatio = parseInt(document.getElementById('banner-size').value) / 100;
+    const bHorig = bannerImg.height * bRatio;
+    const bWorig = bHorig * (bannerImg.width / bannerImg.height);
+    const gap = parseInt(document.getElementById('banner-gap').value);
+    const bOpacity = parseInt(document.getElementById('banner-opacity').value) / 100;
+    const pos = document.getElementById('banner-position').value;
 
-    switch (position) {
+    let productAreaX = 0, productAreaY = 0, productAreaW = cW, productAreaH = cH;
+    let bX, bY, bW, bH;
+
+    switch (pos) {
       case 'top':
-        drawBannerH = Math.min(bannerH, cH - gap);
-        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
-        bannerX = (cW - drawBannerW) / 2;
-        bannerY = 0;
-        productAreaX = 0; productAreaY = drawBannerH + gap;
-        productAreaW = cW; productAreaH = cH - drawBannerH - gap;
+        bH = Math.min(bHorig, cH - gap);
+        bW = bH * (bannerImg.width / bannerImg.height);
+        bX = (cW - bW) / 2; bY = 0;
+        productAreaY = bH + gap;
+        productAreaH = cH - bH - gap;
         break;
       case 'bottom':
-        drawBannerH = Math.min(bannerH, cH - gap);
-        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
-        bannerX = (cW - drawBannerW) / 2;
-        bannerY = cH - drawBannerH;
-        productAreaX = 0; productAreaY = 0;
-        productAreaW = cW; productAreaH = cH - drawBannerH - gap;
+        bH = Math.min(bHorig, cH - gap);
+        bW = bH * (bannerImg.width / bannerImg.height);
+        bX = (cW - bW) / 2; bY = cH - bH;
+        productAreaH = cH - bH - gap;
         break;
       case 'left':
-        drawBannerH = Math.min(bannerH, cH);
-        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
-        bannerX = 0;
-        bannerY = (cH - drawBannerH) / 2;
-        productAreaX = drawBannerW + gap; productAreaY = 0;
-        productAreaW = cW - drawBannerW - gap; productAreaH = cH;
+        bH = Math.min(bHorig, cH);
+        bW = bH * (bannerImg.width / bannerImg.height);
+        bX = 0; bY = (cH - bH) / 2;
+        productAreaX = bW + gap;
+        productAreaW = cW - bW - gap;
         break;
       case 'right':
-        drawBannerH = Math.min(bannerH, cH);
-        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
-        bannerX = cW - drawBannerW;
-        bannerY = (cH - drawBannerH) / 2;
-        productAreaX = 0; productAreaY = 0;
-        productAreaW = cW - drawBannerW - gap; productAreaH = cH;
+        bH = Math.min(bHorig, cH);
+        bW = bH * (bannerImg.width / bannerImg.height);
+        bX = cW - bW; bY = (cH - bH) / 2;
+        productAreaW = cW - bW - gap;
         break;
     }
 
-    // 商品画像を縦横比維持でエリア内に収める
+    // 商品画像：縦横比維持でエリア内に収める
     if (productAreaW > 0 && productAreaH > 0) {
-      const ratio = Math.min(productAreaW / productImg.width, productAreaH / productImg.height);
-      const pW = productImg.width * ratio;
-      const pH = productImg.height * ratio;
+      const r = Math.min(productAreaW / productImg.width, productAreaH / productImg.height);
+      const pW = productImg.width * r;
+      const pH = productImg.height * r;
       const pX = productAreaX + (productAreaW - pW) / 2;
       const pY = productAreaY + (productAreaH - pH) / 2;
       ctx.drawImage(productImg, pX, pY, pW, pH);
     }
 
-    ctx.globalAlpha = opacity;
-    ctx.drawImage(bannerImg, bannerX, bannerY, drawBannerW, drawBannerH);
+    // バナー描画
+    ctx.globalAlpha = bOpacity;
+    ctx.drawImage(bannerImg, bX, bY, bW, bH);
     ctx.globalAlpha = 1;
 
     canvas.style.display = 'block';
@@ -315,7 +282,7 @@
     if (!productImg || !bannerImg) return;
     const canvas = document.getElementById('canvas');
     const a = document.createElement('a');
-    a.download = 'ebay_banner_' + Date.now() + '.png';
+    a.download = 'ebay_' + Date.now() + '.png';
     a.href = canvas.toDataURL('image/png');
     a.click();
   });
