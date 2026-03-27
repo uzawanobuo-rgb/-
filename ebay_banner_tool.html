@@ -225,44 +225,46 @@
 
     const pos = document.getElementById('banner-position').value;
     const bRatio = parseInt(document.getElementById('banner-size').value) / 100;
-
-    // 上・下：幅=キャンバス幅基準、左・右：高さ=キャンバス高さ基準
-    const isVertical = (pos === 'top' || pos === 'bottom');
-    const naturalH = isVertical
-      ? bannerImg.height * (cW / bannerImg.width)   // 幅いっぱいにしたときの自然な高さ
-      : cH;                                          // 高さいっぱい
-    const bHorig = isVertical ? naturalH * bRatio : naturalH * bRatio;
-    const bWorig = bHorig * (bannerImg.width / bannerImg.height);
     const gap = parseInt(document.getElementById('banner-gap').value);
     const bOpacity = parseInt(document.getElementById('banner-opacity').value) / 100;
+    const isHorizontal = (pos === 'top' || pos === 'bottom');
+
+    // 上・下：キャンバス幅いっぱいに伸ばしたときの自然な高さを基準にスライダー調整
+    // 左・右：キャンバス高さいっぱいにしたときの自然な幅を基準にスライダー調整
+    let naturalH, naturalW;
+    if (isHorizontal) {
+      naturalH = bannerImg.height * (cW / bannerImg.width);
+    } else {
+      naturalW = bannerImg.width * (cH / bannerImg.height);
+    }
 
     let productAreaX = 0, productAreaY = 0, productAreaW = cW, productAreaH = cH;
     let bX, bY, bW, bH;
 
     switch (pos) {
       case 'top':
-        bH = Math.min(bHorig, cH - gap);
-        bW = cW; // キャンバス幅いっぱい
+        bH = Math.min(naturalH * bRatio, cH - gap);
+        bW = cW;
         bX = 0; bY = 0;
         productAreaY = bH + gap;
         productAreaH = cH - bH - gap;
         break;
       case 'bottom':
-        bH = Math.min(bHorig, cH - gap);
-        bW = cW; // キャンバス幅いっぱい
+        bH = Math.min(naturalH * bRatio, cH - gap);
+        bW = cW;
         bX = 0; bY = cH - bH;
         productAreaH = cH - bH - gap;
         break;
       case 'left':
+        bW = Math.min(naturalW * bRatio, cW - gap);
         bH = cH;
-        bW = Math.min(bWorig, cW - gap);
         bX = 0; bY = 0;
         productAreaX = bW + gap;
         productAreaW = cW - bW - gap;
         break;
       case 'right':
+        bW = Math.min(naturalW * bRatio, cW - gap);
         bH = cH;
-        bW = Math.min(bWorig, cW - gap);
         bX = cW - bW; bY = 0;
         productAreaW = cW - bW - gap;
         break;
