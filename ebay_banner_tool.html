@@ -109,19 +109,26 @@
   .controls {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
     margin-top: 6px;
   }
-  .control-group { display: flex; flex-direction: column; gap: 2px; }
+  .control-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .control-group > label {
     background: none;
     color: #555;
     padding: 0;
     font-size: 0.8em;
     cursor: default;
+    white-space: nowrap;
+    width: 110px;
+    flex-shrink: 0;
   }
   .control-group input[type="range"],
-  .control-group select { width: 100%; }
+  .control-group select { flex: 1; }
   select { padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85em; }
   .range-val { font-size: 0.8em; color: #333; }
   #btn-download {
