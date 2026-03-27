@@ -239,6 +239,11 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
+    const cW = productImg.width;
+    const cH = productImg.height;
+    canvas.width = cW;
+    canvas.height = cH;
+
     const heightRatio = parseInt(document.getElementById('banner-size').value) / 100;
     const bannerH = bannerImg.height * heightRatio;
     const bannerW = bannerH * (bannerImg.width / bannerImg.height);
@@ -246,63 +251,64 @@
     const opacity = parseInt(document.getElementById('banner-opacity').value) / 100;
     const position = document.getElementById('position').value;
 
-    const pW = productImg.width;
-    const pH = productImg.height;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cW, cH);
 
-    let canvasW, canvasH, productX, productY, bannerX, bannerY;
+    let productAreaX, productAreaY, productAreaW, productAreaH;
+    let bannerX, bannerY, drawBannerW, drawBannerH;
 
     switch (position) {
       case 'top':
-        canvasW = Math.max(pW, bannerW);
-        canvasH = pH + gap + bannerH;
-        productX = Math.round((canvasW - pW) / 2);
-        productY = Math.round(bannerH + gap);
-        bannerX = Math.round((canvasW - bannerW) / 2);
+        drawBannerH = Math.min(bannerH, cH - gap);
+        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
+        bannerX = (cW - drawBannerW) / 2;
         bannerY = 0;
+        productAreaX = 0; productAreaY = drawBannerH + gap;
+        productAreaW = cW; productAreaH = cH - drawBannerH - gap;
         break;
       case 'bottom':
-        canvasW = Math.max(pW, bannerW);
-        canvasH = pH + gap + bannerH;
-        productX = Math.round((canvasW - pW) / 2);
-        productY = 0;
-        bannerX = Math.round((canvasW - bannerW) / 2);
-        bannerY = pH + gap;
+        drawBannerH = Math.min(bannerH, cH - gap);
+        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
+        bannerX = (cW - drawBannerW) / 2;
+        bannerY = cH - drawBannerH;
+        productAreaX = 0; productAreaY = 0;
+        productAreaW = cW; productAreaH = cH - drawBannerH - gap;
         break;
       case 'left':
-        canvasW = pW + gap + bannerW;
-        canvasH = Math.max(pH, bannerH);
-        productX = Math.round(bannerW + gap);
-        productY = Math.round((canvasH - pH) / 2);
+        drawBannerH = Math.min(bannerH, cH);
+        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
         bannerX = 0;
-        bannerY = Math.round((canvasH - bannerH) / 2);
+        bannerY = (cH - drawBannerH) / 2;
+        productAreaX = drawBannerW + gap; productAreaY = 0;
+        productAreaW = cW - drawBannerW - gap; productAreaH = cH;
         break;
       case 'right':
-        canvasW = pW + gap + bannerW;
-        canvasH = Math.max(pH, bannerH);
-        productX = 0;
-        productY = Math.round((canvasH - pH) / 2);
-        bannerX = pW + gap;
-        bannerY = Math.round((canvasH - bannerH) / 2);
+        drawBannerH = Math.min(bannerH, cH);
+        drawBannerW = drawBannerH * (bannerImg.width / bannerImg.height);
+        bannerX = cW - drawBannerW;
+        bannerY = (cH - drawBannerH) / 2;
+        productAreaX = 0; productAreaY = 0;
+        productAreaW = cW - drawBannerW - gap; productAreaH = cH;
         break;
     }
 
-    canvas.width = Math.round(canvasW);
-    canvas.height = Math.round(canvasH);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.drawImage(productImg, productX, productY, pW, pH);
+    // 商品画像を縦横比維持でエリア内に収める
+    if (productAreaW > 0 && productAreaH > 0) {
+      const ratio = Math.min(productAreaW / productImg.width, productAreaH / productImg.height);
+      const pW = productImg.width * ratio;
+      const pH = productImg.height * ratio;
+      const pX = productAreaX + (productAreaW - pW) / 2;
+      const pY = productAreaY + (productAreaH - pH) / 2;
+      ctx.drawImage(productImg, pX, pY, pW, pH);
+    }
 
     ctx.globalAlpha = opacity;
-    ctx.drawImage(bannerImg, bannerX, bannerY, Math.round(bannerW), Math.round(bannerH));
+    ctx.drawImage(bannerImg, bannerX, bannerY, drawBannerW, drawBannerH);
     ctx.globalAlpha = 1;
 
     canvas.style.display = 'block';
     document.getElementById('preview-hint').style.display = 'none';
-
-    const btn = document.getElementById('btn-download');
-    btn.disabled = false;
+    document.getElementById('btn-download').disabled = false;
   }
 
   document.getElementById('btn-download').addEventListener('click', () => {
