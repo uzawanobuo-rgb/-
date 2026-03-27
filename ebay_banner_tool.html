@@ -50,6 +50,19 @@
     display: block;
     margin: 0 auto;
   }
+  .drop-zone {
+    border: 2px dashed #0064d2;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .drop-zone.dragover {
+    background: #e8f0fe;
+    border-color: #0053b3;
+  }
+  .drop-zone p { margin: 8px 0 0; font-size: 0.8em; color: #999; }
   .controls {
     display: flex;
     flex-wrap: wrap;
@@ -112,19 +125,23 @@
 <h1>eBay バナー合成ツール</h1>
 
 <div class="section">
-  <h2>1. 画像をアップロード</h2>
+  <h2>1. 画像をアップロード（クリックまたはドラッグ＆ドロップ）</h2>
   <div class="preview-wrap">
     <div class="preview-box">
-      <label for="input-product">商品画像を選択</label>
-      <input type="file" id="input-product" accept="image/*">
-      <p>商品画像</p>
-      <img id="prev-product" style="display:none">
+      <div class="drop-zone" id="drop-product">
+        <label for="input-product">商品画像を選択</label>
+        <input type="file" id="input-product" accept="image/*">
+        <p>またはここにドラッグ＆ドロップ</p>
+      </div>
+      <img id="prev-product" style="display:none; margin-top:10px;">
     </div>
     <div class="preview-box">
-      <label for="input-banner">バナー画像を選択</label>
-      <input type="file" id="input-banner" accept="image/*">
-      <p>バナー画像</p>
-      <img id="prev-banner" style="display:none">
+      <div class="drop-zone" id="drop-banner">
+        <label for="input-banner">バナー画像を選択</label>
+        <input type="file" id="input-banner" accept="image/*">
+        <p>またはここにドラッグ＆ドロップ</p>
+      </div>
+      <img id="prev-banner" style="display:none; margin-top:10px;">
     </div>
   </div>
 </div>
@@ -158,10 +175,14 @@
 </div>
 
 <div class="section">
-  <h2>3. 合成 &amp; ダウンロード</h2>
-  <button id="btn-compose">合成する</button>
-  <button id="btn-download">ダウンロード</button>
-  <canvas id="canvas" style="display:none"></canvas>
+  <h2>3. プレビュー</h2>
+  <canvas id="canvas" style="display:none; max-width:100%;"></canvas>
+  <p id="preview-hint" style="color:#aaa; font-size:0.85em;">画像を両方アップロードすると自動でプレビューされます</p>
+</div>
+
+<div class="section">
+  <h2>4. ダウンロード</h2>
+  <button id="btn-download" disabled style="background:#aaa; color:white; border:none; padding:12px 30px; font-size:1em; border-radius:5px; cursor:not-allowed;">ダウンロード</button>
 </div>
 
 <script>
@@ -184,42 +205,57 @@
     });
   }
 
-  document.getElementById('input-product').addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      productImg = await loadImage(e.target.files[0], document.getElementById('prev-product'));
-    }
-  });
+  function setupDrop(dropZoneId, inputId, imgElId, onLoad) {
+    const zone = document.getElementById(dropZoneId);
+    const input = document.getElementById(inputId);
+    const imgEl = document.getElementById(imgElId);
 
-  document.getElementById('input-banner').addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      bannerImg = await loadImage(e.target.files[0], document.getElementById('prev-banner'));
-    }
-  });
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) {
+        const img = await loadImage(file, imgEl);
+        onLoad(img);
+      }
+    });
+    input.addEventListener('change', async (e) => {
+      if (e.target.files[0]) {
+        const img = await loadImage(e.target.files[0], imgEl);
+        onLoad(img);
+      }
+    });
+  }
+
+  setupDrop('drop-product', 'input-product', 'prev-product', (img) => { productImg = img; updatePreview(); });
+  setupDrop('drop-banner', 'input-banner', 'prev-banner', (img) => { bannerImg = img; updatePreview(); });
 
   document.getElementById('banner-size').addEventListener('input', (e) => {
     document.getElementById('size-val').textContent = e.target.value + '%';
+    updatePreview();
   });
   document.getElementById('banner-opacity').addEventListener('input', (e) => {
     document.getElementById('opacity-val').textContent = e.target.value + '%';
+    updatePreview();
   });
   document.getElementById('banner-margin').addEventListener('input', (e) => {
     document.getElementById('margin-val').textContent = e.target.value;
+    updatePreview();
   });
+  document.getElementById('position').addEventListener('change', updatePreview);
 
-  document.getElementById('btn-compose').addEventListener('click', () => {
-    if (!productImg) { alert('商品画像をアップロードしてください'); return; }
-    if (!bannerImg) { alert('バナー画像をアップロードしてください'); return; }
+  function updatePreview() {
+    if (!productImg || !bannerImg) return;
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
     canvas.width = productImg.width;
     canvas.height = productImg.height;
-
-    // 商品画像を描画
     ctx.drawImage(productImg, 0, 0);
 
-    // バナーサイズ計算（商品画像の幅に対する割合）
     const sizeRatio = parseInt(document.getElementById('banner-size').value) / 100;
     const bannerW = productImg.width * sizeRatio;
     const bannerH = bannerW * (bannerImg.height / bannerImg.width);
@@ -241,10 +277,16 @@
     ctx.globalAlpha = 1;
 
     canvas.style.display = 'block';
-    document.getElementById('btn-download').style.display = 'inline-block';
-  });
+    document.getElementById('preview-hint').style.display = 'none';
+
+    const btn = document.getElementById('btn-download');
+    btn.disabled = false;
+    btn.style.background = '#43a843';
+    btn.style.cursor = 'pointer';
+  }
 
   document.getElementById('btn-download').addEventListener('click', () => {
+    if (!productImg || !bannerImg) return;
     const canvas = document.getElementById('canvas');
     const a = document.createElement('a');
     a.download = 'ebay_banner_' + Date.now() + '.png';
