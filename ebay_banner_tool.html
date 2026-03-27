@@ -232,28 +232,28 @@
     switch (pos) {
       case 'top':
         bH = Math.min(bHorig, cH - gap);
-        bW = bH * (bannerImg.width / bannerImg.height);
-        bX = (cW - bW) / 2; bY = 0;
+        bW = cW; // キャンバス幅いっぱい
+        bX = 0; bY = 0;
         productAreaY = bH + gap;
         productAreaH = cH - bH - gap;
         break;
       case 'bottom':
         bH = Math.min(bHorig, cH - gap);
-        bW = bH * (bannerImg.width / bannerImg.height);
-        bX = (cW - bW) / 2; bY = cH - bH;
+        bW = cW; // キャンバス幅いっぱい
+        bX = 0; bY = cH - bH;
         productAreaH = cH - bH - gap;
         break;
       case 'left':
-        bH = Math.min(bHorig, cH);
-        bW = bH * (bannerImg.width / bannerImg.height);
-        bX = 0; bY = (cH - bH) / 2;
+        bH = cH; // キャンバス高さいっぱい
+        bW = Math.min(bWorig, cW - gap);
+        bX = 0; bY = 0;
         productAreaX = bW + gap;
         productAreaW = cW - bW - gap;
         break;
       case 'right':
-        bH = Math.min(bHorig, cH);
-        bW = bH * (bannerImg.width / bannerImg.height);
-        bX = cW - bW; bY = (cH - bH) / 2;
+        bH = cH; // キャンバス高さいっぱい
+        bW = Math.min(bWorig, cW - gap);
+        bX = cW - bW; bY = 0;
         productAreaW = cW - bW - gap;
         break;
     }
