@@ -93,27 +93,31 @@
 <h1>eBay バナー合成ツール</h1>
 
 <div class="section">
-  <h2>1. 商品画像</h2>
-  <div class="preview-box">
-    <div class="drop-zone" id="drop-product">
-      <label class="btn" for="input-product">商品画像を選択</label>
-      <input type="file" id="input-product" accept="image/*">
-      <p>またはここにドラッグ＆ドロップ</p>
+  <h2>1. 画像を選択</h2>
+  <div style="display:flex; gap:20px; flex-wrap:wrap;">
+    <div style="flex:1; min-width:200px;">
+      <p style="margin:0 0 8px; font-size:0.85em; color:#555;">商品画像</p>
+      <div class="drop-zone" id="drop-product">
+        <label class="btn" for="input-product">商品画像を選択</label>
+        <input type="file" id="input-product" accept="image/*">
+        <p>またはドラッグ＆ドロップ</p>
+      </div>
+      <img id="prev-product" style="display:none; margin-top:10px; max-width:100%; max-height:200px;">
     </div>
-    <img id="prev-product" style="display:none; margin-top:10px;">
+    <div style="flex:1; min-width:200px;">
+      <p style="margin:0 0 8px; font-size:0.85em; color:#555;">バナー画像</p>
+      <div class="drop-zone" id="drop-banner">
+        <label class="btn" for="input-banner">バナー画像を選択</label>
+        <input type="file" id="input-banner" accept="image/*">
+        <p>またはドラッグ＆ドロップ</p>
+      </div>
+      <img id="prev-banner" style="display:none; margin-top:10px; max-width:100%; max-height:200px;">
+    </div>
   </div>
 </div>
 
 <div class="section">
-  <h2>2. バナー（商品画像の外側に配置）</h2>
-  <div class="preview-box">
-    <div class="drop-zone" id="drop-banner">
-      <label class="btn" for="input-banner">バナー画像を選択</label>
-      <input type="file" id="input-banner" accept="image/*">
-      <p>またはここにドラッグ＆ドロップ</p>
-    </div>
-    <img id="prev-banner" style="display:none; margin-top:10px;">
-  </div>
+  <h2>2. バナーの設定</h2>
   <div class="controls">
     <div class="control-group">
       <label>位置</label>
