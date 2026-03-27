@@ -108,21 +108,20 @@
   }
   .controls {
     display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: flex-end;
+    flex-direction: column;
+    gap: 12px;
     margin-top: 10px;
   }
-  .control-group { display: flex; flex-direction: column; gap: 3px; }
+  .control-group { display: flex; flex-direction: column; gap: 4px; }
   .control-group > label {
     background: none;
     color: #555;
     padding: 0;
-    font-size: 0.8em;
+    font-size: 0.85em;
     cursor: default;
   }
   .control-group input[type="range"],
-  .control-group select { width: 130px; }
+  .control-group select { width: 100%; }
   select { padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85em; }
   .range-val { font-size: 0.8em; color: #333; }
   #btn-download {
