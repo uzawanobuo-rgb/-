@@ -244,6 +244,7 @@
             <input type="range" id="corr-black" min="0" max="128" value="0">
           </div>
         </div>
+        <button id="btn-reset-correction" style="margin-top:10px; width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; background:#f5f5f5; cursor:pointer; font-size:0.85em;">リセット</button>
       </div>
     </div>
 
@@ -477,6 +478,21 @@
     document.getElementById('preview-hint').style.display = 'none';
     document.getElementById('btn-download').disabled = false;
   }
+
+  document.getElementById('btn-reset-correction').addEventListener('click', () => {
+    [
+      ['corr-brightness', 'corr-brightness-val', '0'],
+      ['corr-contrast',   'corr-contrast-val',   '0'],
+      ['corr-highlights', 'corr-highlights-val',  '0'],
+      ['corr-shadows',    'corr-shadows-val',     '0'],
+      ['corr-white',      'corr-white-val',       '255'],
+      ['corr-black',      'corr-black-val',       '0'],
+    ].forEach(([id, valId, def]) => {
+      document.getElementById(id).value = def;
+      document.getElementById(valId).textContent = def;
+    });
+    updatePreview();
+  });
 
   document.getElementById('btn-download').addEventListener('click', () => {
     if (!productImg || !bannerImg) return;
