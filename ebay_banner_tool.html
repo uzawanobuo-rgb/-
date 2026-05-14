@@ -278,12 +278,13 @@
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
+        const dataUrl = e.target.result;
         const img = new Image();
         img.onload = () => {
-          if (imgEl) { imgEl.src = e.target.result; imgEl.style.display = 'block'; }
-          resolve(img);
+          if (imgEl) { imgEl.src = dataUrl; imgEl.style.display = 'block'; }
+          resolve({ img, dataUrl });
         };
-        img.src = e.target.result;
+        img.src = dataUrl;
       };
       reader.readAsDataURL(file);
     });
@@ -299,10 +300,16 @@
       e.preventDefault();
       zone.classList.remove('dragover');
       const file = e.dataTransfer.files[0];
-      if (file && file.type.startsWith('image/')) onLoad(await loadImage(file, imgEl));
+      if (file && file.type.startsWith('image/')) {
+        const { img, dataUrl } = await loadImage(file, imgEl);
+        onLoad(img, dataUrl);
+      }
     });
     input.addEventListener('change', async (e) => {
-      if (e.target.files[0]) onLoad(await loadImage(e.target.files[0], imgEl));
+      if (e.target.files[0]) {
+        const { img, dataUrl } = await loadImage(e.target.files[0], imgEl);
+        onLoad(img, dataUrl);
+      }
     });
   }
 
@@ -311,11 +318,28 @@
     document.getElementById('hint-product').style.display = 'none';
     updatePreview();
   });
-  setupDrop('drop-banner', 'input-banner', 'prev-banner', (img) => {
+
+  setupDrop('drop-banner', 'input-banner', 'prev-banner', (img, dataUrl) => {
     bannerImg = img;
     document.getElementById('hint-banner').style.display = 'none';
+    localStorage.setItem('savedBanner', dataUrl);
     updatePreview();
   });
+
+  // 前回のバナーを復元
+  const savedBanner = localStorage.getItem('savedBanner');
+  if (savedBanner) {
+    const imgEl = document.getElementById('prev-banner');
+    const img = new Image();
+    img.onload = () => {
+      imgEl.src = savedBanner;
+      imgEl.style.display = 'block';
+      document.getElementById('hint-banner').style.display = 'none';
+      bannerImg = img;
+      updatePreview();
+    };
+    img.src = savedBanner;
+  }
 
   [
     ['banner-size', 'banner-size-val', '%'],
