@@ -4,169 +4,275 @@
 <meta charset="UTF-8">
 <title>eBay バナー合成ツール</title>
 <style>
+  * { box-sizing: border-box; }
   body {
     font-family: Arial, sans-serif;
-    max-width: 900px;
-    margin: 30px auto;
-    padding: 0 20px;
+    margin: 0;
+    padding: 10px 16px;
     background: #f5f5f5;
+    height: 100vh;
+    overflow: hidden;
   }
-  h1 { color: #333; }
+  h1 { margin: 0 0 8px; font-size: 1.1em; color: #333; }
+  .app {
+    display: flex;
+    gap: 12px;
+    height: calc(100vh - 46px);
+  }
+  .left-panel {
+    width: 40%;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+  }
+  .right-panel {
+    flex: 1;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .right-panel h2 {
+    margin: 0;
+    padding: 10px 16px;
+    font-size: 0.9em;
+    color: #555;
+    border-left: 4px solid #0064d2;
+    border-bottom: 1px solid #eee;
+  }
+  .preview-area {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: #f9f9f9;
+  }
   .section {
     background: #fff;
     border-radius: 8px;
-    padding: 20px;
-    margin-bottom: 20px;
+    padding: 10px 12px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
   }
-  .section h2 { margin-top: 0; font-size: 1em; color: #555; }
-  label {
+  .section h2 { margin: 0 0 8px; font-size: 0.85em; color: #555; border-left: 4px solid #0064d2; padding-left: 8px; }
+  label.btn {
     display: inline-block;
     cursor: pointer;
     background: #0064d2;
     color: white;
-    padding: 10px 20px;
+    padding: 8px 16px;
     border-radius: 5px;
+    font-size: 0.85em;
+    margin-bottom: 0;
+  }
+  label.btn:hover { background: #0053b3; }
+  input[type="file"] { display: none; }
+  .upload-row { display: flex; gap: 12px; }
+  .upload-col { flex: 1; }
+  .upload-col > p { margin: 0 0 6px; font-size: 0.8em; color: #555; }
+  .drop-zone {
+    border: 2px dashed #0064d2;
+    border-radius: 8px;
+    padding: 8px;
+    cursor: pointer;
+    transition: background 0.2s;
+    height: 160px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    overflow: hidden;
+  }
+  .drop-zone.dragover { background: #e8f0fe; border-color: #0053b3; }
+  .drop-zone label.btn { text-align: center; }
+  .drop-zone p { margin: 0; font-size: 0.75em; color: #999; text-align: center; }
+  .thumb {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    object-fit: contain;
+    display: none;
+    border-radius: 4px;
+  }
+
+  /* タブ */
+  .tab-bar {
+    display: flex;
+    border-bottom: 2px solid #e0e0e0;
     margin-bottom: 10px;
   }
-  label:hover { background: #0053b3; }
-  input[type="file"] { display: none; }
-  .preview-wrap {
-    display: flex;
-    gap: 20px;
-    flex-wrap: wrap;
-  }
-  .preview-box {
-    text-align: center;
+  .tab-btn {
     flex: 1;
-    min-width: 200px;
+    padding: 6px;
+    border: none;
+    background: none;
+    font-size: 0.82em;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
   }
-  .preview-box p { margin: 5px 0; font-size: 0.85em; color: #777; }
-  .preview-box img {
-    max-width: 100%;
-    max-height: 250px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    display: block;
-    margin: 0 auto;
-  }
-  .controls {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
-    align-items: flex-end;
-  }
-  .control-group { display: flex; flex-direction: column; gap: 4px; }
-  .control-group label {
+  .tab-btn.active { color: #0064d2; border-bottom-color: #0064d2; font-weight: bold; }
+  .tab-content { display: none; min-height: 185px; }
+  .tab-content.active { display: block; }
+
+  .controls { display: flex; flex-direction: column; gap: 6px; }
+  .control-group { display: flex; align-items: center; gap: 8px; }
+  .control-group > label {
     background: none;
     color: #555;
     padding: 0;
-    font-size: 0.85em;
+    font-size: 0.8em;
     cursor: default;
+    white-space: nowrap;
+    width: 115px;
+    flex-shrink: 0;
   }
-  .control-group input[type="range"],
-  .control-group select {
-    width: 160px;
-  }
-  select {
-    padding: 6px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-  }
-  #btn-compose {
-    background: #e53238;
-    color: white;
-    border: none;
-    padding: 12px 30px;
-    font-size: 1em;
-    border-radius: 5px;
-    cursor: pointer;
-    margin-top: 10px;
-  }
-  #btn-compose:hover { background: #c0272c; }
-  #btn-compose:disabled { background: #aaa; cursor: not-allowed; }
+  .control-group input[type="range"], .control-group select { flex: 1; }
+  select { padding: 5px; border-radius: 4px; border: 1px solid #ccc; font-size: 0.85em; }
+  .range-val { font-size: 0.8em; color: #333; }
+
   #btn-download {
-    background: #43a843;
+    width: 100%;
+    background: #aaa;
     color: white;
     border: none;
-    padding: 12px 30px;
+    padding: 12px;
     font-size: 1em;
     border-radius: 5px;
-    cursor: pointer;
-    margin-top: 10px;
-    display: none;
+    cursor: not-allowed;
   }
-  #btn-download:hover { background: #369036; }
-  canvas {
-    max-width: 100%;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    display: block;
-    margin: 10px auto 0;
-  }
-  .range-val { font-size: 0.85em; color: #333; }
+  #btn-download:not([disabled]) { background: #43a843; cursor: pointer; }
+  canvas { max-width: 100%; max-height: 100%; border: 1px solid #ddd; border-radius: 4px; display: block; }
+  #preview-hint { color: #aaa; font-size: 0.85em; text-align: center; }
 </style>
 </head>
 <body>
 
 <h1>eBay バナー合成ツール</h1>
 
-<div class="section">
-  <h2>1. 画像をアップロード</h2>
-  <div class="preview-wrap">
-    <div class="preview-box">
-      <label for="input-product">商品画像を選択</label>
-      <input type="file" id="input-product" accept="image/*">
-      <p>商品画像</p>
-      <img id="prev-product" style="display:none">
+<div class="app">
+  <div class="left-panel">
+
+    <div class="section">
+      <h2>1. 画像を選択</h2>
+      <div class="upload-row">
+        <div class="upload-col">
+          <p>商品画像</p>
+          <div class="drop-zone" id="drop-product">
+            <label class="btn" for="input-product">選択</label>
+            <input type="file" id="input-product" accept="image/*">
+            <p id="hint-product">またはドロップ</p>
+            <img class="thumb" id="prev-product">
+          </div>
+        </div>
+        <div class="upload-col">
+          <p>バナー画像</p>
+          <div class="drop-zone" id="drop-banner">
+            <label class="btn" for="input-banner">選択</label>
+            <input type="file" id="input-banner" accept="image/*">
+            <p id="hint-banner">またはドロップ</p>
+            <img class="thumb" id="prev-banner">
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="preview-box">
-      <label for="input-banner">バナー画像を選択</label>
-      <input type="file" id="input-banner" accept="image/*">
-      <p>バナー画像</p>
-      <img id="prev-banner" style="display:none">
+
+    <div class="section">
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="banner">2. バナーの設定</button>
+        <button class="tab-btn" data-tab="correction">3. 画像補正</button>
+      </div>
+
+      <div class="tab-content active" id="tab-banner">
+        <div class="controls">
+          <div class="control-group">
+            <label>位置</label>
+            <select id="banner-position">
+              <option value="top">上</option>
+              <option value="bottom" selected>下</option>
+              <option value="left">左</option>
+              <option value="right">右</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label>高さ: <span id="banner-size-val" class="range-val">60%</span></label>
+            <input type="range" id="banner-size" min="10" max="200" value="60">
+          </div>
+          <div class="control-group">
+            <label>透明度: <span id="banner-opacity-val" class="range-val">80%</span></label>
+            <input type="range" id="banner-opacity" min="0" max="100" value="80">
+          </div>
+          <div class="control-group">
+            <label>すき間(px): <span id="banner-gap-val" class="range-val">0</span></label>
+            <input type="range" id="banner-gap" min="0" max="100" value="0">
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-content" id="tab-correction">
+        <div class="controls">
+          <div class="control-group">
+            <label>明るさ: <span id="corr-brightness-val" class="range-val">0</span></label>
+            <input type="range" id="corr-brightness" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>コントラスト: <span id="corr-contrast-val" class="range-val">0</span></label>
+            <input type="range" id="corr-contrast" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>ハイライト: <span id="corr-highlights-val" class="range-val">0</span></label>
+            <input type="range" id="corr-highlights" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>シャドウ: <span id="corr-shadows-val" class="range-val">0</span></label>
+            <input type="range" id="corr-shadows" min="-100" max="100" value="0">
+          </div>
+          <div class="control-group">
+            <label>ホワイトポイント: <span id="corr-white-val" class="range-val">255</span></label>
+            <input type="range" id="corr-white" min="128" max="255" value="255">
+          </div>
+          <div class="control-group">
+            <label>ブラックポイント: <span id="corr-black-val" class="range-val">0</span></label>
+            <input type="range" id="corr-black" min="0" max="128" value="0">
+          </div>
+        </div>
+        <button id="btn-reset-correction" style="margin-top:10px; width:100%; padding:6px; border:1px solid #ccc; border-radius:4px; background:#f5f5f5; cursor:pointer; font-size:0.85em;">リセット</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <button id="btn-download" disabled>ダウンロード</button>
+    </div>
+
+  </div>
+
+  <div class="right-panel">
+    <h2>プレビュー</h2>
+    <div class="preview-area">
+      <p id="preview-hint">画像を両方アップロードすると自動でプレビューされます</p>
+      <canvas id="canvas" style="display:none;"></canvas>
     </div>
   </div>
-</div>
-
-<div class="section">
-  <h2>2. バナーの設定</h2>
-  <div class="controls">
-    <div class="control-group">
-      <label>位置</label>
-      <select id="position">
-        <option value="top-left">左上</option>
-        <option value="top-right">右上</option>
-        <option value="bottom-left">左下</option>
-        <option value="bottom-right" selected>右下</option>
-        <option value="center">中央</option>
-      </select>
-    </div>
-    <div class="control-group">
-      <label>バナーサイズ: <span id="size-val" class="range-val">40%</span></label>
-      <input type="range" id="banner-size" min="5" max="100" value="40">
-    </div>
-    <div class="control-group">
-      <label>透明度: <span id="opacity-val" class="range-val">100%</span></label>
-      <input type="range" id="banner-opacity" min="0" max="100" value="100">
-    </div>
-    <div class="control-group">
-      <label>余白(px): <span id="margin-val" class="range-val">10</span></label>
-      <input type="range" id="banner-margin" min="0" max="100" value="10">
-    </div>
-  </div>
-</div>
-
-<div class="section">
-  <h2>3. 合成 &amp; ダウンロード</h2>
-  <button id="btn-compose">合成する</button>
-  <button id="btn-download">ダウンロード</button>
-  <canvas id="canvas" style="display:none"></canvas>
 </div>
 
 <script>
   let productImg = null;
   let bannerImg = null;
+
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    });
+  });
 
   function loadImage(file, imgEl) {
     return new Promise((resolve) => {
@@ -174,8 +280,7 @@
       reader.onload = (e) => {
         const img = new Image();
         img.onload = () => {
-          imgEl.src = e.target.result;
-          imgEl.style.display = 'block';
+          if (imgEl) { imgEl.src = e.target.result; imgEl.style.display = 'block'; }
           resolve(img);
         };
         img.src = e.target.result;
@@ -184,70 +289,199 @@
     });
   }
 
-  document.getElementById('input-product').addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      productImg = await loadImage(e.target.files[0], document.getElementById('prev-product'));
+  function setupDrop(dropId, inputId, previewId, onLoad) {
+    const zone = document.getElementById(dropId);
+    const input = document.getElementById(inputId);
+    const imgEl = previewId ? document.getElementById(previewId) : null;
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      zone.classList.remove('dragover');
+      const file = e.dataTransfer.files[0];
+      if (file && file.type.startsWith('image/')) onLoad(await loadImage(file, imgEl));
+    });
+    input.addEventListener('change', async (e) => {
+      if (e.target.files[0]) onLoad(await loadImage(e.target.files[0], imgEl));
+    });
+  }
+
+  setupDrop('drop-product', 'input-product', 'prev-product', (img) => {
+    productImg = img;
+    document.getElementById('hint-product').style.display = 'none';
+    updatePreview();
+  });
+  setupDrop('drop-banner', 'input-banner', 'prev-banner', (img) => {
+    bannerImg = img;
+    document.getElementById('hint-banner').style.display = 'none';
+    updatePreview();
+  });
+
+  [
+    ['banner-size', 'banner-size-val', '%'],
+    ['banner-opacity', 'banner-opacity-val', '%'],
+    ['banner-gap', 'banner-gap-val', ''],
+  ].forEach(([id, valId, unit]) => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      document.getElementById(valId).textContent = e.target.value + unit;
+      updatePreview();
+    });
+  });
+  document.getElementById('banner-position').addEventListener('change', updatePreview);
+
+  [
+    ['corr-brightness', 'corr-brightness-val'],
+    ['corr-contrast',   'corr-contrast-val'],
+    ['corr-highlights', 'corr-highlights-val'],
+    ['corr-shadows',    'corr-shadows-val'],
+    ['corr-white',      'corr-white-val'],
+    ['corr-black',      'corr-black-val'],
+  ].forEach(([id, valId]) => {
+    document.getElementById(id).addEventListener('input', (e) => {
+      document.getElementById(valId).textContent = e.target.value;
+      updatePreview();
+    });
+  });
+
+  document.getElementById('btn-reset-correction').addEventListener('click', () => {
+    [
+      ['corr-brightness', 'corr-brightness-val', '0'],
+      ['corr-contrast',   'corr-contrast-val',   '0'],
+      ['corr-highlights', 'corr-highlights-val',  '0'],
+      ['corr-shadows',    'corr-shadows-val',     '0'],
+      ['corr-white',      'corr-white-val',       '255'],
+      ['corr-black',      'corr-black-val',       '0'],
+    ].forEach(([id, valId, def]) => {
+      document.getElementById(id).value = def;
+      document.getElementById(valId).textContent = def;
+    });
+    updatePreview();
+  });
+
+  function applyCorrections(ctx, img, dx, dy, dw, dh) {
+    const brightness  = parseInt(document.getElementById('corr-brightness').value);
+    const contrast    = parseInt(document.getElementById('corr-contrast').value);
+    const highlights  = parseInt(document.getElementById('corr-highlights').value);
+    const shadows     = parseInt(document.getElementById('corr-shadows').value);
+    const whitePoint  = parseInt(document.getElementById('corr-white').value);
+    const blackPoint  = parseInt(document.getElementById('corr-black').value);
+
+    if (brightness === 0 && contrast === 0 && highlights === 0 && shadows === 0 && whitePoint === 255 && blackPoint === 0) {
+      ctx.drawImage(img, dx, dy, dw, dh);
+      return;
     }
-  });
 
-  document.getElementById('input-banner').addEventListener('change', async (e) => {
-    if (e.target.files[0]) {
-      bannerImg = await loadImage(e.target.files[0], document.getElementById('prev-banner'));
+    const tmp = document.createElement('canvas');
+    tmp.width = dw; tmp.height = dh;
+    const tc = tmp.getContext('2d');
+    tc.drawImage(img, 0, 0, dw, dh);
+
+    const imageData = tc.getImageData(0, 0, dw, dh);
+    const d = imageData.data;
+    const cf = (259 * (contrast + 255)) / (255 * (259 - contrast));
+    const range = whitePoint - blackPoint || 1;
+
+    for (let i = 0; i < d.length; i += 4) {
+      let r = d[i], g = d[i+1], b = d[i+2];
+      r = (r - blackPoint) * 255 / range;
+      g = (g - blackPoint) * 255 / range;
+      b = (b - blackPoint) * 255 / range;
+      r += brightness; g += brightness; b += brightness;
+      r = cf * (r - 128) + 128;
+      g = cf * (g - 128) + 128;
+      b = cf * (b - 128) + 128;
+      const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+      if (lum > 128 && highlights !== 0) {
+        const t = (lum - 128) / 127;
+        r += highlights * t; g += highlights * t; b += highlights * t;
+      } else if (lum <= 128 && shadows !== 0) {
+        const t = (128 - lum) / 128;
+        r += shadows * t; g += shadows * t; b += shadows * t;
+      }
+      d[i]   = Math.max(0, Math.min(255, r));
+      d[i+1] = Math.max(0, Math.min(255, g));
+      d[i+2] = Math.max(0, Math.min(255, b));
     }
-  });
 
-  document.getElementById('banner-size').addEventListener('input', (e) => {
-    document.getElementById('size-val').textContent = e.target.value + '%';
-  });
-  document.getElementById('banner-opacity').addEventListener('input', (e) => {
-    document.getElementById('opacity-val').textContent = e.target.value + '%';
-  });
-  document.getElementById('banner-margin').addEventListener('input', (e) => {
-    document.getElementById('margin-val').textContent = e.target.value;
-  });
+    tc.putImageData(imageData, 0, 0);
+    ctx.drawImage(tmp, dx, dy);
+  }
 
-  document.getElementById('btn-compose').addEventListener('click', () => {
-    if (!productImg) { alert('商品画像をアップロードしてください'); return; }
-    if (!bannerImg) { alert('バナー画像をアップロードしてください'); return; }
+  function updatePreview() {
+    if (!productImg || !bannerImg) return;
 
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
+    const cW = productImg.width;
+    const cH = productImg.height;
+    canvas.width = cW;
+    canvas.height = cH;
 
-    canvas.width = productImg.width;
-    canvas.height = productImg.height;
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cW, cH);
 
-    // 商品画像を描画
-    ctx.drawImage(productImg, 0, 0);
+    const pos      = document.getElementById('banner-position').value;
+    const bRatio   = parseInt(document.getElementById('banner-size').value) / 100;
+    const gap      = parseInt(document.getElementById('banner-gap').value);
+    const bOpacity = parseInt(document.getElementById('banner-opacity').value) / 100;
+    const isHorizontal = (pos === 'top' || pos === 'bottom');
 
-    // バナーサイズ計算（商品画像の幅に対する割合）
-    const sizeRatio = parseInt(document.getElementById('banner-size').value) / 100;
-    const bannerW = productImg.width * sizeRatio;
-    const bannerH = bannerW * (bannerImg.height / bannerImg.width);
-    const margin = parseInt(document.getElementById('banner-margin').value);
-    const opacity = parseInt(document.getElementById('banner-opacity').value) / 100;
-    const position = document.getElementById('position').value;
-
-    let x = 0, y = 0;
-    switch (position) {
-      case 'top-left':     x = margin; y = margin; break;
-      case 'top-right':    x = canvas.width - bannerW - margin; y = margin; break;
-      case 'bottom-left':  x = margin; y = canvas.height - bannerH - margin; break;
-      case 'bottom-right': x = canvas.width - bannerW - margin; y = canvas.height - bannerH - margin; break;
-      case 'center':       x = (canvas.width - bannerW) / 2; y = (canvas.height - bannerH) / 2; break;
+    let naturalH, naturalW;
+    if (isHorizontal) {
+      naturalH = bannerImg.height * (cW / bannerImg.width);
+    } else {
+      naturalW = bannerImg.width * (cH / bannerImg.height);
     }
 
-    ctx.globalAlpha = opacity;
-    ctx.drawImage(bannerImg, x, y, bannerW, bannerH);
+    let productAreaX = 0, productAreaY = 0, productAreaW = cW, productAreaH = cH;
+    let bX, bY, bW, bH;
+
+    switch (pos) {
+      case 'top':
+        bH = Math.min(naturalH * bRatio, cH - gap); bW = cW;
+        bX = 0; bY = 0;
+        productAreaY = bH + gap; productAreaH = cH - bH - gap;
+        break;
+      case 'bottom':
+        bH = Math.min(naturalH * bRatio, cH - gap); bW = cW;
+        bX = 0; bY = cH - bH;
+        productAreaH = cH - bH - gap;
+        break;
+      case 'left':
+        bW = Math.min(naturalW * bRatio, cW - gap); bH = cH;
+        bX = 0; bY = 0;
+        productAreaX = bW + gap; productAreaW = cW - bW - gap;
+        break;
+      case 'right':
+        bW = Math.min(naturalW * bRatio, cW - gap); bH = cH;
+        bX = cW - bW; bY = 0;
+        productAreaW = cW - bW - gap;
+        break;
+    }
+
+    if (productAreaW > 0 && productAreaH > 0) {
+      const r  = Math.min(productAreaW / productImg.width, productAreaH / productImg.height);
+      const pW = Math.round(productImg.width * r);
+      const pH = Math.round(productImg.height * r);
+      const pX = Math.round(productAreaX + (productAreaW - pW) / 2);
+      const pY = Math.round(productAreaY + (productAreaH - pH) / 2);
+      applyCorrections(ctx, productImg, pX, pY, pW, pH);
+    }
+
+    ctx.globalAlpha = bOpacity;
+    ctx.drawImage(bannerImg, bX, bY, bW, bH);
     ctx.globalAlpha = 1;
 
     canvas.style.display = 'block';
-    document.getElementById('btn-download').style.display = 'inline-block';
-  });
+    document.getElementById('preview-hint').style.display = 'none';
+    document.getElementById('btn-download').disabled = false;
+  }
 
   document.getElementById('btn-download').addEventListener('click', () => {
+    if (!productImg || !bannerImg) return;
     const canvas = document.getElementById('canvas');
     const a = document.createElement('a');
-    a.download = 'ebay_banner_' + Date.now() + '.png';
+    a.download = 'ebay_' + Date.now() + '.png';
     a.href = canvas.toDataURL('image/png');
     a.click();
   });
