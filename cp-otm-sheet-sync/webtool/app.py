@@ -12,6 +12,7 @@ formatting intact (a pure browser/JS tool cannot do this).
 import os
 import sys
 import uuid
+from datetime import datetime
 from pathlib import Path
 
 from flask import Flask, render_template_string, request, send_from_directory, abort
@@ -30,6 +31,8 @@ app.config["MAX_CONTENT_LENGTH"] = 32 * 1024 * 1024  # 32MB
 
 # In-memory store of the last few run reports, keyed by a random token.
 REPORTS = {}
+# Download filename for each token, timestamped so repeated runs don't overwrite each other.
+DOWNLOAD_NAMES = {}
 
 FORM_PAGE = """
 <!doctype html>
@@ -169,6 +172,8 @@ def run_sync():
     out_name = f"{token}.xlsm"
     cp_wb.save(OUTPUT_DIR / out_name)
     REPORTS[token] = report
+    timestamp = datetime.now().strftime("%Y%m%d %H%M")
+    DOWNLOAD_NAMES[token] = f"【更新後{timestamp}】CP価格一括更新ファイル.xlsm"
 
     return render_template_string(RESULT_PAGE, report=report, token=token)
 
@@ -181,7 +186,7 @@ def download(token):
         OUTPUT_DIR,
         f"{token}.xlsm",
         as_attachment=True,
-        download_name="価格一括更新ファイル.xlsm",
+        download_name=DOWNLOAD_NAMES.get(token, "価格一括更新ファイル.xlsm"),
     )
 
 
