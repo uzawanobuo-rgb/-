@@ -44,21 +44,18 @@ VLOOKUPはまず完全一致で照合し、一致しない場合はCP側プラ�
 
 ## Webツール
 
-毎回コマンドを打たなくても、ブラウザからファイルをアップロードして実行できるツールを `webtool/` に用意しました。
+毎回コマンドを打たなくても、ブラウザからファイルをアップロードして実行できるツールを `webtool/` に用意しました。社外への公開はせず、**各自のPCでダブルクリックして起動する**方式です（VBAマクロを保持したままにするにはPython実行環境が必要なため、GitHub Pages等の静的公開ではマクロが失われてしまいます）。
 
-```bash
-cd cp-otm-sheet-sync/webtool
-pip install -r requirements.txt
-python app.py
-```
+- Windows: `webtool/起動.bat` をダブルクリック
+- Mac: `webtool/起動.command` をダブルクリック
 
-http://127.0.0.1:5000/ を開いてOTM/CPファイルをアップロードすると、マッチ結果一覧の確認後に更新済みファイルをダウンロードできます。詳細は `webtool/README.md` を参照してください。
+自動でブラウザが開き、OTM/CPファイルをアップロードするとマッチ結果一覧の確認後に更新済みファイルをダウンロードできます。詳細・トラブルシューティングは `webtool/README.md` を参照してください。
 
-サーバー側（Python/openpyxl）で処理するため、VBAマクロ・条件付き書式・他シートはすべて保持されます（ブラウザ完結のJavaScriptツールではこれができないため、この方式にしています）。
+サーバー側（Python/openpyxl）で処理するため、VBAマクロ・条件付き書式・他シートはすべて保持されます。アクセスは`127.0.0.1`（自分のPC内）のみに限定しています。
 
 ## ファイル
 
 - `CP価格一括更新ファイル.xlsm` — 更新後のファイル（最新の同期結果）
 - `sync_core.py` — 同期ロジック本体（CLI・Webツール共通）
 - `sync_cp_otm.py` — CLI版（`python sync_cp_otm.py <OTM.xls> <CP.xlsm> <出力.xlsm>`）
-- `webtool/` — ローカルWebツール（Flask）
+- `webtool/` — ローカルWebツール（Flask）。`起動.bat`(Windows) / `起動.command`(Mac) でダブルクリック起動
