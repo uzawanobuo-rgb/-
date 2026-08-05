@@ -13,6 +13,16 @@ import openpyxl
 
 PCT_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*%")
 
+# Decorative leading markers seen in CP plan names (◇◆■□●☆ etc.). OTM sometimes
+# omits these, so we fall back to matching with the marker stripped from both sides.
+LEADING_SYMBOLS = "◇◆■□●☆"
+
+
+def strip_leading_symbol(name):
+    if name and name[0] in LEADING_SYMBOLS:
+        return name[1:]
+    return name
+
 
 def to_rent_formula(raw, row):
     """'60%OFF' -> '=N{row}*(1-60%)': campaign price = list price(N) minus the OFF%."""
@@ -90,41 +100,75 @@ COL_AG = 33  # 入居可能開始日
 COL_AH = 34  # 入居可能終了日
 COL_AK = 37  # 更新対象
 
-shinki_matched = []
-shinki_unmatched = list(shinki.keys())
-henkou_matched = []
-henkou_unmatched = list(henkou.keys())
-
+# ---- Build CP name -> row lookups (exact, and symbol-stripped fallback) ----
+exact_index = {}
+stripped_index = {}
 for row in range(4, ws.max_row + 1):
     name = ws.cell(row=row, column=COL_D).value
     if not name:
         continue
+    name = str(name)
+    exact_index.setdefault(name, []).append(row)
+    stripped_index.setdefault(strip_leading_symbol(name), []).append(row)
 
-    if name in henkou:
-        start, end = henkou[name]
-        ws.cell(row=row, column=COL_AG, value=start)
-        ws.cell(row=row, column=COL_AH, value=end)
-        current_price = ws.cell(row=row, column=COL_R).value
-        ws.cell(row=row, column=COL_Z, value=current_price)
-        ws.cell(row=row, column=COL_AK, value="○")
-        henkou_matched.append(name)
-        if name in henkou_unmatched:
-            henkou_unmatched.remove(name)
-    elif name in shinki:
-        start, end, rent_rate, clean_rate = shinki[name]
-        ws.cell(row=row, column=COL_AG, value=start)
-        ws.cell(row=row, column=COL_AH, value=end)
-        ws.cell(row=row, column=COL_Z, value=to_rent_formula(rent_rate, row))
-        ws.cell(row=row, column=COL_AF, value=to_rate_number(clean_rate))
-        ws.cell(row=row, column=COL_AK, value="○")
-        shinki_matched.append(name)
-        if name in shinki_unmatched:
-            shinki_unmatched.remove(name)
+
+def resolve_row(otm_name, label, ambiguous_log):
+    """Exact match first; fall back to symbol-stripped match if unambiguous."""
+    rows = exact_index.get(otm_name)
+    if rows:
+        return rows[0], "exact"
+    rows = stripped_index.get(strip_leading_symbol(otm_name))
+    if rows and len(rows) == 1:
+        return rows[0], "symbol-stripped"
+    if rows and len(rows) > 1:
+        ambiguous_log.append((label, otm_name, rows))
+    return None, None
+
+
+shinki_matched = []
+shinki_unmatched = []
+henkou_matched = []
+henkou_unmatched = []
+ambiguous = []
+
+for otm_name, (start, end) in henkou.items():
+    row, how = resolve_row(otm_name, "②期間変更", ambiguous)
+    if row is None:
+        henkou_unmatched.append(otm_name)
+        continue
+    ws.cell(row=row, column=COL_AG, value=start)
+    ws.cell(row=row, column=COL_AH, value=end)
+    current_price = ws.cell(row=row, column=COL_R).value
+    ws.cell(row=row, column=COL_Z, value=current_price)
+    ws.cell(row=row, column=COL_AK, value="○")
+    henkou_matched.append((otm_name, row, how))
+
+for otm_name, (start, end, rent_rate, clean_rate) in shinki.items():
+    row, how = resolve_row(otm_name, "①新規依頼", ambiguous)
+    if row is None:
+        shinki_unmatched.append(otm_name)
+        continue
+    ws.cell(row=row, column=COL_AG, value=start)
+    ws.cell(row=row, column=COL_AH, value=end)
+    ws.cell(row=row, column=COL_Z, value=to_rent_formula(rent_rate, row))
+    ws.cell(row=row, column=COL_AF, value=to_rate_number(clean_rate))
+    ws.cell(row=row, column=COL_AK, value="○")
+    shinki_matched.append((otm_name, row, how))
 
 cp_wb.save(OUT_PATH)
 
 print(f"\n①新規依頼 matched: {len(shinki_matched)} / {len(shinki)}")
-print(f"①新規依頼 unmatched (no CP plan name found): {shinki_unmatched}")
+for n, r, how in shinki_matched:
+    if how != "exact":
+        print(f"  [{how}] {n!r} -> row {r}")
+print(f"①新規依頼 unmatched: {shinki_unmatched}")
 print(f"②期間変更 matched: {len(henkou_matched)} / {len(henkou)}")
-print(f"②期間変更 unmatched (no CP plan name found): {henkou_unmatched}")
+for n, r, how in henkou_matched:
+    if how != "exact":
+        print(f"  [{how}] {n!r} -> row {r}")
+print(f"②期間変更 unmatched: {henkou_unmatched}")
+if ambiguous:
+    print("\nAMBIGUOUS (multiple CP rows share the symbol-stripped name; skipped, needs manual review):")
+    for label, n, rows in ambiguous:
+        print(f"  [{label}] {n!r} -> candidate rows {rows}")
 print(f"\nSaved: {OUT_PATH}")
