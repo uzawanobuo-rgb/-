@@ -14,12 +14,12 @@ import openpyxl
 PCT_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*%")
 
 
-def to_rate_text(raw):
-    """'50%OFF' -> '50%' (kept as text; Excel/Calc auto-coerce '50%' to 0.5 in arithmetic)."""
+def to_rent_formula(raw, row):
+    """'60%OFF' -> '=N{row}*(1-60%)': campaign price = list price(N) minus the OFF%."""
     if not isinstance(raw, str):
         return raw
     m = PCT_RE.match(raw)
-    return f"{m.group(1)}%" if m else raw
+    return f"=N{row}*(1-{m.group(1)}%)" if m else raw
 
 
 def to_rate_number(raw):
@@ -114,7 +114,7 @@ for row in range(4, ws.max_row + 1):
         start, end, rent_rate, clean_rate = shinki[name]
         ws.cell(row=row, column=COL_AG, value=start)
         ws.cell(row=row, column=COL_AH, value=end)
-        ws.cell(row=row, column=COL_Z, value=to_rate_text(rent_rate))
+        ws.cell(row=row, column=COL_Z, value=to_rent_formula(rent_rate, row))
         ws.cell(row=row, column=COL_AF, value=to_rate_number(clean_rate))
         ws.cell(row=row, column=COL_AK, value="○")
         shinki_matched.append(name)
