@@ -36,7 +36,7 @@ FORM_PAGE = """
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>CP × OTM シート同期ツール</title>
+<title>価格一括更新ファイル × 【全国】おためし入居キャンペーン 同期ツール</title>
 <style>
   body { font-family: -apple-system, "Hiragino Sans", "Yu Gothic", sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #222; }
   h1 { font-size: 1.4rem; }
@@ -50,17 +50,17 @@ FORM_PAGE = """
 </style>
 </head>
 <body>
-  <h1>CP × OTM シート同期ツール</h1>
-  <p>CP価格一括更新ファイル(.xlsm)の「おためし」シートに、OTM(【全国】おためし入居キャンペーン)ファイル(.xls)の最新シートの内容を反映します。</p>
+  <h1>価格一括更新ファイル × 【全国】おためし入居キャンペーン 同期ツール</h1>
+  <p>価格一括更新ファイル(.xlsm)の「おためし」シートに、【全国】おためし入居キャンペーンファイル(.xls)の最新シートの内容を反映します。</p>
   {% if error %}<div class="error">{{ error }}</div>{% endif %}
   <form method="post" enctype="multipart/form-data" class="box">
     <div class="field">
-      <label>OTMファイル (.xls)</label>
+      <label>【全国】おためし入居キャンペーンファイル (.xls)</label>
       <input type="file" name="otm_file" accept=".xls" required>
       <div class="hint">一番左（最新日付）のシートが自動的に使われます。</div>
     </div>
     <div class="field">
-      <label>CP価格一括更新ファイル (.xlsm)</label>
+      <label>価格一括更新ファイル (.xlsm)</label>
       <input type="file" name="cp_file" accept=".xlsm" required>
       <div class="hint">「おためし」シートが更新されます。他のシート・マクロはそのまま保持されます。</div>
     </div>
@@ -93,12 +93,12 @@ RESULT_PAGE = """
 </head>
 <body>
   <h1>同期結果</h1>
-  <p>OTM使用シート: <strong>{{ report.otm_sheet_name }}</strong></p>
+  <p>【全国】おためし入居キャンペーン 使用シート: <strong>{{ report.otm_sheet_name }}</strong></p>
 
   <h2>①新規依頼: {{ report.shinki.matched|length }} / {{ report.shinki.total }} 件マッチ</h2>
   {% if report.shinki.matched %}
   <table>
-    <tr><th>物件名</th><th>CP行</th><th>照合方法</th></tr>
+    <tr><th>物件名</th><th>価格一括更新ファイル行</th><th>照合方法</th></tr>
     {% for m in report.shinki.matched %}
     <tr><td>{{ m.name }}</td><td>{{ m.row }}</td>
       <td class="{{ 'warn' if m.how != 'exact' else 'ok' }}">{{ '記号を除いて照合' if m.how != 'exact' else '完全一致' }}</td></tr>
@@ -112,7 +112,7 @@ RESULT_PAGE = """
   <h2>②期間変更: {{ report.henkou.matched|length }} / {{ report.henkou.total }} 件マッチ</h2>
   {% if report.henkou.matched %}
   <table>
-    <tr><th>物件名</th><th>CP行</th><th>照合方法</th></tr>
+    <tr><th>物件名</th><th>価格一括更新ファイル行</th><th>照合方法</th></tr>
     {% for m in report.henkou.matched %}
     <tr><td>{{ m.name }}</td><td>{{ m.row }}</td>
       <td class="{{ 'warn' if m.how != 'exact' else 'ok' }}">{{ '記号を除いて照合' if m.how != 'exact' else '完全一致' }}</td></tr>
@@ -126,7 +126,7 @@ RESULT_PAGE = """
   {% if report.ambiguous %}
   <h2>あいまい一致（自動更新せず・要確認）</h2>
   <table>
-    <tr><th>種別</th><th>OTM物件名</th><th>候補CP行</th></tr>
+    <tr><th>種別</th><th>物件名（キャンペーン側）</th><th>候補行（価格一括更新ファイル）</th></tr>
     {% for a in report.ambiguous %}
     <tr><td>{{ a.type }}</td><td>{{ a.name }}</td><td>{{ a.candidate_rows|join(', ') }}</td></tr>
     {% endfor %}
@@ -150,7 +150,7 @@ def run_sync():
     otm_file = request.files.get("otm_file")
     cp_file = request.files.get("cp_file")
     if not otm_file or not otm_file.filename or not cp_file or not cp_file.filename:
-        return render_template_string(FORM_PAGE, error="OTMファイルとCPファイルの両方を選択してください。")
+        return render_template_string(FORM_PAGE, error="【全国】おためし入居キャンペーンファイルと価格一括更新ファイルの両方を選択してください。")
 
     token = uuid.uuid4().hex
     otm_path = UPLOAD_DIR / f"{token}_otm.xls"
@@ -181,7 +181,7 @@ def download(token):
         OUTPUT_DIR,
         f"{token}.xlsm",
         as_attachment=True,
-        download_name="CP価格一括更新ファイル.xlsm",
+        download_name="価格一括更新ファイル.xlsm",
     )
 
 
