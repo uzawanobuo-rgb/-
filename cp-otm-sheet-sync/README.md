@@ -42,7 +42,23 @@ VLOOKUPはまず完全一致で照合し、一致しない場合はCP側プラ�
 - 「スペシャル」「ロング」「CP価格設定シート」の各シートは変更していません。
 - マクロ（VBA）は保持されています。
 
+## Webツール
+
+毎回コマンドを打たなくても、ブラウザからファイルをアップロードして実行できるツールを `webtool/` に用意しました。
+
+```bash
+cd cp-otm-sheet-sync/webtool
+pip install -r requirements.txt
+python app.py
+```
+
+http://127.0.0.1:5000/ を開いてOTM/CPファイルをアップロードすると、マッチ結果一覧の確認後に更新済みファイルをダウンロードできます。詳細は `webtool/README.md` を参照してください。
+
+サーバー側（Python/openpyxl）で処理するため、VBAマクロ・条件付き書式・他シートはすべて保持されます（ブラウザ完結のJavaScriptツールではこれができないため、この方式にしています）。
+
 ## ファイル
 
-- `CP価格一括更新ファイル.xlsm` — 更新後のファイル
-- `sync_cp_otm.py` — 同期処理に使用したスクリプト（再実行・監査用）
+- `CP価格一括更新ファイル.xlsm` — 更新後のファイル（最新の同期結果）
+- `sync_core.py` — 同期ロジック本体（CLI・Webツール共通）
+- `sync_cp_otm.py` — CLI版（`python sync_cp_otm.py <OTM.xls> <CP.xlsm> <出力.xlsm>`）
+- `webtool/` — ローカルWebツール（Flask）
