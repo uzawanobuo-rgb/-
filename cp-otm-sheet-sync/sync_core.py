@@ -31,11 +31,12 @@ def strip_leading_symbol(name):
 
 
 def to_rent_formula(raw, row):
-    """'60%OFF' -> '=N{row}*(1-60%)': campaign price = list price(N) minus the OFF%."""
+    """'60%OFF' -> '=ROUNDUP(O{row}*(1-60%),-1)': campaign price = monthly rate(O)
+    minus the OFF%, rounded up to the nearest 10 (ones digit 1-9 bumps the tens digit)."""
     if not isinstance(raw, str):
         return raw
     m = PCT_RE.match(raw)
-    return f"=N{row}*(1-{m.group(1)}%)" if m else raw
+    return f"=ROUNDUP(O{row}*(1-{m.group(1)}%),-1)" if m else raw
 
 
 def to_rate_number(raw):
