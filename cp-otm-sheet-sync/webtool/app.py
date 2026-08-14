@@ -67,6 +67,14 @@ FORM_PAGE = """
       <input type="file" name="cp_file" accept=".xlsm" required>
       <div class="hint">「おためし」シートが更新されます。他のシート・マクロはそのまま保持されます。</div>
     </div>
+    <div class="field">
+      <label>プラン・キャンペーン一覧 (.csv)</label>
+      <input type="file" name="plan_csv_file" accept=".csv" required>
+      <div class="hint">
+        「おためし入居キャンペーン」と「おためし入居キャンペーン②」が両方存在する物件を判定し、更新対象から除外するために使用します。<br>
+        ダウンロード: <a href="http://magi2.atinn.jp/SimpleOutputCsv/plan" target="_blank" rel="noopener">http://magi2.atinn.jp/SimpleOutputCsv/plan</a>
+      </div>
+    </div>
     <button type="submit">同期を実行</button>
   </form>
 </body>
@@ -136,6 +144,17 @@ RESULT_PAGE = """
   </table>
   {% endif %}
 
+  {% if report.excluded_campaign2 %}
+  <h2>更新対象外（おためし入居キャンペーン②が存在・要確認）</h2>
+  <p class="warn">プラン・キャンペーン一覧に「おためし入居キャンペーン」と「おためし入居キャンペーン②」の両方が存在し、どちらの更新か判別できないため、自動更新の対象から外しています。</p>
+  <table>
+    <tr><th>種別</th><th>物件名</th><th>価格一括更新ファイル行</th></tr>
+    {% for e in report.excluded_campaign2 %}
+    <tr><td>{{ e.type }}</td><td>{{ e.cp_name }}</td><td>{{ e.row }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
   <a class="download" href="/download/{{ token }}">更新後のファイルをダウンロード</a>
   <a class="back" href="/">← もう一度実行する</a>
 </body>
@@ -152,22 +171,33 @@ def index():
 def run_sync():
     otm_file = request.files.get("otm_file")
     cp_file = request.files.get("cp_file")
-    if not otm_file or not otm_file.filename or not cp_file or not cp_file.filename:
-        return render_template_string(FORM_PAGE, error="【全国】おためし入居キャンペーンファイルと価格一括更新ファイルの両方を選択してください。")
+    plan_csv_file = request.files.get("plan_csv_file")
+    if (
+        not otm_file or not otm_file.filename
+        or not cp_file or not cp_file.filename
+        or not plan_csv_file or not plan_csv_file.filename
+    ):
+        return render_template_string(
+            FORM_PAGE,
+            error="【全国】おためし入居キャンペーンファイル・価格一括更新ファイル・プラン・キャンペーン一覧の3つすべてを選択してください。",
+        )
 
     token = uuid.uuid4().hex
     otm_path = UPLOAD_DIR / f"{token}_otm.xls"
     cp_path = UPLOAD_DIR / f"{token}_cp.xlsm"
+    plan_csv_path = UPLOAD_DIR / f"{token}_plan.csv"
     otm_file.save(otm_path)
     cp_file.save(cp_path)
+    plan_csv_file.save(plan_csv_path)
 
     try:
-        cp_wb, report = sync(str(otm_path), str(cp_path))
+        cp_wb, report = sync(str(otm_path), str(cp_path), str(plan_csv_path))
     except Exception as e:
         return render_template_string(FORM_PAGE, error=f"処理中にエラーが発生しました: {e}")
     finally:
         otm_path.unlink(missing_ok=True)
         cp_path.unlink(missing_ok=True)
+        plan_csv_path.unlink(missing_ok=True)
 
     out_name = f"{token}.xlsm"
     cp_wb.save(OUTPUT_DIR / out_name)

@@ -2,7 +2,7 @@
 """CLI: sync OTM campaign data into the CP 'おためし' sheet.
 
 Usage:
-    python sync_cp_otm.py <OTM.xls> <CP.xlsm> <output.xlsm>
+    python sync_cp_otm.py <OTM.xls> <CP.xlsm> <plan_campaign.csv> <output.xlsm>
 """
 import sys
 
@@ -10,13 +10,13 @@ from sync_core import sync
 
 
 def main():
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         print(__doc__)
         sys.exit(1)
 
-    otm_path, cp_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+    otm_path, cp_path, plan_csv_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 
-    cp_wb, report = sync(otm_path, cp_path)
+    cp_wb, report = sync(otm_path, cp_path, plan_csv_path)
     cp_wb.save(out_path)
 
     print(f"OTM latest sheet: {report['otm_sheet_name']}")
@@ -40,6 +40,11 @@ def main():
         print("\nAMBIGUOUS (multiple CP rows share the symbol-stripped name; skipped, needs manual review):")
         for a in report["ambiguous"]:
             print(f"  [{a['type']}] {a['name']!r} -> candidate rows {a['candidate_rows']}")
+
+    if report["excluded_campaign2"]:
+        print("\nEXCLUDED (plan has both おためし入居キャンペーン and キャンペーン② rows; update skipped):")
+        for e in report["excluded_campaign2"]:
+            print(f"  [{e['type']}] {e['name']!r} (CP: {e['cp_name']!r}) -> row {e['row']}")
 
     print(f"\nSaved: {out_path}")
 

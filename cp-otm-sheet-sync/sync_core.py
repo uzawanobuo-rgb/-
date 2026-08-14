@@ -2,6 +2,7 @@
 
 Shared by the CLI (sync_cp_otm.py) and the web tool (webtool/app.py).
 """
+import csv
 import re
 
 import openpyxl
@@ -12,6 +13,11 @@ PCT_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*%")
 # Decorative leading markers seen in CP plan names (◇◆■□●☆ etc.). OTM sometimes
 # omits these, so we fall back to matching with the marker stripped from both sides.
 LEADING_SYMBOLS = "◇◆■□●☆"
+
+# プラン・キャンペーン一覧 CSV (http://magi2.atinn.jp/SimpleOutputCsv/plan) marks
+# trial-campaign plan rows with these prefixes in the プラン名 column.
+CAMPAIGN2_PREFIX = "【おためし入居キャンペーン②】"
+CAMPAIGN1_PREFIX = "【おためし入居キャンペーン】"
 
 SHEET_NAME_TRIAL = "おためし"
 
@@ -49,6 +55,32 @@ def to_rate_number(raw):
 
 def _to_date(serial, datemode):
     return xlrd.xldate.xldate_as_datetime(serial, datemode).date()
+
+
+def parse_plan_campaign_csv(path):
+    """Parse the 'プラン・キャンペーン一覧' CSV export.
+
+    Returns the set of property names (raw + symbol-stripped) that have BOTH
+    a '【おためし入居キャンペーン】' and a '【おためし入居キャンペーン②】' plan
+    row in the プラン名 column -- i.e. it's ambiguous which campaign a request
+    for that property refers to.
+    """
+    names1, names2 = set(), set()
+    with open(path, encoding="cp932", newline="", errors="replace") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            plan_name = (row.get("プラン名") or "").strip()
+            if plan_name.startswith(CAMPAIGN2_PREFIX):
+                names2.add(plan_name[len(CAMPAIGN2_PREFIX):])
+            elif plan_name.startswith(CAMPAIGN1_PREFIX):
+                names1.add(plan_name[len(CAMPAIGN1_PREFIX):])
+
+    conflict = names1 & names2
+    return conflict | {strip_leading_symbol(n) for n in conflict}
+
+
+def _has_campaign2_conflict(name, conflict_names):
+    return name in conflict_names or strip_leading_symbol(name) in conflict_names
 
 
 def parse_otm(otm_path):
@@ -123,12 +155,15 @@ def _resolve_row(otm_name, exact_index, stripped_index, label, ambiguous_log):
     return None, None
 
 
-def sync(otm_path, cp_path):
+def sync(otm_path, cp_path, plan_csv_path):
     """Run the sync and return (openpyxl.Workbook, report_dict).
 
-    otm_path / cp_path may be filesystem paths or open binary file objects.
+    otm_path / cp_path / plan_csv_path may be filesystem paths or open binary
+    file objects (plan_csv_path must be a filesystem path; it's opened with a
+    fixed encoding).
     """
     otm_sheet_name, shinki, henkou, skipped = parse_otm(otm_path)
+    campaign2_conflicts = parse_plan_campaign_csv(plan_csv_path)
 
     cp_wb = openpyxl.load_workbook(cp_path, keep_vba=True, data_only=False)
     ws = cp_wb[SHEET_NAME_TRIAL]
@@ -138,11 +173,16 @@ def sync(otm_path, cp_path):
     shinki_matched, shinki_unmatched = [], []
     henkou_matched, henkou_unmatched = [], []
     ambiguous = []
+    excluded_campaign2 = []
 
     for otm_name, (start, end) in henkou.items():
         row, how = _resolve_row(otm_name, exact_index, stripped_index, "②期間変更", ambiguous)
         if row is None:
             henkou_unmatched.append(otm_name)
+            continue
+        cp_name = str(ws.cell(row=row, column=COL_D).value)
+        if _has_campaign2_conflict(cp_name, campaign2_conflicts):
+            excluded_campaign2.append({"type": "②期間変更", "name": otm_name, "row": row, "cp_name": cp_name})
             continue
         ws.cell(row=row, column=COL_AG, value=start)
         ws.cell(row=row, column=COL_AH, value=end)
@@ -155,6 +195,10 @@ def sync(otm_path, cp_path):
         row, how = _resolve_row(otm_name, exact_index, stripped_index, "①新規依頼", ambiguous)
         if row is None:
             shinki_unmatched.append(otm_name)
+            continue
+        cp_name = str(ws.cell(row=row, column=COL_D).value)
+        if _has_campaign2_conflict(cp_name, campaign2_conflicts):
+            excluded_campaign2.append({"type": "①新規依頼", "name": otm_name, "row": row, "cp_name": cp_name})
             continue
         ws.cell(row=row, column=COL_AG, value=start)
         ws.cell(row=row, column=COL_AH, value=end)
@@ -177,5 +221,6 @@ def sync(otm_path, cp_path):
             "unmatched": henkou_unmatched,
         },
         "ambiguous": ambiguous,
+        "excluded_campaign2": excluded_campaign2,
     }
     return cp_wb, report
