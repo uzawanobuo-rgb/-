@@ -155,6 +155,31 @@ RESULT_PAGE = """
   </table>
   {% endif %}
 
+  {% if report.excluded_deletion %}
+  <h2>更新対象外（登録削除のため）</h2>
+  <p class="warn">【全国】おためし入居キャンペーンファイルの「登録削除」欄以下に記載されていた物件です。期間変更ではなく削除の連絡のため、自動更新の対象から外しています。</p>
+  <table>
+    <tr><th>物件名</th><th>価格一括更新ファイル行</th></tr>
+    {% for e in report.excluded_deletion %}
+    <tr><td>{{ e.cp_name }}</td><td>{{ e.row }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if report.deletion_unmatched %}
+  <p class="warn">登録削除・未マッチ: {{ report.deletion_unmatched|join(', ') }}</p>
+  {% endif %}
+
+  {% if report.excluded_missing_rate %}
+  <h2>更新対象外（賃料・清掃費の割引率が未記載のため）</h2>
+  <p class="warn">①新規依頼で、V列（賃料：割引率）またはW列（RC：割引率）が空欄のため、情報不足として自動更新の対象から外しています。</p>
+  <table>
+    <tr><th>物件名</th><th>価格一括更新ファイル行</th></tr>
+    {% for e in report.excluded_missing_rate %}
+    <tr><td>{{ e.cp_name }}</td><td>{{ e.row }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
   <a class="download" href="/download/{{ token }}">更新後のファイルをダウンロード</a>
   <a class="back" href="/">← もう一度実行する</a>
 </body>

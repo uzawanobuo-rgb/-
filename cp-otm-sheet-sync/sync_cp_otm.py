@@ -42,9 +42,21 @@ def main():
             print(f"  [{a['type']}] {a['name']!r} -> candidate rows {a['candidate_rows']}")
 
     if report["excluded_campaign2"]:
-        print("\nEXCLUDED (plan has both おためし入居キャンペーン and キャンペーン② rows; update skipped):")
+        print("\nEXCLUDED - campaign② conflict (plan has both おためし入居キャンペーン and キャンペーン② rows; update skipped):")
         for e in report["excluded_campaign2"]:
             print(f"  [{e['type']}] {e['name']!r} (CP: {e['cp_name']!r}) -> row {e['row']}")
+
+    if report["excluded_deletion"]:
+        print("\nEXCLUDED - 登録削除 (below the 登録削除 marker; not a period change, update skipped):")
+        for e in report["excluded_deletion"]:
+            print(f"  {e['name']!r} (CP: {e['cp_name']!r}) -> row {e['row']}")
+    if report["deletion_unmatched"]:
+        print(f"登録削除 unmatched (no CP plan name found): {report['deletion_unmatched']}")
+
+    if report["excluded_missing_rate"]:
+        print("\nEXCLUDED - 情報不足 (①新規依頼 with blank 賃料/RC割引率; update skipped):")
+        for e in report["excluded_missing_rate"]:
+            print(f"  {e['name']!r} (CP: {e['cp_name']!r}) -> row {e['row']}")
 
     print(f"\nSaved: {out_path}")
 

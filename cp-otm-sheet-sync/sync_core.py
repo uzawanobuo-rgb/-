@@ -19,6 +19,11 @@ LEADING_SYMBOLS = "◇◆■□●☆"
 CAMPAIGN2_PREFIX = "【おためし入居キャンペーン②】"
 CAMPAIGN1_PREFIX = "【おためし入居キャンペーン】"
 
+# Marker that appears in the ②期間変更 block's 物件名 column (A列), partway down,
+# switching the rows below it from "period change" requests to "registration
+# deletion" requests -- these must NOT be treated as period changes.
+DELETION_MARKER = "登録削除"
+
 SHEET_NAME_TRIAL = "おためし"
 
 COL_D = 4    # プラン名
@@ -86,9 +91,11 @@ def _has_campaign2_conflict(name, conflict_names):
 def parse_otm(otm_path):
     """Parse the latest (leftmost) sheet of the OTM workbook.
 
-    Returns (sheet_name, shinki_dict, henkou_dict, skipped)
+    Returns (sheet_name, shinki_dict, henkou_dict, deletion_dict, skipped)
       shinki_dict: {物件名: (start_date, end_date, rent_rate_raw, clean_rate_raw)}
       henkou_dict: {物件名: (start_date, end_date)}
+      deletion_dict: {物件名: (start_date, end_date)} -- rows below the "登録削除"
+        marker in the ②期間変更 block; these are deletions, not period changes.
     """
     otm_wb = xlrd.open_workbook(otm_path)
     sheet_name = otm_wb.sheet_names()[0]
@@ -116,8 +123,13 @@ def parse_otm(otm_path):
 
     henkou = {}
     henkou_skipped = []
+    deletion = {}
+    in_deletion_section = False
     for r in range(4, sh.nrows):
-        name = sh.cell_value(r, 0)  # A列 物件名
+        name = sh.cell_value(r, 0)  # A列 物件名（またはセクション区切り）
+        if isinstance(name, str) and name.strip() == DELETION_MARKER:
+            in_deletion_section = True
+            continue
         if not isinstance(name, str) or not name.strip():
             continue
         start = sh.cell_value(r, 1)  # B列 期間開始
@@ -125,9 +137,13 @@ def parse_otm(otm_path):
         if not (isinstance(start, float) and isinstance(end, float)):
             henkou_skipped.append(name)
             continue
-        henkou[name] = (_to_date(start, otm_wb.datemode), _to_date(end, otm_wb.datemode))
+        dates = (_to_date(start, otm_wb.datemode), _to_date(end, otm_wb.datemode))
+        if in_deletion_section:
+            deletion[name] = dates
+        else:
+            henkou[name] = dates
 
-    return sheet_name, shinki, henkou, {"新規依頼": shinki_skipped, "期間変更": henkou_skipped}
+    return sheet_name, shinki, henkou, deletion, {"新規依頼": shinki_skipped, "期間変更": henkou_skipped}
 
 
 def _build_indexes(ws):
@@ -162,7 +178,7 @@ def sync(otm_path, cp_path, plan_csv_path):
     file objects (plan_csv_path must be a filesystem path; it's opened with a
     fixed encoding).
     """
-    otm_sheet_name, shinki, henkou, skipped = parse_otm(otm_path)
+    otm_sheet_name, shinki, henkou, deletion, skipped = parse_otm(otm_path)
     campaign2_conflicts = parse_plan_campaign_csv(plan_csv_path)
 
     cp_wb = openpyxl.load_workbook(cp_path, keep_vba=True, data_only=False)
@@ -172,8 +188,19 @@ def sync(otm_path, cp_path, plan_csv_path):
 
     shinki_matched, shinki_unmatched = [], []
     henkou_matched, henkou_unmatched = [], []
+    deletion_unmatched = []
     ambiguous = []
     excluded_campaign2 = []
+    excluded_deletion = []
+    excluded_missing_rate = []
+
+    for otm_name in deletion:
+        row, how = _resolve_row(otm_name, exact_index, stripped_index, "登録削除", ambiguous)
+        if row is None:
+            deletion_unmatched.append(otm_name)
+            continue
+        cp_name = str(ws.cell(row=row, column=COL_D).value)
+        excluded_deletion.append({"type": "登録削除", "name": otm_name, "row": row, "cp_name": cp_name})
 
     for otm_name, (start, end) in henkou.items():
         row, how = _resolve_row(otm_name, exact_index, stripped_index, "②期間変更", ambiguous)
@@ -200,6 +227,9 @@ def sync(otm_path, cp_path, plan_csv_path):
         if _has_campaign2_conflict(cp_name, campaign2_conflicts):
             excluded_campaign2.append({"type": "①新規依頼", "name": otm_name, "row": row, "cp_name": cp_name})
             continue
+        if not (isinstance(rent_rate, str) and rent_rate.strip()) or not (isinstance(clean_rate, str) and clean_rate.strip()):
+            excluded_missing_rate.append({"type": "①新規依頼", "name": otm_name, "row": row, "cp_name": cp_name})
+            continue
         ws.cell(row=row, column=COL_AG, value=start)
         ws.cell(row=row, column=COL_AH, value=end)
         ws.cell(row=row, column=COL_Z, value=to_rent_formula(rent_rate, row))
@@ -222,5 +252,8 @@ def sync(otm_path, cp_path, plan_csv_path):
         },
         "ambiguous": ambiguous,
         "excluded_campaign2": excluded_campaign2,
+        "excluded_deletion": excluded_deletion,
+        "excluded_missing_rate": excluded_missing_rate,
+        "deletion_unmatched": deletion_unmatched,
     }
     return cp_wb, report
