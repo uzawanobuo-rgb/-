@@ -168,7 +168,7 @@
     <ul>
       <li>対象シートは <code>YYYY年M月</code> 形式で、あらかじめマスターファイル内に存在している必要があります(月が変わる際のシート自動作成には未対応です)。</li>
       <li>稼働率(D,F,H,J列)は毎回絶対値で上書きし、当日伸び列は差分値として書き込みます。売上・稼働部屋数列も絶対値で上書きします。それ以外(SUM・予算差異・MM単価などの数式)は変更しません。</li>
-      <li>成約数(BG,BL,BQ列)・成約室数(BH,BM,BR列)は、FixedPointシートの20行目以降の契約データから、当月ブロックの該当日行にのみ集計します(反響数・成約率などの他の列や、1か月後以降のブロックは対象外)。</li>
+      <li>成約室数(BH,BM,BR列)は、FixedPointシートの20行目以降の契約データから、当月ブロックの該当日行にのみ集計します(反響数・成約数・成約率などの他の列や、1か月後以降のブロックは対象外)。</li>
       <li>複数のrawファイルをまとめてアップロードした場合、ファイル名の日付順に自動で処理します。</li>
       <li>生成されるファイルは元ファイルを上書きせず、新しいファイル名でダウンロードされます。</li>
     </ul>
@@ -192,7 +192,6 @@ const COL = {
   rate_osa: 10, rate_osa_delta: 11,
   sales_tky: 15, sales_nag: 18, sales_osa: 21, sales_sht: 24,
   rooms_tky: 29, rooms_nag: 32, rooms_osa: 35, rooms_sht: 38,
-  contract_tky: 59, contract_nag: 64, contract_osa: 69, // BG, BL, BQ (成約数)
   contract_rooms_tky: 60, contract_rooms_nag: 65, contract_rooms_osa: 70, // BH, BM, BR (成約室数)
 };
 const XML_MIME = "application/xml";
@@ -320,7 +319,6 @@ async function loadSheetRowsUpTo(zip, path, maxRow) {
 }
 
 const CONTRACT_AREA_LABELS = { tky: "東京", nag: "名古屋", osa: "大阪" };
-const CONTRACT_STATUS_VALUE = "本契約";
 const CONTRACT_ITEM_VALUE = "賃料";
 const CONTRACT_DATA_FROM_ROW = 20;
 
@@ -343,7 +341,6 @@ function decodeXmlEntities(s) {
 const ROW_CELL_RE = {
   A: /<c r="A\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/,
   C: /<c r="C\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/,
-  H: /<c r="H\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/,
   O: /<c r="O\d+"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/,
 };
 
@@ -371,12 +368,10 @@ function extractRowCellText(rowXml, cellRe, sharedStrings) {
   return Number.isNaN(num) ? null : num;
 }
 
-// BG/BL/BQ (成約数): area + contract-no date prefix + status=本契約 + item=賃料.
-// BH/BM/BR (成約室数): same, but without the status filter (any status).
+// BH/BM/BR (成約室数): area + contract-no date prefix + item=賃料.
 async function countContracts(zip, path, sharedStrings, datePrefix) {
   const xmlText = await zip.file(path).async("string");
-  const signed = { tky: 0, nag: 0, osa: 0 };
-  const all = { tky: 0, nag: 0, osa: 0 };
+  const counts = { tky: 0, nag: 0, osa: 0 };
 
   ROW_RE.lastIndex = 0;
   let m;
@@ -391,11 +386,9 @@ async function countContracts(zip, path, sharedStrings, datePrefix) {
     const contractNo = extractRowCellText(rowXml, ROW_CELL_RE.C, sharedStrings);
     if (contractNo === null) continue;
     const noStr = typeof contractNo === "number" ? String(Math.trunc(contractNo)) : String(contractNo).trim();
-    if (!noStr.startsWith(datePrefix)) continue;
-    all[key]++;
-    if (extractRowCellText(rowXml, ROW_CELL_RE.H, sharedStrings) === CONTRACT_STATUS_VALUE) signed[key]++;
+    if (noStr.startsWith(datePrefix)) counts[key]++;
   }
-  return { signed, all };
+  return counts;
 }
 
 function findRowEl(sheetDataEl, row) {
@@ -572,18 +565,11 @@ function processOneFile(targetDoc, targetSheetDataEl, masterSharedStrings, sheet
 
     let contractLog = "";
     if (blockIdx === 0) {
-      const { signed, all } = contractCounts;
-      const contractColMap = { tky: COL.contract_tky, nag: COL.contract_nag, osa: COL.contract_osa };
-      for (const [key, col] of Object.entries(contractColMap)) {
-        setCellNumber(targetDoc, targetSheetDataEl, targetRow, col, signed[key]);
-      }
       const roomsColMapContract = { tky: COL.contract_rooms_tky, nag: COL.contract_rooms_nag, osa: COL.contract_rooms_osa };
       for (const [key, col] of Object.entries(roomsColMapContract)) {
-        setCellNumber(targetDoc, targetSheetDataEl, targetRow, col, all[key]);
+        setCellNumber(targetDoc, targetSheetDataEl, targetRow, col, contractCounts[key]);
       }
-      contractLog =
-        ` / 成約数(東京 ${signed.tky} 名古屋 ${signed.nag} 大阪 ${signed.osa})` +
-        ` / 成約室数(東京 ${all.tky} 名古屋 ${all.nag} 大阪 ${all.osa})`;
+      contractLog = ` / 成約室数(東京 ${contractCounts.tky} 名古屋 ${contractCounts.nag} 大阪 ${contractCounts.osa})`;
     }
 
     log.push(
