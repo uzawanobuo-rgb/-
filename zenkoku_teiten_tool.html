@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>全国定点 更新ツール</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 16px 20px 40px;
+    background: #f5f5f5;
+    color: #333;
+  }
+  h1 { margin: 0 0 4px; font-size: 1.3em; }
+  .lead { color: #666; font-size: 0.9em; margin: 0 0 16px; line-height: 1.6; }
+  .app { display: flex; flex-direction: column; gap: 14px; max-width: 760px; }
+  .section {
+    background: #fff;
+    border-radius: 8px;
+    padding: 14px 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  }
+  .section h2 {
+    margin: 0 0 10px;
+    font-size: 0.95em;
+    color: #555;
+    border-left: 4px solid #0064d2;
+    padding-left: 8px;
+  }
+  label.btn {
+    display: inline-block;
+    cursor: pointer;
+    background: #0064d2;
+    color: white;
+    padding: 8px 18px;
+    border-radius: 5px;
+    font-size: 0.85em;
+  }
+  label.btn:hover { background: #0053b3; }
+  input[type="file"] { display: none; }
+  .drop-zone {
+    border: 2px dashed #0064d2;
+    border-radius: 8px;
+    padding: 16px;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+  }
+  .drop-zone.dragover { background: #e8f0fe; border-color: #0053b3; }
+  .drop-zone p { margin: 0; font-size: 0.78em; color: #999; }
+  .file-list {
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.82em;
+  }
+  .file-list li { padding: 3px 0; border-bottom: 1px solid #f0f0f0; }
+  .file-list li:last-child { border-bottom: none; }
+  .file-list li.ok { color: #333; }
+  .file-list li.err { color: #c62828; }
+  .file-list .date { color: #0064d2; font-weight: bold; }
+  #btn-run {
+    width: 100%;
+    background: #aaa;
+    color: white;
+    border: none;
+    padding: 13px;
+    font-size: 1em;
+    border-radius: 5px;
+    cursor: not-allowed;
+    margin-top: 4px;
+  }
+  #btn-run:not([disabled]) { background: #43a843; cursor: pointer; }
+  #btn-run:not([disabled]):hover { background: #379637; }
+  .status { margin-top: 10px; font-size: 0.88em; padding: 8px 10px; border-radius: 5px; display: none; }
+  .status.success { display: block; background: #e8f5e9; color: #2e7d32; }
+  .status.error { display: block; background: #fdecea; color: #c62828; white-space: pre-wrap; }
+  .status.running { display: block; background: #e8f0fe; color: #0053b3; }
+  #log-box {
+    margin-top: 10px;
+    background: #f7f7f7;
+    border: 1px solid #e0e0e0;
+    border-radius: 5px;
+    padding: 10px 12px;
+    font-size: 0.78em;
+    font-family: Consolas, Menlo, monospace;
+    white-space: pre-wrap;
+    max-height: 260px;
+    overflow-y: auto;
+    display: none;
+  }
+  #download-wrap { margin-top: 10px; display: none; }
+  #download-btn {
+    display: block;
+    text-align: center;
+    background: #0064d2;
+    color: white;
+    text-decoration: none;
+    padding: 11px;
+    border-radius: 5px;
+    font-size: 0.9em;
+  }
+  #download-btn:hover { background: #0053b3; }
+  details { font-size: 0.82em; color: #555; }
+  summary { cursor: pointer; color: #0064d2; font-weight: bold; margin-bottom: 6px; }
+  details ul { margin: 6px 0; padding-left: 20px; line-height: 1.7; }
+  .note {
+    font-size: 0.78em;
+    color: #777;
+    background: #f0f7ff;
+    border-left: 3px solid #0064d2;
+    padding: 8px 10px;
+    border-radius: 3px;
+    margin-top: 10px;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<h1>📊 全国定点.xlsx 更新ツール</h1>
+<p class="lead">
+  マスターファイル(全国定点.xlsx)と、日次のFixedPointローデータをアップロードすると、
+  稼働率・売上・稼働部屋数を自動反映した更新済みファイルをその場で生成します。<br>
+  すべての処理はこのブラウザの中だけで行われ、ファイルはどこにも送信されません。
+</p>
+
+<div class="app">
+
+  <div class="section">
+    <h2>① マスターファイル(全国定点.xlsx)</h2>
+    <div class="drop-zone" id="drop-master">
+      <label class="btn" for="input-master">ファイルを選択</label>
+      <input type="file" id="input-master" accept=".xlsx">
+      <p id="master-hint">またはここにドロップ</p>
+    </div>
+    <ul class="file-list" id="master-list"></ul>
+  </div>
+
+  <div class="section">
+    <h2>② FixedPointローデータ(1件以上、複数選択可)</h2>
+    <div class="drop-zone" id="drop-raw">
+      <label class="btn" for="input-raw">ファイルを選択</label>
+      <input type="file" id="input-raw" accept=".xlsx" multiple>
+      <p id="raw-hint">またはここにドロップ(複数可)</p>
+    </div>
+    <ul class="file-list" id="raw-list"></ul>
+  </div>
+
+  <div class="section">
+    <button id="btn-run" disabled>🚀 更新を実行</button>
+    <div class="status" id="status-box"></div>
+    <div id="log-box"></div>
+    <div id="download-wrap">
+      <a id="download-btn">📥 更新済みファイルをダウンロード</a>
+    </div>
+  </div>
+
+  <details>
+    <summary>ℹ️ 仕様・注意事項</summary>
+    <ul>
+      <li>対象シートは <code>YYYY年M月</code> 形式で、あらかじめマスターファイル内に存在している必要があります(月が変わる際のシート自動作成には未対応です)。</li>
+      <li>稼働率(D,F,H,J列)は毎回絶対値で上書きし、当日伸び列は差分値として書き込みます。売上・稼働部屋数列も絶対値で上書きします。それ以外(SUM・予算差異・MM単価などの数式)は変更しません。</li>
+      <li>複数のrawファイルをまとめてアップロードした場合、ファイル名の日付順に自動で処理します。</li>
+      <li>生成されるファイルは元ファイルを上書きせず、新しいファイル名でダウンロードされます。</li>
+    </ul>
+  </details>
+
+  <div class="note">
+    処理はすべてこのページを開いたブラウザの中(JavaScript)で完結します。アップロードしたExcelファイルの内容がサーバーへ送信されることはありません。
+  </div>
+
+</div>
+
+<script>
+class UpdateError extends Error {}
+
+const AREA_LABELS = { nag: "名古屋WM", tky: "東京WM", osa: "大阪WM", sht: "社宅・賃貸" };
+const BLOCK_LABELS = ["当月", "1か月後", "2か月後", "3か月後"];
+const COL = {
+  rate_nat: 4, rate_nat_delta: 5,
+  rate_tky: 6, rate_tky_delta: 7,
+  rate_nag: 8, rate_nag_delta: 9,
+  rate_osa: 10, rate_osa_delta: 11,
+  sales_tky: 15, sales_nag: 18, sales_osa: 21, sales_sht: 24,
+  rooms_tky: 29, rooms_nag: 32, rooms_osa: 35, rooms_sht: 38,
+};
+const XML_MIME = "application/xml";
+const RELS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+function parseDateFromFilename(filename) {
+  const m = filename.match(/FixedPoint(\d{4})(\d{2})(\d{2})\d{6}/);
+  if (!m) throw new UpdateError(`ファイル名から日付を抽出できません: ${filename}`);
+  return { y: parseInt(m[1], 10), m: parseInt(m[2], 10), d: parseInt(m[3], 10) };
+}
+
+function compareDates(a, b) {
+  if (a.y !== b.y) return a.y - b.y;
+  if (a.m !== b.m) return a.m - b.m;
+  return a.d - b.d;
+}
+
+function addMonths(y, m, n) {
+  const idx = (m - 1) + n;
+  const year = y + Math.floor(idx / 12);
+  const month = (idx % 12) + 1;
+  return { y: year, m: month };
+}
+
+function pad2(n) { return String(n).padStart(2, "0"); }
+
+function colFromRef(ref) {
+  const m = ref.match(/^([A-Z]+)\d+$/);
+  let col = 0;
+  for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
+  return col;
+}
+
+function colToLetters(col) {
+  let s = "";
+  while (col > 0) {
+    const rem = (col - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    col = Math.floor((col - 1) / 26);
+  }
+  return s;
+}
+
+function cellRef(row, col) { return colToLetters(col) + row; }
+
+async function loadSharedStrings(zip) {
+  const f = zip.file("xl/sharedStrings.xml");
+  if (!f) return [];
+  const xml = await f.async("string");
+  const doc = new DOMParser().parseFromString(xml, XML_MIME);
+  return Array.from(doc.getElementsByTagName("si")).map(si => si.textContent);
+}
+
+function resolveSheetPath(wbDoc, relsDoc, sheetName) {
+  let rId = null;
+  for (const s of wbDoc.getElementsByTagName("sheet")) {
+    if (s.getAttribute("name") === sheetName) {
+      rId = s.getAttribute("r:id") || s.getAttributeNS(RELS_NS, "id");
+      break;
+    }
+  }
+  if (!rId) return null;
+  for (const r of relsDoc.getElementsByTagName("Relationship")) {
+    if (r.getAttribute("Id") === rId) {
+      let target = r.getAttribute("Target").replace(/^\.?\//, "");
+      if (!target.startsWith("xl/")) target = "xl/" + target;
+      return target;
+    }
+  }
+  return null;
+}
+
+async function parseWorkbookMeta(zip) {
+  const wbXml = await zip.file("xl/workbook.xml").async("string");
+  const wbDoc = new DOMParser().parseFromString(wbXml, XML_MIME);
+  const relsXml = await zip.file("xl/_rels/workbook.xml.rels").async("string");
+  const relsDoc = new DOMParser().parseFromString(relsXml, XML_MIME);
+  return { wbDoc, relsDoc };
+}
+
+async function loadSheetDoc(zip, path) {
+  const xmlText = await zip.file(path).async("string");
+  const doc = new DOMParser().parseFromString(xmlText, XML_MIME);
+  const sheetDataEl = doc.getElementsByTagName("sheetData")[0];
+  return { doc, sheetDataEl };
+}
+
+function findRowEl(sheetDataEl, row) {
+  for (const el of sheetDataEl.children) {
+    if (el.tagName === "row" && parseInt(el.getAttribute("r"), 10) === row) return el;
+  }
+  return null;
+}
+
+function findCellInRow(rowEl, col) {
+  if (!rowEl) return null;
+  for (const el of rowEl.children) {
+    if (el.tagName === "c" && colFromRef(el.getAttribute("r")) === col) return el;
+  }
+  return null;
+}
+
+function cellElValue(cellEl, sharedStrings) {
+  if (!cellEl) return null;
+  const t = cellEl.getAttribute("t");
+  if (t === "inlineStr") {
+    const isEl = cellEl.getElementsByTagName("is")[0];
+    return isEl ? isEl.textContent : null;
+  }
+  const vEl = cellEl.getElementsByTagName("v")[0];
+  if (!vEl) return null;
+  const raw = vEl.textContent;
+  if (t === "s") { const idx = parseInt(raw, 10); return sharedStrings[idx] ?? null; }
+  if (t === "str") return raw;
+  if (t === "b") return raw === "1";
+  const num = parseFloat(raw);
+  return Number.isNaN(num) ? null : num;
+}
+
+function getCellValue(sheetDataEl, sharedStrings, row, col) {
+  return cellElValue(findCellInRow(findRowEl(sheetDataEl, row), col), sharedStrings);
+}
+
+function setCellNumber(doc, sheetDataEl, row, col, value) {
+  const ns = doc.documentElement.namespaceURI;
+  let rowEl = null, beforeRow = null;
+  for (const el of sheetDataEl.children) {
+    if (el.tagName !== "row") continue;
+    const r = parseInt(el.getAttribute("r"), 10);
+    if (r === row) { rowEl = el; break; }
+    if (r > row) { beforeRow = el; break; }
+  }
+  if (!rowEl) {
+    rowEl = doc.createElementNS(ns, "row");
+    rowEl.setAttribute("r", String(row));
+    if (beforeRow) sheetDataEl.insertBefore(rowEl, beforeRow);
+    else sheetDataEl.appendChild(rowEl);
+  }
+
+  const ref = cellRef(row, col);
+  let cellEl = null, beforeCell = null;
+  for (const el of rowEl.children) {
+    if (el.tagName !== "c") continue;
+    const c = colFromRef(el.getAttribute("r"));
+    if (c === col) { cellEl = el; break; }
+    if (c > col) { beforeCell = el; break; }
+  }
+  if (!cellEl) {
+    cellEl = doc.createElementNS(ns, "c");
+    cellEl.setAttribute("r", ref);
+    if (beforeCell) rowEl.insertBefore(cellEl, beforeCell);
+    else rowEl.appendChild(cellEl);
+  }
+
+  cellEl.removeAttribute("t");
+  const fEl = cellEl.getElementsByTagName("f")[0];
+  if (fEl) cellEl.removeChild(fEl);
+  let vEl = cellEl.getElementsByTagName("v")[0];
+  if (!vEl) {
+    vEl = doc.createElementNS(ns, "v");
+    cellEl.appendChild(vEl);
+  }
+  vEl.textContent = String(value);
+}
+
+function findAreaRows(sheetDataEl, sharedStrings) {
+  const rows = {};
+  for (let r = 1; r <= 60; r++) {
+    const v = getCellValue(sheetDataEl, sharedStrings, r, 15);
+    if (typeof v === "string") {
+      const trimmed = v.trim();
+      for (const [key, label] of Object.entries(AREA_LABELS)) {
+        if (trimmed === label) rows[key] = r;
+      }
+    }
+  }
+  const missing = Object.keys(AREA_LABELS).filter(k => !(k in rows));
+  if (missing.length) throw new UpdateError(`rawファイル内でエリアラベルが見つかりません: ${missing.join(", ")}`);
+  return rows;
+}
+
+function findMonthBaseCol(sheetDataEl, sharedStrings, y, m) {
+  const label = `${y}/${pad2(m)}`;
+  for (let c = 1; c <= 300; c++) {
+    if (getCellValue(sheetDataEl, sharedStrings, 2, c) === label) return c;
+  }
+  return null;
+}
+
+function extractAreaValues(sheetDataEl, sharedStrings, labelRow, salesRow, monthCol) {
+  const occupied = getCellValue(sheetDataEl, sharedStrings, labelRow, monthCol) || 0;
+  const total = getCellValue(sheetDataEl, sharedStrings, labelRow, monthCol + 2) || 0;
+  const salesGross = getCellValue(sheetDataEl, sharedStrings, salesRow, monthCol) || 0;
+  const discount = getCellValue(sheetDataEl, sharedStrings, salesRow, monthCol + 2) || 0;
+  return { occupied, total, salesNet: salesGross + discount };
+}
+
+function findBlockStartRow(sheetDataEl, sharedStrings, label) {
+  for (const rowEl of sheetDataEl.children) {
+    if (rowEl.tagName !== "row") continue;
+    if (cellElValue(findCellInRow(rowEl, 1), sharedStrings) === label) {
+      return parseInt(rowEl.getAttribute("r"), 10);
+    }
+  }
+  throw new UpdateError(`全国定点シートにブロック '${label}' が見つかりません`);
+}
+
+function processOneFile(targetDoc, targetSheetDataEl, masterSharedStrings, sheetName,
+                         rawSheetDataEl, rawSharedStrings, rawFilename, rawDate, log) {
+  const areaRows = findAreaRows(rawSheetDataEl, rawSharedStrings);
+  const dayOfMonth = rawDate.d;
+
+  BLOCK_LABELS.forEach((blockLabel, blockIdx) => {
+    const tgt = addMonths(rawDate.y, rawDate.m, blockIdx);
+    const baseCol = findMonthBaseCol(rawSheetDataEl, rawSharedStrings, tgt.y, tgt.m);
+    if (baseCol === null) return;
+
+    const vals = {};
+    for (const key of ["nag", "tky", "osa", "sht"]) {
+      const labelRow = areaRows[key];
+      const salesRow = labelRow + 1;
+      const { occupied, total, salesNet } = extractAreaValues(rawSheetDataEl, rawSharedStrings, labelRow, salesRow, baseCol);
+      vals[key] = { occ: occupied, tot: total, sales: salesNet };
+    }
+
+    const rate = {};
+    for (const key of ["nag", "tky", "osa"]) {
+      rate[key] = vals[key].tot ? (vals[key].occ / vals[key].tot * 100) : 0;
+    }
+    const occSum = ["nag", "tky", "osa", "sht"].reduce((s, k) => s + vals[k].occ, 0);
+    const totSum = ["nag", "tky", "osa", "sht"].reduce((s, k) => s + vals[k].tot, 0);
+    rate.nat = totSum ? (occSum / totSum * 100) : 0;
+
+    const blockStartRow = findBlockStartRow(targetSheetDataEl, masterSharedStrings, blockLabel);
+    const targetRow = blockStartRow + (dayOfMonth - 1);
+
+    const rateColMap = {
+      nat: [COL.rate_nat, COL.rate_nat_delta], tky: [COL.rate_tky, COL.rate_tky_delta],
+      nag: [COL.rate_nag, COL.rate_nag_delta], osa: [COL.rate_osa, COL.rate_osa_delta],
+    };
+    for (const [key, [absCol, deltaCol]] of Object.entries(rateColMap)) {
+      const newVal = Math.round(rate[key] * 100) / 100;
+      const prevVal = getCellValue(targetSheetDataEl, masterSharedStrings, targetRow - 1, absCol);
+      setCellNumber(targetDoc, targetSheetDataEl, targetRow, absCol, newVal);
+      if (typeof prevVal === "number") {
+        setCellNumber(targetDoc, targetSheetDataEl, targetRow, deltaCol, Math.round((newVal - prevVal) * 100) / 100);
+      }
+    }
+
+    const salesColMap = { tky: COL.sales_tky, nag: COL.sales_nag, osa: COL.sales_osa, sht: COL.sales_sht };
+    for (const [key, col] of Object.entries(salesColMap)) {
+      setCellNumber(targetDoc, targetSheetDataEl, targetRow, col, vals[key].sales);
+    }
+
+    const roomsColMap = { tky: COL.rooms_tky, nag: COL.rooms_nag, osa: COL.rooms_osa, sht: COL.rooms_sht };
+    for (const [key, col] of Object.entries(roomsColMap)) {
+      setCellNumber(targetDoc, targetSheetDataEl, targetRow, col, vals[key].occ);
+    }
+
+    log.push(
+      `[${rawFilename}] ${sheetName} / ${blockLabel} row=${targetRow} / ` +
+      `稼働率(全国 ${rate.nat.toFixed(2)}% 東京 ${rate.tky.toFixed(2)}% 名古屋 ${rate.nag.toFixed(2)}% 大阪 ${rate.osa.toFixed(2)}%)`
+    );
+  });
+}
+
+async function stripCalcChain(zip, wbDoc, relsDoc) {
+  const calcFile = zip.file("xl/calcChain.xml");
+  if (calcFile) {
+    zip.remove("xl/calcChain.xml");
+    for (const r of Array.from(relsDoc.getElementsByTagName("Relationship"))) {
+      if ((r.getAttribute("Target") || "").includes("calcChain.xml")) r.parentNode.removeChild(r);
+    }
+    const ctFile = zip.file("[Content_Types].xml");
+    if (ctFile) {
+      const ctDoc = new DOMParser().parseFromString(await ctFile.async("string"), XML_MIME);
+      for (const o of Array.from(ctDoc.getElementsByTagName("Override"))) {
+        if ((o.getAttribute("PartName") || "").includes("calcChain.xml")) o.parentNode.removeChild(o);
+      }
+      zip.file("[Content_Types].xml", new XMLSerializer().serializeToString(ctDoc));
+    }
+  }
+  let calcPr = wbDoc.getElementsByTagName("calcPr")[0];
+  if (!calcPr) {
+    calcPr = wbDoc.createElementNS(wbDoc.documentElement.namespaceURI, "calcPr");
+    wbDoc.documentElement.appendChild(calcPr);
+  }
+  calcPr.setAttribute("fullCalcOnLoad", "1");
+}
+
+async function updateMaster(masterBuf, rawFiles) {
+  const zip = await JSZip.loadAsync(masterBuf);
+  const { wbDoc, relsDoc } = await parseWorkbookMeta(zip);
+  const masterSharedStrings = await loadSharedStrings(zip);
+
+  const sheetPathCache = new Map();
+  const sheetDocCache = new Map();
+
+  async function getTargetSheet(sheetName) {
+    if (!sheetPathCache.has(sheetName)) {
+      sheetPathCache.set(sheetName, resolveSheetPath(wbDoc, relsDoc, sheetName));
+    }
+    const path = sheetPathCache.get(sheetName);
+    if (!path) return null;
+    if (!sheetDocCache.has(path)) {
+      sheetDocCache.set(path, { ...(await loadSheetDoc(zip, path)), path });
+    }
+    return sheetDocCache.get(path);
+  }
+
+  const rawSorted = rawFiles.slice().sort((a, b) => compareDates(parseDateFromFilename(a.name), parseDateFromFilename(b.name)));
+  const log = [];
+
+  for (const { name, buf } of rawSorted) {
+    const rawDate = parseDateFromFilename(name);
+    const sheetName = `${rawDate.y}年${rawDate.m}月`;
+    const target = await getTargetSheet(sheetName);
+    if (!target) {
+      throw new UpdateError(
+        `全国定点.xlsx に '${sheetName}' シートがありません。月が変わる場合は事前にテンプレートをコピーしてシートを用意してください。`
+      );
+    }
+
+    const rawZip = await JSZip.loadAsync(buf);
+    const rawMeta = await parseWorkbookMeta(rawZip);
+    const rawSharedStrings = await loadSharedStrings(rawZip);
+    const rawPath = resolveSheetPath(rawMeta.wbDoc, rawMeta.relsDoc, "FixedPoint");
+    if (!rawPath) throw new UpdateError(`${name} に 'FixedPoint' シートが見つかりません`);
+    const { sheetDataEl: rawSheetDataEl } = await loadSheetDoc(rawZip, rawPath);
+
+    processOneFile(target.doc, target.sheetDataEl, masterSharedStrings, sheetName,
+                    rawSheetDataEl, rawSharedStrings, name, rawDate, log);
+  }
+
+  for (const { doc, path } of sheetDocCache.values()) {
+    zip.file(path, new XMLSerializer().serializeToString(doc));
+  }
+  await stripCalcChain(zip, wbDoc, relsDoc);
+  zip.file("xl/workbook.xml", new XMLSerializer().serializeToString(wbDoc));
+  zip.file("xl/_rels/workbook.xml.rels", new XMLSerializer().serializeToString(relsDoc));
+
+  const blob = await zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+  return { blob, log };
+}
+
+// ---- UI wiring ----
+let masterFile = null;
+let rawFileList = [];
+
+function updateRunButton() {
+  document.getElementById("btn-run").disabled = !(masterFile && rawFileList.length > 0);
+}
+
+function renderMasterList() {
+  const ul = document.getElementById("master-list");
+  ul.innerHTML = "";
+  if (masterFile) {
+    document.getElementById("master-hint").style.display = "none";
+    const li = document.createElement("li");
+    li.className = "ok";
+    li.textContent = `📄 ${masterFile.name}`;
+    ul.appendChild(li);
+  }
+}
+
+function renderRawList() {
+  const ul = document.getElementById("raw-list");
+  ul.innerHTML = "";
+  if (rawFileList.length) document.getElementById("raw-hint").style.display = "none";
+  for (const f of rawFileList) {
+    const li = document.createElement("li");
+    try {
+      const d = parseDateFromFilename(f.name);
+      li.className = "ok";
+      li.innerHTML = `${f.name} → 日付: <span class="date">${d.y}-${pad2(d.m)}-${pad2(d.d)}</span>`;
+    } catch (e) {
+      li.className = "err";
+      li.textContent = `${f.name} → ${e.message}`;
+    }
+    ul.appendChild(li);
+  }
+}
+
+function setupDropZone(zoneId, inputId, onFiles) {
+  const zone = document.getElementById(zoneId);
+  const input = document.getElementById(inputId);
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", e => {
+    e.preventDefault();
+    zone.classList.remove("dragover");
+    onFiles(Array.from(e.dataTransfer.files).filter(f => f.name.toLowerCase().endsWith(".xlsx")));
+  });
+  input.addEventListener("change", e => onFiles(Array.from(e.target.files)));
+}
+
+setupDropZone("drop-master", "input-master", files => {
+  if (files[0]) {
+    masterFile = files[0];
+    renderMasterList();
+    updateRunButton();
+  }
+});
+
+setupDropZone("drop-raw", "input-raw", files => {
+  if (files.length) {
+    rawFileList = files;
+    renderRawList();
+    updateRunButton();
+  }
+});
+
+const statusBox = document.getElementById("status-box");
+const logBox = document.getElementById("log-box");
+const downloadWrap = document.getElementById("download-wrap");
+const downloadBtn = document.getElementById("download-btn");
+const runBtn = document.getElementById("btn-run");
+
+runBtn.addEventListener("click", async () => {
+  if (!masterFile || rawFileList.length === 0) return;
+  runBtn.disabled = true;
+  statusBox.className = "status running";
+  statusBox.textContent = "処理中...";
+  logBox.style.display = "none";
+  downloadWrap.style.display = "none";
+
+  try {
+    const masterBuf = await masterFile.arrayBuffer();
+    const rawPayload = await Promise.all(
+      rawFileList.map(async f => ({ name: f.name, buf: await f.arrayBuffer() }))
+    );
+    const { blob, log } = await updateMaster(masterBuf, rawPayload);
+
+    statusBox.className = "status success";
+    statusBox.textContent = "✅ 更新が完了しました。";
+    logBox.textContent = log.join("\n");
+    logBox.style.display = "block";
+
+    const now = new Date();
+    const fname = `全国定点_updated_${now.getFullYear()}${pad2(now.getMonth() + 1)}${pad2(now.getDate())}_` +
+                  `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}.xlsx`;
+    downloadBtn.href = URL.createObjectURL(blob);
+    downloadBtn.download = fname;
+    downloadWrap.style.display = "block";
+  } catch (e) {
+    statusBox.className = "status error";
+    statusBox.textContent = "エラー: " + (e && e.message ? e.message : String(e));
+  } finally {
+    updateRunButton();
+  }
+});
+</script>
+</body>
+</html>
