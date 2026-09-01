@@ -235,12 +235,28 @@ function colToLetters(col) {
 
 function cellRef(row, col) { return colToLetters(col) + row; }
 
+function extractRstText(el) {
+  // <si>/<is> (CT_Rst) may contain <rPh> phonetic (furigana) runs alongside
+  // the real <t>/<r><t> text; textContent would wrongly include those too.
+  let text = "";
+  for (const child of el.children) {
+    if (child.tagName === "t") {
+      text += child.textContent;
+    } else if (child.tagName === "r") {
+      for (const rc of child.children) {
+        if (rc.tagName === "t") text += rc.textContent;
+      }
+    }
+  }
+  return text;
+}
+
 async function loadSharedStrings(zip) {
   const f = zip.file("xl/sharedStrings.xml");
   if (!f) return [];
   const xml = await f.async("string");
   const doc = new DOMParser().parseFromString(xml, XML_MIME);
-  return Array.from(doc.getElementsByTagName("si")).map(si => si.textContent);
+  return Array.from(doc.getElementsByTagName("si")).map(extractRstText);
 }
 
 function resolveSheetPath(wbDoc, relsDoc, sheetName) {
@@ -277,6 +293,29 @@ async function loadSheetDoc(zip, path) {
   return { doc, sheetDataEl };
 }
 
+const SSML_NS = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+const ROW_RE = /<row r="(\d+)"(?:[^>]*?\/>|[^>]*>[\s\S]*?<\/row>)/g;
+
+// Raw FixedPoint exports can be tens of MB with tens of thousands of rows,
+// but we only ever need a handful of rows near the top. Parsing the whole
+// sheet into a DOM can exhaust memory, so pull out just the rows we need
+// (via a lightweight text scan, stopping once we're past maxRow) and hand
+// only that small fragment to the XML parser.
+async function loadSheetRowsUpTo(zip, path, maxRow) {
+  const xmlText = await zip.file(path).async("string");
+  let fragment = "";
+  ROW_RE.lastIndex = 0;
+  let m;
+  while ((m = ROW_RE.exec(xmlText)) !== null) {
+    if (parseInt(m[1], 10) > maxRow) break;
+    fragment += m[0];
+  }
+  const doc = new DOMParser().parseFromString(
+    `<sheetData xmlns="${SSML_NS}">${fragment}</sheetData>`, XML_MIME
+  );
+  return doc.documentElement;
+}
+
 function findRowEl(sheetDataEl, row) {
   for (const el of sheetDataEl.children) {
     if (el.tagName === "row" && parseInt(el.getAttribute("r"), 10) === row) return el;
@@ -297,7 +336,7 @@ function cellElValue(cellEl, sharedStrings) {
   const t = cellEl.getAttribute("t");
   if (t === "inlineStr") {
     const isEl = cellEl.getElementsByTagName("is")[0];
-    return isEl ? isEl.textContent : null;
+    return isEl ? extractRstText(isEl) : null;
   }
   const vEl = cellEl.getElementsByTagName("v")[0];
   if (!vEl) return null;
@@ -311,6 +350,17 @@ function cellElValue(cellEl, sharedStrings) {
 
 function getCellValue(sheetDataEl, sharedStrings, row, col) {
   return cellElValue(findCellInRow(findRowEl(sheetDataEl, row), col), sharedStrings);
+}
+
+// The reference tool re-reads the "previous day" cell from a save/reload
+// round-trip, which drops the cached result of any formula cell (only
+// plain literals survive). A previous day still driven by an old formula
+// (e.g. pre-tool manually maintained rows) is therefore treated as
+// unavailable, and the day-over-day delta is left blank for that one day.
+function getPrevAbsValue(sheetDataEl, row, col) {
+  const cellEl = findCellInRow(findRowEl(sheetDataEl, row), col);
+  if (!cellEl || cellEl.getElementsByTagName("f")[0]) return null;
+  return cellElValue(cellEl, []);
 }
 
 function setCellNumber(doc, sheetDataEl, row, col, value) {
@@ -432,7 +482,7 @@ function processOneFile(targetDoc, targetSheetDataEl, masterSharedStrings, sheet
     };
     for (const [key, [absCol, deltaCol]] of Object.entries(rateColMap)) {
       const newVal = Math.round(rate[key] * 100) / 100;
-      const prevVal = getCellValue(targetSheetDataEl, masterSharedStrings, targetRow - 1, absCol);
+      const prevVal = getPrevAbsValue(targetSheetDataEl, targetRow - 1, absCol);
       setCellNumber(targetDoc, targetSheetDataEl, targetRow, absCol, newVal);
       if (typeof prevVal === "number") {
         setCellNumber(targetDoc, targetSheetDataEl, targetRow, deltaCol, Math.round((newVal - prevVal) * 100) / 100);
@@ -518,7 +568,7 @@ async function updateMaster(masterBuf, rawFiles) {
     const rawSharedStrings = await loadSharedStrings(rawZip);
     const rawPath = resolveSheetPath(rawMeta.wbDoc, rawMeta.relsDoc, "FixedPoint");
     if (!rawPath) throw new UpdateError(`${name} に 'FixedPoint' シートが見つかりません`);
-    const { sheetDataEl: rawSheetDataEl } = await loadSheetDoc(rawZip, rawPath);
+    const rawSheetDataEl = await loadSheetRowsUpTo(rawZip, rawPath, 60);
 
     processOneFile(target.doc, target.sheetDataEl, masterSharedStrings, sheetName,
                     rawSheetDataEl, rawSharedStrings, name, rawDate, log);
