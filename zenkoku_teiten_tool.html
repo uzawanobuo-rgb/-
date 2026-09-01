@@ -352,17 +352,6 @@ function getCellValue(sheetDataEl, sharedStrings, row, col) {
   return cellElValue(findCellInRow(findRowEl(sheetDataEl, row), col), sharedStrings);
 }
 
-// The reference tool re-reads the "previous day" cell from a save/reload
-// round-trip, which drops the cached result of any formula cell (only
-// plain literals survive). A previous day still driven by an old formula
-// (e.g. pre-tool manually maintained rows) is therefore treated as
-// unavailable, and the day-over-day delta is left blank for that one day.
-function getPrevAbsValue(sheetDataEl, row, col) {
-  const cellEl = findCellInRow(findRowEl(sheetDataEl, row), col);
-  if (!cellEl || cellEl.getElementsByTagName("f")[0]) return null;
-  return cellElValue(cellEl, []);
-}
-
 function setCellNumber(doc, sheetDataEl, row, col, value) {
   const ns = doc.documentElement.namespaceURI;
   let rowEl = null, beforeRow = null;
@@ -482,7 +471,7 @@ function processOneFile(targetDoc, targetSheetDataEl, masterSharedStrings, sheet
     };
     for (const [key, [absCol, deltaCol]] of Object.entries(rateColMap)) {
       const newVal = Math.round(rate[key] * 100) / 100;
-      const prevVal = getPrevAbsValue(targetSheetDataEl, targetRow - 1, absCol);
+      const prevVal = getCellValue(targetSheetDataEl, masterSharedStrings, targetRow - 1, absCol);
       setCellNumber(targetDoc, targetSheetDataEl, targetRow, absCol, newVal);
       if (typeof prevVal === "number") {
         setCellNumber(targetDoc, targetSheetDataEl, targetRow, deltaCol, Math.round((newVal - prevVal) * 100) / 100);
