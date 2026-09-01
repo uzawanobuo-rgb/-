@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GM入稿(heya_ichiran) 更新ツール</title>
+<script src="https://cdn.jsdelivr.net/npm/encoding-japanese@2.2.0/encoding.min.js"></script>
+<style>
+  :root{
+    --bg:#fafaf9;
+    --panel:#ffffff;
+    --border:#e2e0db;
+    --text:#2b2a27;
+    --muted:#6b6862;
+    --accent:#2f6f5e;
+    --accent-dark:#234f43;
+    --warn:#a3521a;
+    --danger:#a3341a;
+    --ok:#2f6f5e;
+    --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+    line-height:1.7;
+  }
+  .wrap{
+    max-width:760px;
+    margin:0 auto;
+    padding:48px 24px 96px;
+  }
+  h1{
+    font-size:1.5rem;
+    font-weight:700;
+    margin:0 0 6px;
+    letter-spacing:.01em;
+  }
+  .lead{
+    color:var(--muted);
+    font-size:.95rem;
+    margin:0 0 36px;
+    max-width:60ch;
+  }
+  .step{
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:22px 24px;
+    margin-bottom:18px;
+  }
+  .step h2{
+    font-size:.95rem;
+    font-weight:700;
+    margin:0 0 4px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .step h2 .num{
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    width:22px; height:22px;
+    border-radius:50%;
+    background:var(--accent);
+    color:#fff;
+    font-size:.75rem;
+    flex:none;
+  }
+  .step p.desc{
+    margin:0 0 14px;
+    color:var(--muted);
+    font-size:.85rem;
+  }
+  .drop{
+    border:1.5px dashed var(--border);
+    border-radius:8px;
+    padding:20px;
+    text-align:center;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+    font-size:.9rem;
+    color:var(--muted);
+    background:#fcfcfb;
+  }
+  .drop.drag{
+    border-color:var(--accent);
+    background:#f1f7f4;
+    color:var(--accent-dark);
+  }
+  .drop.filled{
+    border-style:solid;
+    border-color:var(--accent);
+    background:#f1f7f4;
+    color:var(--accent-dark);
+    font-weight:600;
+  }
+  .drop input{ display:none; }
+  button{
+    font:inherit;
+    cursor:pointer;
+    border:none;
+    border-radius:8px;
+    padding:12px 22px;
+    font-size:.9rem;
+    font-weight:700;
+  }
+  .btn-run{
+    background:var(--accent);
+    color:#fff;
+    width:100%;
+    padding:14px 22px;
+    font-size:.95rem;
+  }
+  .btn-run:disabled{
+    background:#c9c6bf;
+    cursor:not-allowed;
+  }
+  .btn-run:not(:disabled):hover{ background:var(--accent-dark); }
+  .btn-dl{
+    background:var(--accent-dark);
+    color:#fff;
+  }
+  .btn-dl:hover{ background:#193a30; }
+  .btn-dl.secondary{
+    background:#fff;
+    color:var(--accent-dark);
+    border:1px solid var(--accent-dark);
+  }
+  .dl-row{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:16px;
+  }
+  #log{
+    display:none;
+    background:var(--panel);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:22px 24px;
+    margin-top:18px;
+  }
+  #log h2{
+    font-size:.95rem;
+    margin:0 0 12px;
+  }
+  .summary{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:10px;
+    margin-bottom:18px;
+  }
+  .stat{
+    background:#f6f5f2;
+    border-radius:8px;
+    padding:12px 14px;
+  }
+  .stat .n{
+    font-size:1.3rem;
+    font-weight:700;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat.ok .n{ color:var(--ok); }
+  .stat.warn .n{ color:var(--warn); }
+  .stat .label{
+    font-size:.75rem;
+    color:var(--muted);
+    margin-top:2px;
+  }
+  details{
+    margin-top:10px;
+    border-top:1px solid var(--border);
+    padding-top:10px;
+  }
+  details summary{
+    cursor:pointer;
+    font-size:.85rem;
+    font-weight:600;
+    color:var(--accent-dark);
+  }
+  .list{
+    font-family:var(--mono);
+    font-size:.78rem;
+    color:var(--text);
+    white-space:pre-wrap;
+    background:#f6f5f2;
+    border-radius:6px;
+    padding:10px 12px;
+    margin-top:8px;
+    max-height:220px;
+    overflow:auto;
+  }
+  .err{
+    color:#fff;
+    background:var(--danger);
+    padding:12px 16px;
+    border-radius:8px;
+    font-size:.85rem;
+    margin-top:14px;
+    display:none;
+    white-space:pre-wrap;
+  }
+  footer{
+    margin-top:40px;
+    font-size:.78rem;
+    color:var(--muted);
+    border-top:1px solid var(--border);
+    padding-top:18px;
+  }
+  footer ul{ margin:8px 0 0; padding-left:1.2em; }
+  footer li{ margin-bottom:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>GM入稿(heya_ichiran) 更新ツール</h1>
+  <p class="lead">
+    heya_ichiran(GM入稿用CSV)を、最新のプラン(キャンペーン)CSVの金額・期間で上書きします。
+    処理はすべてこのブラウザの中だけで行われ、ファイルはどこにも送信されません。
+  </p>
+
+  <div class="step">
+    <h2><span class="num">1</span>heyaファイル（更新対象・GM入稿CSV）</h2>
+    <p class="desc">物件名, 表示物件名, 賃料：円／日 などの列を含むCSV。1ファイルのみ。</p>
+    <label class="drop" id="drop-heya">
+      <input type="file" id="file-heya" accept=".csv">
+      <span id="label-heya">ファイルを選択　またはここにドロップ</span>
+    </label>
+  </div>
+
+  <div class="step">
+    <h2><span class="num">2</span>プランファイル（最新の金額・期間データ）</h2>
+    <p class="desc">物件名（プラン枝番含む）, 賃料, 新スペシャルSALE利用料 などの列を含むCSV。1ファイルのみ。</p>
+    <label class="drop" id="drop-plan">
+      <input type="file" id="file-plan" accept=".csv">
+      <span id="label-plan">ファイルを選択　またはここにドロップ</span>
+    </label>
+  </div>
+
+  <button class="btn-run" id="run" disabled>🚀 更新を実行</button>
+  <div class="err" id="err"></div>
+
+  <div id="log">
+    <h2>実行結果</h2>
+    <div class="summary" id="summary"></div>
+
+    <details id="det-unmatched-gm">
+      <summary>heya側で対応するプラン行が見つからなかった行</summary>
+      <div class="list" id="list-unmatched-gm"></div>
+    </details>
+
+    <details id="det-loose">
+      <summary>【】表記の差異のみで一致させた行</summary>
+      <div class="list" id="list-loose"></div>
+    </details>
+
+    <details id="det-unmatched-plan" open>
+      <summary>プラン側でheyaに存在しない物件（アンマッチリスト）</summary>
+      <div class="list" id="list-unmatched-plan"></div>
+    </details>
+
+    <div class="dl-row">
+      <button class="btn-dl" id="dl-updated">📥 更新済みheya_ichiranをダウンロード</button>
+      <button class="btn-dl secondary" id="dl-unmatched">📥 アンマッチリスト(プランのみ)をダウンロード</button>
+    </div>
+  </div>
+
+  <footer>
+    <strong>仕様・更新ルール</strong>
+    <ul>
+      <li>heyaとプランの照合は物件名同士。先頭の記号（■□◆◇★☆●など）と、（〜）カッコ書き（駅までの分数等）は無視して照合します。</li>
+      <li>それでも一致しない場合に限り、【〜】の注記（キャンペーン表記など）も無視して照合します（候補が複数になる場合はマッチさせません）。</li>
+      <li>プラン G列（新スペシャルSALE利用料）に数字がある行：heyaのG列(賃料：円／日)＝プランG列、heyaのH列(賃料：円／月)＝G×30、heyaのK列(クリーニング：円／回)＝プランH列（H列が空なら0）。</li>
+      <li>プランG列が空の行：heyaのG列＝プランC列(賃料)、heyaのH列＝G×30、heyaのK列＝プランF列(RC代)。</li>
+      <li>全行共通：heyaのI列(光熱費：円／日)＝プランD列(水光熱費)、heyaのJ列(光熱費：円／月)＝I×30。</li>
+      <li>プランG列に数字がある行のみ：heyaのC列（表示物件名）内の日付表記を、プランM列（開始日）〜N列（終了日）に置き換え（例：2026-10-02 → 2026年10月2日）。物件名部分はそのまま維持します。</li>
+      <li>上記以外の列（住所・部屋番号など）は一切変更しません。</li>
+    </ul>
+  </footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- ファイル読み込み・エンコーディング ----------
+  function readFileAsBytes(file){
+    return new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(new Uint8Array(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsArrayBuffer(file);
+    });
+  }
+
+  function decodeSJIS(bytes){
+    // encoding-japanese: SJIS(=CP932想定) -> Unicodeコードポイント配列 -> 文字列
+    const unicodeArray = Encoding.convert(bytes, { from: 'SJIS', to: 'UNICODE' });
+    return Encoding.codeToString(unicodeArray);
+  }
+
+  function encodeSJISBlob(str){
+    const unicodeArray = Encoding.stringToCode(str);
+    const sjisArray = Encoding.convert(unicodeArray, { from: 'UNICODE', to: 'SJIS' });
+    return new Blob([new Uint8Array(sjisArray)], { type: 'text/csv' });
+  }
+
+  // ---------- 簡易CSVパーサ／シリアライザ (RFC4180準拠、カンマ・改行はCRLF/LF両対応) ----------
+  function parseCSV(text){
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+    let i = 0;
+    const n = text.length;
+    while (i < n) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i+1] === '"') { field += '"'; i += 2; continue; }
+          inQuotes = false; i++; continue;
+        }
+        field += c; i++; continue;
+      } else {
+        if (c === '"') { inQuotes = true; i++; continue; }
+        if (c === ',') { row.push(field); field = ''; i++; continue; }
+        if (c === '\r') {
+          if (text[i+1] === '\n') i++;
+          row.push(field); field = '';
+          rows.push(row); row = [];
+          i++; continue;
+        }
+        if (c === '\n') {
+          row.push(field); field = '';
+          rows.push(row); row = [];
+          i++; continue;
+        }
+        field += c; i++; continue;
+      }
+    }
+    // 最終フィールド/行
+    if (field.length > 0 || row.length > 0) {
+      row.push(field);
+      rows.push(row);
+    }
+    // 末尾の空行を除去
+    while (rows.length && rows[rows.length-1].length === 1 && rows[rows.length-1][0] === '') {
+      rows.pop();
+    }
+    return rows;
+  }
+
+  function csvField(v){
+    const s = (v === null || v === undefined) ? '' : String(v);
+    if (/[",\n\r]/.test(s)) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  function serializeCSV(rows){
+    return rows.map(r => r.map(csvField).join(',')).join('\r\n') + '\r\n';
+  }
+
+  // ---------- 正規化 ----------
+  function normalizeBase(name){
+    if (name === null || name === undefined) return '';
+    let s = String(name).trim();
+    s = s.replace(/^[^\p{L}\p{N}_]+/u, '');
+    s = s.replace(/（[^）]*）/g, '');
+    s = s.replace(/\([^)]*\)/g, '');
+    return s.trim();
+  }
+  function normalizeLoose(name){
+    let s = normalizeBase(name);
+    s = s.replace(/【[^】]*】/g, '');
+    return s.trim();
+  }
+
+  function formatJpDate(dateStr){
+    if (!dateStr) return null;
+    const m = String(dateStr).trim().match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (!m) return null;
+    return `${parseInt(m[1],10)}年${parseInt(m[2],10)}月${parseInt(m[3],10)}日`;
+  }
+
+  function toIntOrNull(v){
+    if (v === null || v === undefined) return null;
+    const s = String(v).trim();
+    if (s === '') return null;
+    const n = Number(s);
+    if (!isFinite(n)) return null;
+    return Math.trunc(n);
+  }
+
+  function colIndex(header, name){
+    return header.indexOf(name);
+  }
+
+  // ---------- UI wiring ----------
+  const state = { heyaFile: null, planFile: null };
+  const $ = (id) => document.getElementById(id);
+
+  function wireDrop(dropId, inputId, labelId, key){
+    const drop = $(dropId), input = $(inputId), label = $(labelId);
+    input.addEventListener('change', () => {
+      if (input.files[0]) setFile(key, input.files[0], drop, label);
+    });
+    drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('drag'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('drag'));
+    drop.addEventListener('drop', (e) => {
+      e.preventDefault(); drop.classList.remove('drag');
+      const f = e.dataTransfer.files[0];
+      if (f) setFile(key, f, drop, label);
+    });
+  }
+
+  function setFile(key, file, drop, label){
+    state[key] = file;
+    drop.classList.add('filled');
+    label.textContent = file.name;
+    $('run').disabled = !(state.heyaFile && state.planFile);
+  }
+
+  wireDrop('drop-heya', 'file-heya', 'label-heya', 'heyaFile');
+  wireDrop('drop-plan', 'file-plan', 'label-plan', 'planFile');
+
+  let lastUpdatedCSVBlob = null;
+  let lastUnmatchedCSVBlob = null;
+
+  $('run').addEventListener('click', async () => {
+    $('err').style.display = 'none';
+    $('log').style.display = 'none';
+    $('run').disabled = true;
+    $('run').textContent = '処理中…';
+    try {
+      await runUpdate();
+    } catch (e) {
+      console.error(e);
+      $('err').textContent = 'エラーが発生しました: ' + (e && e.message ? e.message : e);
+      $('err').style.display = 'block';
+    } finally {
+      $('run').disabled = false;
+      $('run').textContent = '🚀 更新を実行';
+    }
+  });
+
+  async function runUpdate(){
+    const [heyaBytes, planBytes] = await Promise.all([
+      readFileAsBytes(state.heyaFile),
+      readFileAsBytes(state.planFile)
+    ]);
+    const heyaText = decodeSJIS(heyaBytes);
+    const planText = decodeSJIS(planBytes);
+
+    const heyaRows = parseCSV(heyaText);
+    const planRows = parseCSV(planText);
+    if (heyaRows.length < 2) throw new Error('heyaファイルにデータ行がありません。');
+    if (planRows.length < 2) throw new Error('プランファイルにデータ行がありません。');
+
+    const heyaHeader = heyaRows[0];
+    const planHeader = planRows[0];
+
+    // heya列インデックス(名前で解決。見つからない場合は既知の位置にフォールバック)
+    const hName   = colIndex(heyaHeader, '物件名');
+    const hDisp   = colIndex(heyaHeader, '表示物件名');
+    const hG      = colIndex(heyaHeader, '賃料：円／日');
+    const hH      = colIndex(heyaHeader, '賃料：円／月');
+    const hI      = colIndex(heyaHeader, '光熱費：円／日');
+    const hJ      = colIndex(heyaHeader, '光熱費：円／月');
+    const hK      = colIndex(heyaHeader, 'クリーニング：円／回');
+
+    const need = { '物件名':hName, '表示物件名':hDisp, '賃料：円／日':hG, '賃料：円／月':hH,
+                   '光熱費：円／日':hI, '光熱費：円／月':hJ, 'クリーニング：円／回':hK };
+    for (const [label, idx] of Object.entries(need)) {
+      if (idx === -1) throw new Error(`heyaファイルに列「${label}」が見つかりません。ヘッダーを確認してください。`);
+    }
+
+    // プラン列インデックス(名前で解決)
+    const pNameHeader = planHeader.find(h => h.indexOf('物件名') !== -1);
+    const pName = colIndex(planHeader, pNameHeader);
+    const pC = colIndex(planHeader, '賃料');
+    const pD = colIndex(planHeader, '水光熱費');
+    const pF = colIndex(planHeader, 'RC代');
+    const pG = colIndex(planHeader, '新スペシャルSALE利用料');
+    const pH = planHeader.findIndex(h => h.indexOf('新スペシャルSALE') !== -1 && h.indexOf('RC代') !== -1);
+    const pM = colIndex(planHeader, '新スペシャルSALE入居開始期間開始日');
+    const pN = colIndex(planHeader, '新スペシャルSALE入居開始期間終了日');
+
+    const pNeed = { '物件名（プラン）':pName, '賃料':pC, '水光熱費':pD, 'RC代':pF,
+                    '新スペシャルSALE利用料':pG, '新スペシャルSALE　RC代':pH,
+                    '新スペシャルSALE入居開始期間開始日':pM, '新スペシャルSALE入居開始期間終了日':pN };
+    for (const [label, idx] of Object.entries(pNeed)) {
+      if (idx === -1) throw new Error(`プランファイルに列「${label}」が見つかりません。ヘッダーを確認してください。`);
+    }
+
+    const planData = planRows.slice(1).filter(r => r.some(v => v !== ''));
+
+    // プランmap構築
+    const planMap = new Map();       // baseKey -> row
+    const planLooseMap = new Map();  // looseKey -> [rows]
+    const planMatched = new Set();   // 実際に使われたプラン行(index)
+    let dupWarning = 0;
+
+    planData.forEach((row, idx) => {
+      const baseKey = normalizeBase(row[pName]);
+      const looseKey = normalizeLoose(row[pName]);
+      row.__idx = idx;
+      row.__baseKey = baseKey;
+      row.__looseKey = looseKey;
+      if (!planMap.has(baseKey)) planMap.set(baseKey, row);
+      else dupWarning++;
+      if (!planLooseMap.has(looseKey)) planLooseMap.set(looseKey, []);
+      planLooseMap.get(looseKey).push(row);
+    });
+
+    const heyaData = heyaRows.slice(1).filter(r => r.some(v => v !== ''));
+
+    const unmatchedGm = [];
+    const looseMatched = [];
+    let updatedCount = 0;
+    let cUpdatedCount = 0;
+
+    heyaData.forEach((row, i) => {
+      const name = row[hName];
+      const baseKey = normalizeBase(name);
+      let p = planMap.get(baseKey);
+      let viaLoose = false;
+
+      if (!p) {
+        const looseKey = normalizeLoose(name);
+        const candidates = planLooseMap.get(looseKey) || [];
+        if (candidates.length === 1) {
+          p = candidates[0];
+          viaLoose = true;
+        }
+      }
+
+      if (!p) {
+        unmatchedGm.push({ row: i + 2, name });
+        return;
+      }
+
+      planMatched.add(p.__idx);
+      if (viaLoose) looseMatched.push({ row: i + 2, gmName: name, planName: p[pName] });
+
+      const planG = toIntOrNull(p[pG]);
+      const planHval = toIntOrNull(p[pH]);
+      const planC = toIntOrNull(p[pC]);
+      const planF = toIntOrNull(p[pF]);
+      const planD = toIntOrNull(p[pD]);
+
+      const gNotNull = planG !== null;
+      let newG, newK;
+      if (gNotNull) {
+        newG = planG;
+        newK = (planHval !== null) ? planHval : 0;
+      } else {
+        newG = planC;
+        newK = planF;
+      }
+      const newH = newG * 30;
+      const newI = planD;
+      const newJ = newI * 30;
+
+      row[hG] = String(newG);
+      row[hH] = String(newH);
+      row[hI] = String(newI);
+      row[hJ] = String(newJ);
+      row[hK] = String(newK);
+      updatedCount++;
+
+      if (gNotNull) {
+        const startJp = formatJpDate(p[pM]);
+        const endJp = formatJpDate(p[pN]);
+        if (startJp && endJp) {
+          const baseName = row[hName];
+          row[hDisp] = `【${startJp}～${endJp}の間でご入居可能な方限定】${baseName}`;
+          cUpdatedCount++;
+        }
+      }
+    });
+
+    const unmatchedPlan = planData.filter(r => !planMatched.has(r.__idx));
+
+    // ---------- CSV出力 ----------
+    const outHeyaRows = [heyaHeader, ...heyaData.map(r => r.slice(0, heyaHeader.length))];
+    const outHeyaCSV = serializeCSV(outHeyaRows);
+    lastUpdatedCSVBlob = encodeSJISBlob(outHeyaCSV);
+
+    const outUnmatchedRows = [[planHeader[0], planHeader[pName]],
+      ...unmatchedPlan.map(r => [r[0], r[pName]])];
+    const outUnmatchedCSV = serializeCSV(outUnmatchedRows);
+    lastUnmatchedCSVBlob = encodeSJISBlob(outUnmatchedCSV);
+
+    // ---------- 画面表示 ----------
+    $('summary').innerHTML = `
+      <div class="stat ok"><div class="n">${heyaData.length}</div><div class="label">heya総行数</div></div>
+      <div class="stat ok"><div class="n">${updatedCount}</div><div class="label">金額を更新した行</div></div>
+      <div class="stat ok"><div class="n">${cUpdatedCount}</div><div class="label">表示物件名(日付)を更新</div></div>
+      <div class="stat ${unmatchedGm.length ? 'warn' : 'ok'}"><div class="n">${unmatchedGm.length}</div><div class="label">heya→プラン 未マッチ</div></div>
+      <div class="stat ${unmatchedPlan.length ? 'warn' : 'ok'}"><div class="n">${unmatchedPlan.length}</div><div class="label">プラン→heya 未マッチ</div></div>
+      <div class="stat"><div class="n">${looseMatched.length}</div><div class="label">【】無視で一致</div></div>
+    `;
+
+    $('list-unmatched-gm').textContent = unmatchedGm.length
+      ? unmatchedGm.map(u => `row ${u.row}: ${u.name}`).join('\n')
+      : '（なし）';
+    $('list-loose').textContent = looseMatched.length
+      ? looseMatched.map(u => `row ${u.row}: ${u.gmName}  <->  ${u.planName}`).join('\n')
+      : '（なし）';
+    $('list-unmatched-plan').textContent = unmatchedPlan.length
+      ? unmatchedPlan.map(r => `${r[0]}: ${r[pName]}`).join('\n')
+      : '（なし）';
+
+    $('log').style.display = 'block';
+  }
+
+  $('dl-updated').addEventListener('click', () => {
+    if (!lastUpdatedCSVBlob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(lastUpdatedCSVBlob);
+    const ts = new Date();
+    const stamp = `${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}`;
+    a.download = `heya_ichiran_updated_${stamp}.csv`;
+    a.click();
+  });
+  $('dl-unmatched').addEventListener('click', () => {
+    if (!lastUnmatchedCSVBlob) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(lastUnmatchedCSVBlob);
+    const ts = new Date();
+    const stamp = `${ts.getFullYear()}${String(ts.getMonth()+1).padStart(2,'0')}${String(ts.getDate()).padStart(2,'0')}_${String(ts.getHours()).padStart(2,'0')}${String(ts.getMinutes()).padStart(2,'0')}`;
+    a.download = `アンマッチリスト_プランのみ_${stamp}.csv`;
+    a.click();
+  });
+})();
+</script>
+</body>
+</html>
