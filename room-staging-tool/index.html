@@ -220,6 +220,18 @@
     white-space: pre-wrap;
   }
 
+  .manual-fallback {
+    margin-top: 16px;
+    padding: 12px 14px;
+    background: var(--amber-bg);
+    border-radius: var(--radius-sm);
+  }
+  .manual-fallback-title { font-size: 12px; font-weight: 600; color: var(--amber-text); margin-bottom: 4px; }
+  .manual-fallback-desc { font-size: 11px; color: var(--amber-text); line-height: 1.6; margin-bottom: 10px; }
+  .manual-fallback-desc a { color: var(--amber-text); text-decoration: underline; }
+  .manual-fallback .btn { background: transparent; }
+  .manual-fallback .btn:hover { background: rgba(0,0,0,0.06); }
+
   .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
 
   .history-strip {
@@ -320,6 +332,22 @@
         </div>
         <div class="spinner" id="spinnerStep1"><span class="dot"></span>生成中...（数十秒かかることがあります）</div>
         <div class="error-box" id="errorStep1"></div>
+
+        <div class="manual-fallback">
+          <p class="manual-fallback-title">APIの課金設定がない場合(無料で試したい場合)</p>
+          <p class="manual-fallback-desc">
+            下のボタンで元画像(赤枠つき)と家具の写真をダウンロードし、
+            <a href="https://gemini.google.com/" target="_blank" rel="noopener">Geminiアプリ</a>や
+            <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a>のチャットに
+            2枚をアップロードして、コピーしたプロンプトを送ってください。できあがった画像を保存し、下から読み込めば続きの作業ができます。
+          </p>
+          <div class="btn-row">
+            <button class="btn btn-sm" id="btnManualDownload1" disabled>画像をダウンロード＆プロンプトをコピー</button>
+            <label class="btn btn-sm" for="inputManualResult1" id="btnManualUploadLabel1">生成結果を読み込む</label>
+            <input type="file" id="inputManualResult1" accept="image/*" style="display:none">
+          </div>
+          <div class="field-hint" id="manualCopiedHint1" style="display:none;">プロンプトをコピーしました。</div>
+        </div>
       </div>
     </div>
   </div>
@@ -335,6 +363,22 @@
     </div>
     <div class="spinner" id="spinnerStep2"><span class="dot"></span>生成中...（数十秒かかることがあります）</div>
     <div class="error-box" id="errorStep2"></div>
+
+    <div class="manual-fallback">
+      <p class="manual-fallback-title">APIの課金設定がない場合(無料で試したい場合)</p>
+      <p class="manual-fallback-desc">
+        下のボタンで現在の画像をダウンロードし、
+        <a href="https://gemini.google.com/" target="_blank" rel="noopener">Geminiアプリ</a>や
+        <a href="https://aistudio.google.com/" target="_blank" rel="noopener">Google AI Studio</a>のチャットにアップロードして、
+        コピーしたプロンプトを送ってください。できあがった画像を保存し、下から読み込めば続きの作業ができます。
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-sm" id="btnManualDownload2">画像をダウンロード＆プロンプトをコピー</button>
+        <label class="btn btn-sm" for="inputManualResult2">生成結果を読み込む</label>
+        <input type="file" id="inputManualResult2" accept="image/*" style="display:none">
+      </div>
+      <div class="field-hint" id="manualCopiedHint2" style="display:none;">プロンプトをコピーしました。</div>
+    </div>
   </div>
 
   <!-- STEP 3: final adjust -->
@@ -643,6 +687,7 @@ function resetFurnitureUploadUI() {
 function updatePlaceButtonState() {
   const ok = !!state.rectDisplay && state.rectDisplay.w > 4 && state.rectDisplay.h > 4 && !!state.furnitureDataUrl;
   document.getElementById('btnPlaceFurniture').disabled = !ok;
+  document.getElementById('btnManualDownload1').disabled = !ok;
 }
 
 // burn the red rectangle (converted to natural-resolution coords) into a full-res copy of the working image
@@ -748,6 +793,84 @@ document.getElementById('btnStage').addEventListener('click', async () => {
     btn.disabled = false;
     spinner.classList.remove('active');
   }
+});
+
+// ---------- manual fallback (no API billing required) ----------
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => legacyCopy(text));
+  }
+  return legacyCopy(text);
+}
+
+function legacyCopy(text) {
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+  document.body.removeChild(ta);
+}
+
+function downloadDataUrl(dataUrl, filename) {
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  a.click();
+}
+
+document.getElementById('btnManualDownload1').addEventListener('click', async () => {
+  const imageWithBox = await burnBoxIntoWorkingImage();
+  downloadDataUrl(imageWithBox, 'genai_base_with_box.jpg');
+  await new Promise(r => setTimeout(r, 300));
+  downloadDataUrl(state.furnitureDataUrl, 'genai_furniture.' + (state.furnitureMime === 'image/png' ? 'png' : 'jpg'));
+
+  const prompt = document.getElementById('placementPrompt').value.trim() || DEFAULT_PLACEMENT_PROMPT;
+  await copyToClipboard(prompt);
+  const hint = document.getElementById('manualCopiedHint1');
+  hint.style.display = 'block';
+  setTimeout(() => { hint.style.display = 'none'; }, 4000);
+});
+
+document.getElementById('inputManualResult1').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  let dataUrl = await fileToDataURL(file);
+  if (document.getElementById('fixAspect').checked && state.baseAspect) {
+    dataUrl = await cropToAspect(dataUrl, state.baseAspect);
+  }
+  await setWorkingImage(dataUrl, '家具配置(手動)');
+
+  state.rectDisplay = null;
+  state.furnitureDataUrl = null;
+  state.furnitureMime = null;
+  resetFurnitureUploadUI();
+  redrawBoxCanvas();
+  updatePlaceButtonState();
+  e.target.value = '';
+});
+
+document.getElementById('btnManualDownload2').addEventListener('click', async () => {
+  downloadDataUrl(state.workingImage, 'genai_current.jpg');
+  const prompt = document.getElementById('stagingPrompt').value.trim() || DEFAULT_STAGING_PROMPT;
+  await copyToClipboard(prompt);
+  const hint = document.getElementById('manualCopiedHint2');
+  hint.style.display = 'block';
+  setTimeout(() => { hint.style.display = 'none'; }, 4000);
+});
+
+document.getElementById('inputManualResult2').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  let dataUrl = await fileToDataURL(file);
+  if (document.getElementById('fixAspect').checked && state.baseAspect) {
+    dataUrl = await cropToAspect(dataUrl, state.baseAspect);
+  }
+  await setWorkingImage(dataUrl, '演出(手動)');
+  e.target.value = '';
 });
 
 // ---------- Gemini API ----------
