@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>空室写真 家具配置＆演出ツール</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #f5f4f0;
+    --surface: #ffffff;
+    --surface2: #f0efe9;
+    --border: rgba(0,0,0,0.12);
+    --border2: rgba(0,0,0,0.22);
+    --text: #1a1a18;
+    --text2: #6b6b67;
+    --text3: #9b9b97;
+    --accent: #1a1a18;
+    --accent-fg: #ffffff;
+    --radius: 10px;
+    --radius-sm: 6px;
+    --blue-bg: #e6f1fb;
+    --blue-text: #185fa5;
+    --green-bg: #eaf3de;
+    --green-text: #3b6d11;
+    --red-bg: #fcebeb;
+    --red-text: #a32d2d;
+    --amber-bg: #faeeda;
+    --amber-text: #854f0b;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1c1c1a;
+      --surface: #262624;
+      --surface2: #2e2e2b;
+      --border: rgba(255,255,255,0.10);
+      --border2: rgba(255,255,255,0.20);
+      --text: #f0efe9;
+      --text2: #9b9b97;
+      --text3: #6b6b67;
+      --accent: #f0efe9;
+      --accent-fg: #1a1a18;
+      --blue-bg: #0c447c;
+      --blue-text: #b5d4f4;
+      --green-bg: #27500a;
+      --green-text: #c0dd97;
+      --red-bg: #791f1f;
+      --red-text: #f7c1c1;
+      --amber-bg: #633806;
+      --amber-text: #fac775;
+    }
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+  .logo { font-size: 15px; font-weight: 500; letter-spacing: -0.01em; }
+  .logo span { color: var(--text2); font-weight: 400; }
+
+  .key-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .key-row label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+  .key-row input, .key-row select {
+    font-size: 12px;
+    padding: 6px 10px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    color: var(--text);
+  }
+  .key-row input[type="password"] { width: 220px; }
+  .key-row input.model-input { width: 220px; }
+  .key-row a { font-size: 11px; color: var(--blue-text); text-decoration: none; }
+  .key-row a:hover { text-decoration: underline; }
+
+  main { max-width: 880px; margin: 0 auto; padding: 24px 20px 80px; }
+
+  .intro {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    font-size: 13px;
+    color: var(--text2);
+    margin-bottom: 24px;
+  }
+  .intro strong { color: var(--text); }
+  .intro ol { margin: 8px 0 0 18px; }
+  .intro li { margin-bottom: 4px; }
+
+  .step {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+  }
+  .step.disabled { opacity: 0.45; pointer-events: none; }
+  .step-title {
+    font-size: 14px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .step-num {
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--accent); color: var(--accent-fg);
+    font-size: 12px; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-desc { font-size: 12px; color: var(--text2); margin: 4px 0 16px 30px; }
+
+  .drop-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s;
+    background: var(--surface);
+  }
+  .drop-zone:hover, .drop-zone.drag-over { background: var(--surface2); }
+  .drop-zone.small { padding: 14px; }
+  .drop-title { font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+  .drop-sub { font-size: 12px; color: var(--text3); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 9px 18px;
+    border-radius: var(--radius-sm);
+    font-size: 13px; font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    border: 0.5px solid var(--border2);
+    background: transparent;
+    color: var(--text);
+  }
+  .btn:hover { background: var(--surface2); }
+  .btn:active { transform: scale(0.98); }
+  .btn-primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  .btn-primary:hover { opacity: 0.85; background: var(--accent); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  .canvas-wrap {
+    position: relative;
+    display: inline-block;
+    max-width: 100%;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    border: 0.5px solid var(--border);
+    background: var(--surface2);
+  }
+  .canvas-wrap canvas { display: block; max-width: 100%; cursor: crosshair; }
+
+  .furniture-row { display: flex; gap: 16px; margin-top: 16px; flex-wrap: wrap; align-items: flex-start; }
+  .furniture-upload { width: 180px; flex-shrink: 0; }
+  .furniture-thumb-wrap { position: relative; width: 180px; }
+  .furniture-thumb-wrap img { width: 100%; border-radius: var(--radius-sm); border: 0.5px solid var(--border); display: block; }
+  .furniture-thumb-wrap .remove-x {
+    position: absolute; top: 4px; right: 4px;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(0,0,0,0.6); color: #fff;
+    border: none; font-size: 13px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .furniture-fields { flex: 1; min-width: 260px; display: flex; flex-direction: column; gap: 10px; }
+
+  textarea.prompt {
+    width: 100%; min-height: 76px; resize: vertical;
+    font-size: 13px; font-family: inherit; line-height: 1.5;
+    padding: 10px 12px;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-sm);
+    background: var(--surface2); color: var(--text);
+  }
+  .field-hint { font-size: 11px; color: var(--text3); }
+
+  .spinner {
+    display: none;
+    align-items: center; gap: 8px;
+    font-size: 12px; color: var(--text2);
+    margin-top: 10px;
+  }
+  .spinner.active { display: flex; }
+  .spinner .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--text2);
+    animation: pulse 1s infinite ease-in-out;
+  }
+  @keyframes pulse { 0%,100% { opacity: 0.25; } 50% { opacity: 1; } }
+
+  .error-box {
+    display: none;
+    margin-top: 10px;
+    background: var(--red-bg); color: var(--red-text);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 12px;
+    white-space: pre-wrap;
+  }
+
+  .checkbox-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text2); }
+
+  .history-strip {
+    display: flex; gap: 10px; overflow-x: auto;
+    padding: 12px 0 4px;
+    margin-top: 12px;
+    border-top: 0.5px solid var(--border);
+  }
+  .history-item { flex-shrink: 0; width: 96px; text-align: center; cursor: pointer; }
+  .history-item img {
+    width: 96px; height: 72px; object-fit: cover;
+    border-radius: var(--radius-sm); border: 1.5px solid var(--border);
+    display: block; margin-bottom: 4px;
+  }
+  .history-item.active img { border-color: var(--accent); }
+  .history-item span { font-size: 10px; color: var(--text3); }
+
+  .adjust-grid { display: grid; grid-template-columns: 120px 1fr 40px; gap: 6px 10px; align-items: center; margin-bottom: 14px; }
+  .adjust-grid label { font-size: 12px; color: var(--text2); }
+  .adjust-grid input[type="range"] { width: 100%; }
+  .adjust-grid .val { font-size: 11px; color: var(--text3); text-align: right; }
+
+  .preview-final { text-align: center; }
+  .preview-final canvas { max-width: 100%; border-radius: var(--radius-sm); border: 0.5px solid var(--border); }
+
+  footer {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text3);
+    padding: 24px;
+    border-top: 0.5px solid var(--border);
+    margin-top: 20px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">空室写真 家具配置＆演出ツール <span>/ Gemini画像生成</span></div>
+  <div class="key-row">
+    <label for="apiKey">Gemini APIキー</label>
+    <input type="password" id="apiKey" placeholder="AIza..." autocomplete="off">
+    <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">キー取得</a>
+    <label for="modelName">モデル</label>
+    <input type="text" id="modelName" class="model-input" value="gemini-2.5-flash-image">
+  </div>
+</header>
+
+<main>
+  <div class="intro">
+    <strong>使い方</strong>
+    <ol>
+      <li>元となる部屋の写真をアップロード</li>
+      <li>家具を置きたい場所をドラッグで赤枠指定 → 家具の写真をアップロード → 生成（1点ずつ繰り返す）</li>
+      <li>全部配置できたら「モデルルームのように演出」でスタイリング</li>
+      <li>最後に明るさ・コントラストを調整してダウンロード</li>
+    </ol>
+    <p style="margin-top:8px;">APIキーはこのブラウザから直接Googleへ送信されます。サーバーには保存されません。生成結果は元画像と構図が変わる場合があるため、必要に応じてプロンプトを調整して再生成してください。</p>
+  </div>
+
+  <!-- STEP 0: upload base -->
+  <div class="step" id="step0">
+    <div class="step-title"><span class="step-num">0</span>元画像をアップロード</div>
+    <div class="step-desc">家具のない、または元の状態の部屋の写真を選んでください。</div>
+    <div class="drop-zone" id="dropBase">
+      <p class="drop-title">写真をここにドロップ、またはクリックして選択</p>
+      <p class="drop-sub">JPG・PNGなど</p>
+    </div>
+    <input type="file" id="inputBase" accept="image/*" style="display:none">
+  </div>
+
+  <!-- STEP 1: place furniture -->
+  <div class="step disabled" id="step1">
+    <div class="step-title"><span class="step-num">1</span>家具を配置する</div>
+    <div class="step-desc">画像内で家具を置きたい場所をドラッグして赤枠を指定し、家具の参考写真をアップロードして生成します。1点ずつ繰り返してください。</div>
+
+    <div class="canvas-wrap" id="boxCanvasWrap">
+      <canvas id="boxCanvas"></canvas>
+    </div>
+    <div class="btn-row" style="margin-top:8px;">
+      <button class="btn btn-sm" id="btnClearBox">枠をクリア</button>
+    </div>
+
+    <div class="furniture-row">
+      <div class="furniture-upload" id="furnitureUploadWrap">
+        <div class="drop-zone small" id="dropFurniture">
+          <p class="drop-title" style="font-size:12px;">家具の写真</p>
+          <p class="drop-sub">ドロップ or クリック</p>
+        </div>
+        <input type="file" id="inputFurniture" accept="image/*" style="display:none">
+      </div>
+
+      <div class="furniture-fields">
+        <textarea class="prompt" id="placementPrompt"></textarea>
+        <div class="field-hint">プロンプトは自由に編集できます。<a href="#" id="resetPlacementPrompt" style="color:var(--blue-text);">雛形に戻す</a></div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btnPlaceFurniture" disabled>この家具を配置する</button>
+        </div>
+        <div class="spinner" id="spinnerStep1"><span class="dot"></span>生成中...（数十秒かかることがあります）</div>
+        <div class="error-box" id="errorStep1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: staging -->
+  <div class="step disabled" id="step2">
+    <div class="step-title"><span class="step-num">2</span>モデルルームのように演出する</div>
+    <div class="step-desc">家具の配置が終わったら、全体の雰囲気を整えます。間取りや構造は変えないよう指示しています。</div>
+    <textarea class="prompt" id="stagingPrompt"></textarea>
+    <div class="field-hint">プロンプトは自由に編集できます。<a href="#" id="resetStagingPrompt" style="color:var(--blue-text);">雛形に戻す</a></div>
+    <div class="btn-row" style="margin-top:10px;">
+      <button class="btn btn-primary" id="btnStage">演出する</button>
+    </div>
+    <div class="spinner" id="spinnerStep2"><span class="dot"></span>生成中...（数十秒かかることがあります）</div>
+    <div class="error-box" id="errorStep2"></div>
+  </div>
+
+  <!-- STEP 3: final adjust -->
+  <div class="step disabled" id="step3">
+    <div class="step-title"><span class="step-num">3</span>最終調整してダウンロード</div>
+    <div class="step-desc">明るさ・コントラストなどをブラウザ内だけで調整します（APIには送信されません）。</div>
+
+    <div class="adjust-grid">
+      <label>明るさ</label><input type="range" id="adjBrightness" min="-100" max="100" value="0"><span class="val" id="adjBrightnessVal">0</span>
+      <label>コントラスト</label><input type="range" id="adjContrast" min="-100" max="100" value="0"><span class="val" id="adjContrastVal">0</span>
+      <label>ハイライト</label><input type="range" id="adjHighlights" min="-100" max="100" value="0"><span class="val" id="adjHighlightsVal">0</span>
+      <label>シャドウ</label><input type="range" id="adjShadows" min="-100" max="100" value="0"><span class="val" id="adjShadowsVal">0</span>
+      <label>ホワイトポイント</label><input type="range" id="adjWhite" min="128" max="255" value="255"><span class="val" id="adjWhiteVal">255</span>
+      <label>ブラックポイント</label><input type="range" id="adjBlack" min="0" max="128" value="0"><span class="val" id="adjBlackVal">0</span>
+    </div>
+
+    <div class="checkbox-row" style="margin-bottom:12px;">
+      <input type="checkbox" id="fixAspect" checked>
+      <label for="fixAspect">生成画像が元のアスペクト比とずれている場合、元画像の比率に合わせてトリミングする</label>
+    </div>
+
+    <div class="preview-final">
+      <canvas id="finalCanvas"></canvas>
+    </div>
+
+    <div class="btn-row" style="margin-top:12px; justify-content:center;">
+      <button class="btn btn-sm" id="btnResetAdjust">補正をリセット</button>
+      <button class="btn btn-primary" id="btnDownload">ダウンロード</button>
+    </div>
+  </div>
+
+  <div class="step" id="stepHistory" style="display:none;">
+    <div class="step-title"><span class="step-num">↺</span>履歴（クリックでその状態に戻す）</div>
+    <div class="history-strip" id="historyStrip"></div>
+  </div>
+</main>
+
+<footer>
+  画像はGemini APIに送信され、生成結果を受け取ります。最終調整（STEP3）はブラウザ内で完結します。
+</footer>
+
+<script>
+const state = {
+  workingImage: null,   // current dataURL used as the base for the next AI call / final adjust
+  baseAspect: null,     // width/height of the very first uploaded photo
+  history: [],          // [{label, dataUrl}]
+  rectDisplay: null,    // {x,y,w,h} in canvas display pixels
+  furnitureDataUrl: null,
+  furnitureMime: null,
+};
+
+const DEFAULT_PLACEMENT_PROMPT =
+  '1枚目の写真（部屋の写真）の赤い枠の中に、2枚目の写真の家具を、実物と近い大きさ・自然な向きで設置してください。' +
+  '部屋の間取り、壁や窓などの建物の構造、赤枠以外の部分、画像のアスペクト比やトリミング位置は変更しないでください。';
+
+const DEFAULT_STAGING_PROMPT =
+  'モデルルームのように室内を飾ってください。ただし、間取りや家具の位置、家具の向き、建物の構造、' +
+  'トリミング位置、アスペクト比は変更しないでください。';
+
+document.getElementById('placementPrompt').value = DEFAULT_PLACEMENT_PROMPT;
+document.getElementById('stagingPrompt').value = DEFAULT_STAGING_PROMPT;
+document.getElementById('resetPlacementPrompt').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('placementPrompt').value = DEFAULT_PLACEMENT_PROMPT;
+});
+document.getElementById('resetStagingPrompt').addEventListener('click', (e) => {
+  e.preventDefault();
+  document.getElementById('stagingPrompt').value = DEFAULT_STAGING_PROMPT;
+});
+
+// ---------- helpers ----------
+
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+function loadImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+function dataURLtoBase64(dataUrl) {
+  return dataUrl.split(',')[1];
+}
+
+function mimeFromDataURL(dataUrl) {
+  const m = dataUrl.match(/^data:([^;]+);/);
+  return m ? m[1] : 'image/jpeg';
+}
+
+// downscale large images before sending to the API
+async function resizeToMaxDim(dataUrl, maxDim) {
+  const img = await loadImage(dataUrl);
+  if (img.naturalWidth <= maxDim && img.naturalHeight <= maxDim) return dataUrl;
+  const scale = maxDim / Math.max(img.naturalWidth, img.naturalHeight);
+  const w = Math.round(img.naturalWidth * scale);
+  const h = Math.round(img.naturalHeight * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+  const mime = mimeFromDataURL(dataUrl) === 'image/png' ? 'image/png' : 'image/jpeg';
+  return canvas.toDataURL(mime, 0.9);
+}
+
+function addHistory(label, dataUrl) {
+  state.history.push({ label, dataUrl });
+  renderHistory();
+}
+
+function renderHistory() {
+  const wrap = document.getElementById('stepHistory');
+  const strip = document.getElementById('historyStrip');
+  if (state.history.length === 0) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  strip.innerHTML = '';
+  state.history.forEach((h, i) => {
+    const item = document.createElement('div');
+    item.className = 'history-item' + (h.dataUrl === state.workingImage ? ' active' : '');
+    item.innerHTML = `<img src="${h.dataUrl}"><span>${h.label}</span>`;
+    item.addEventListener('click', () => {
+      setWorkingImage(h.dataUrl, `${h.label}に戻す`, false);
+    });
+    strip.appendChild(item);
+  });
+}
+
+async function setWorkingImage(dataUrl, historyLabel, pushHistory = true) {
+  state.workingImage = dataUrl;
+  if (pushHistory) addHistory(historyLabel, dataUrl);
+  else renderHistory();
+
+  document.getElementById('step1').classList.remove('disabled');
+  document.getElementById('step2').classList.remove('disabled');
+  document.getElementById('step3').classList.remove('disabled');
+
+  await drawBoxCanvas();
+  drawFinalCanvas();
+}
+
+// ---------- STEP 0: upload base ----------
+
+const dropBase = document.getElementById('dropBase');
+const inputBase = document.getElementById('inputBase');
+
+dropBase.addEventListener('click', () => inputBase.click());
+dropBase.addEventListener('dragover', e => { e.preventDefault(); dropBase.classList.add('drag-over'); });
+dropBase.addEventListener('dragleave', () => dropBase.classList.remove('drag-over'));
+dropBase.addEventListener('drop', e => {
+  e.preventDefault();
+  dropBase.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleBaseFile(e.dataTransfer.files[0]);
+});
+inputBase.addEventListener('change', e => {
+  if (e.target.files[0]) handleBaseFile(e.target.files[0]);
+});
+
+async function handleBaseFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  const dataUrl = await fileToDataURL(file);
+  const img = await loadImage(dataUrl);
+  state.baseAspect = img.naturalWidth / img.naturalHeight;
+  state.history = [];
+  state.rectDisplay = null;
+  await setWorkingImage(dataUrl, '元画像');
+}
+
+// ---------- STEP 1: box drawing + furniture upload ----------
+
+const boxCanvas = document.getElementById('boxCanvas');
+const boxCtx = boxCanvas.getContext('2d');
+let boxScale = 1; // displayPixels / naturalPixels
+let boxImgEl = null;
+let dragging = false, dragStart = null;
+
+async function drawBoxCanvas() {
+  if (!state.workingImage) return;
+  boxImgEl = await loadImage(state.workingImage);
+  const maxDim = 800;
+  const scale = Math.min(1, maxDim / Math.max(boxImgEl.naturalWidth, boxImgEl.naturalHeight));
+  boxScale = scale;
+  boxCanvas.width = Math.round(boxImgEl.naturalWidth * scale);
+  boxCanvas.height = Math.round(boxImgEl.naturalHeight * scale);
+  redrawBoxCanvas();
+}
+
+function redrawBoxCanvas() {
+  if (!boxImgEl) return;
+  boxCtx.drawImage(boxImgEl, 0, 0, boxCanvas.width, boxCanvas.height);
+  if (state.rectDisplay) {
+    const r = state.rectDisplay;
+    boxCtx.strokeStyle = '#e02424';
+    boxCtx.lineWidth = 3;
+    boxCtx.strokeRect(r.x, r.y, r.w, r.h);
+  }
+}
+
+function canvasPos(e) {
+  const rect = boxCanvas.getBoundingClientRect();
+  const scaleX = boxCanvas.width / rect.width;
+  const scaleY = boxCanvas.height / rect.height;
+  const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+  const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+  return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+}
+
+function startDrag(e) {
+  if (!boxImgEl) return;
+  e.preventDefault();
+  dragging = true;
+  dragStart = canvasPos(e);
+}
+function moveDrag(e) {
+  if (!dragging) return;
+  e.preventDefault();
+  const p = canvasPos(e);
+  const x = Math.min(dragStart.x, p.x);
+  const y = Math.min(dragStart.y, p.y);
+  const w = Math.abs(p.x - dragStart.x);
+  const h = Math.abs(p.y - dragStart.y);
+  state.rectDisplay = { x, y, w, h };
+  redrawBoxCanvas();
+  updatePlaceButtonState();
+}
+function endDrag() { dragging = false; }
+
+boxCanvas.addEventListener('mousedown', startDrag);
+boxCanvas.addEventListener('mousemove', moveDrag);
+window.addEventListener('mouseup', endDrag);
+boxCanvas.addEventListener('touchstart', startDrag, { passive: false });
+boxCanvas.addEventListener('touchmove', moveDrag, { passive: false });
+window.addEventListener('touchend', endDrag);
+
+document.getElementById('btnClearBox').addEventListener('click', () => {
+  state.rectDisplay = null;
+  redrawBoxCanvas();
+  updatePlaceButtonState();
+});
+
+const dropFurniture = document.getElementById('dropFurniture');
+const inputFurniture = document.getElementById('inputFurniture');
+dropFurniture.addEventListener('click', () => inputFurniture.click());
+dropFurniture.addEventListener('dragover', e => { e.preventDefault(); dropFurniture.classList.add('drag-over'); });
+dropFurniture.addEventListener('dragleave', () => dropFurniture.classList.remove('drag-over'));
+dropFurniture.addEventListener('drop', e => {
+  e.preventDefault();
+  dropFurniture.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) handleFurnitureFile(e.dataTransfer.files[0]);
+});
+inputFurniture.addEventListener('change', e => {
+  if (e.target.files[0]) handleFurnitureFile(e.target.files[0]);
+});
+
+async function handleFurnitureFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  const dataUrl = await fileToDataURL(file);
+  state.furnitureDataUrl = dataUrl;
+  state.furnitureMime = mimeFromDataURL(dataUrl);
+
+  const wrap = document.getElementById('furnitureUploadWrap');
+  wrap.innerHTML = `
+    <div class="furniture-thumb-wrap">
+      <img src="${dataUrl}">
+      <button class="remove-x" id="btnRemoveFurniture">×</button>
+    </div>`;
+  document.getElementById('btnRemoveFurniture').addEventListener('click', () => {
+    state.furnitureDataUrl = null;
+    state.furnitureMime = null;
+    resetFurnitureUploadUI();
+    updatePlaceButtonState();
+  });
+  updatePlaceButtonState();
+}
+
+function resetFurnitureUploadUI() {
+  const wrap = document.getElementById('furnitureUploadWrap');
+  wrap.innerHTML = `
+    <div class="drop-zone small" id="dropFurniture">
+      <p class="drop-title" style="font-size:12px;">家具の写真</p>
+      <p class="drop-sub">ドロップ or クリック</p>
+    </div>
+    <input type="file" id="inputFurniture" accept="image/*" style="display:none">`;
+  const dz = document.getElementById('dropFurniture');
+  const inp = document.getElementById('inputFurniture');
+  dz.addEventListener('click', () => inp.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+  dz.addEventListener('drop', e => {
+    e.preventDefault();
+    dz.classList.remove('drag-over');
+    if (e.dataTransfer.files[0]) handleFurnitureFile(e.dataTransfer.files[0]);
+  });
+  inp.addEventListener('change', e => {
+    if (e.target.files[0]) handleFurnitureFile(e.target.files[0]);
+  });
+}
+
+function updatePlaceButtonState() {
+  const ok = !!state.rectDisplay && state.rectDisplay.w > 4 && state.rectDisplay.h > 4 && !!state.furnitureDataUrl;
+  document.getElementById('btnPlaceFurniture').disabled = !ok;
+}
+
+// burn the red rectangle (converted to natural-resolution coords) into a full-res copy of the working image
+async function burnBoxIntoWorkingImage() {
+  const img = await loadImage(state.workingImage);
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+
+  const r = state.rectDisplay;
+  const nx = r.x / boxScale, ny = r.y / boxScale, nw = r.w / boxScale, nh = r.h / boxScale;
+  const lineWidth = Math.max(4, Math.round(img.naturalWidth * 0.006));
+  ctx.strokeStyle = '#ff0000';
+  ctx.lineWidth = lineWidth;
+  ctx.strokeRect(nx, ny, nw, nh);
+
+  return canvas.toDataURL('image/jpeg', 0.92);
+}
+
+document.getElementById('btnPlaceFurniture').addEventListener('click', async () => {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const model = document.getElementById('modelName').value.trim();
+  const errBox = document.getElementById('errorStep1');
+  errBox.style.display = 'none';
+  if (!apiKey) { alert('Gemini APIキーを入力してください'); return; }
+
+  const btn = document.getElementById('btnPlaceFurniture');
+  const spinner = document.getElementById('spinnerStep1');
+  btn.disabled = true;
+  spinner.classList.add('active');
+
+  try {
+    const imageWithBox = await burnBoxIntoWorkingImage();
+    const imageWithBoxSmall = await resizeToMaxDim(imageWithBox, 1536);
+    const furnitureSmall = await resizeToMaxDim(state.furnitureDataUrl, 1536);
+    const prompt = document.getElementById('placementPrompt').value.trim() || DEFAULT_PLACEMENT_PROMPT;
+
+    const result = await callGeminiEdit(apiKey, model, [
+      { mime: mimeFromDataURL(imageWithBoxSmall), data: dataURLtoBase64(imageWithBoxSmall) },
+      { mime: mimeFromDataURL(furnitureSmall), data: dataURLtoBase64(furnitureSmall) },
+    ], prompt);
+
+    let finalDataUrl = result.dataUrl;
+    if (document.getElementById('fixAspect').checked && state.baseAspect) {
+      finalDataUrl = await cropToAspect(finalDataUrl, state.baseAspect);
+    }
+
+    await setWorkingImage(finalDataUrl, '家具配置');
+
+    // reset for next furniture item
+    state.rectDisplay = null;
+    state.furnitureDataUrl = null;
+    state.furnitureMime = null;
+    resetFurnitureUploadUI();
+    redrawBoxCanvas();
+    updatePlaceButtonState();
+  } catch (e) {
+    errBox.textContent = e.message || String(e);
+    errBox.style.display = 'block';
+    console.error(e);
+  } finally {
+    spinner.classList.remove('active');
+    updatePlaceButtonState();
+  }
+});
+
+// ---------- STEP 2: staging ----------
+
+document.getElementById('btnStage').addEventListener('click', async () => {
+  const apiKey = document.getElementById('apiKey').value.trim();
+  const model = document.getElementById('modelName').value.trim();
+  const errBox = document.getElementById('errorStep2');
+  errBox.style.display = 'none';
+  if (!apiKey) { alert('Gemini APIキーを入力してください'); return; }
+  if (!state.workingImage) { alert('先に元画像をアップロードしてください'); return; }
+
+  const btn = document.getElementById('btnStage');
+  const spinner = document.getElementById('spinnerStep2');
+  btn.disabled = true;
+  spinner.classList.add('active');
+
+  try {
+    const small = await resizeToMaxDim(state.workingImage, 1536);
+    const prompt = document.getElementById('stagingPrompt').value.trim() || DEFAULT_STAGING_PROMPT;
+
+    const result = await callGeminiEdit(apiKey, model, [
+      { mime: mimeFromDataURL(small), data: dataURLtoBase64(small) },
+    ], prompt);
+
+    let finalDataUrl = result.dataUrl;
+    if (document.getElementById('fixAspect').checked && state.baseAspect) {
+      finalDataUrl = await cropToAspect(finalDataUrl, state.baseAspect);
+    }
+
+    await setWorkingImage(finalDataUrl, '演出');
+  } catch (e) {
+    errBox.textContent = e.message || String(e);
+    errBox.style.display = 'block';
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    spinner.classList.remove('active');
+  }
+});
+
+// ---------- Gemini API ----------
+
+async function callGeminiEdit(apiKey, model, images, promptText) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const parts = images.map(im => ({ inlineData: { mimeType: im.mime, data: im.data } }));
+  parts.push({ text: promptText });
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts }] })
+  });
+
+  if (!resp.ok) {
+    const errJson = await resp.json().catch(() => ({}));
+    throw new Error(errJson?.error?.message || `APIエラー: ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const candidate = data.candidates && data.candidates[0];
+  const outParts = candidate?.content?.parts || [];
+  let textCollected = '';
+  for (const p of outParts) {
+    if (p.inlineData && p.inlineData.data) {
+      return { dataUrl: `data:${p.inlineData.mimeType};base64,${p.inlineData.data}` };
+    }
+    if (p.text) textCollected += p.text;
+  }
+  const blockReason = candidate?.finishReason;
+  throw new Error(
+    (textCollected || 'AIが画像を生成しませんでした。') +
+    (blockReason ? `\n(finishReason: ${blockReason})` : '') +
+    '\nプロンプトを調整するか、モデル名を確認して再試行してください。'
+  );
+}
+
+// crop the generated image (cover-style) to match the original photo's aspect ratio
+async function cropToAspect(dataUrl, targetAspect) {
+  const img = await loadImage(dataUrl);
+  const curAspect = img.naturalWidth / img.naturalHeight;
+  if (Math.abs(curAspect - targetAspect) < 0.01) return dataUrl;
+
+  let sx = 0, sy = 0, sw = img.naturalWidth, sh = img.naturalHeight;
+  if (curAspect > targetAspect) {
+    sw = Math.round(img.naturalHeight * targetAspect);
+    sx = Math.round((img.naturalWidth - sw) / 2);
+  } else {
+    sh = Math.round(img.naturalWidth / targetAspect);
+    sy = Math.round((img.naturalHeight - sh) / 2);
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = sw; canvas.height = sh;
+  canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+  return canvas.toDataURL('image/jpeg', 0.94);
+}
+
+// ---------- STEP 3: final adjustment ----------
+
+const finalCanvas = document.getElementById('finalCanvas');
+const finalCtx = finalCanvas.getContext('2d');
+
+const adjustIds = [
+  ['adjBrightness', 'adjBrightnessVal'],
+  ['adjContrast', 'adjContrastVal'],
+  ['adjHighlights', 'adjHighlightsVal'],
+  ['adjShadows', 'adjShadowsVal'],
+  ['adjWhite', 'adjWhiteVal'],
+  ['adjBlack', 'adjBlackVal'],
+];
+adjustIds.forEach(([id, valId]) => {
+  document.getElementById(id).addEventListener('input', e => {
+    document.getElementById(valId).textContent = e.target.value;
+    drawFinalCanvas();
+  });
+});
+
+document.getElementById('btnResetAdjust').addEventListener('click', () => {
+  const defaults = { adjBrightness: 0, adjContrast: 0, adjHighlights: 0, adjShadows: 0, adjWhite: 255, adjBlack: 0 };
+  Object.entries(defaults).forEach(([id, v]) => {
+    document.getElementById(id).value = v;
+    document.getElementById(id + 'Val').textContent = v;
+  });
+  drawFinalCanvas();
+});
+
+document.getElementById('fixAspect').addEventListener('change', () => drawFinalCanvas());
+
+async function drawFinalCanvas() {
+  if (!state.workingImage) return;
+  const img = await loadImage(state.workingImage);
+  finalCanvas.width = img.naturalWidth;
+  finalCanvas.height = img.naturalHeight;
+  finalCtx.drawImage(img, 0, 0);
+  applyFinalAdjustments();
+}
+
+function applyFinalAdjustments() {
+  const brightness = parseInt(document.getElementById('adjBrightness').value, 10);
+  const contrast = parseInt(document.getElementById('adjContrast').value, 10);
+  const highlights = parseInt(document.getElementById('adjHighlights').value, 10);
+  const shadows = parseInt(document.getElementById('adjShadows').value, 10);
+  const whitePoint = parseInt(document.getElementById('adjWhite').value, 10);
+  const blackPoint = parseInt(document.getElementById('adjBlack').value, 10);
+
+  if (brightness === 0 && contrast === 0 && highlights === 0 && shadows === 0 && whitePoint === 255 && blackPoint === 0) {
+    return; // already drawn as-is
+  }
+
+  const imageData = finalCtx.getImageData(0, 0, finalCanvas.width, finalCanvas.height);
+  const d = imageData.data;
+  const cf = (259 * (contrast + 255)) / (255 * (259 - contrast));
+  const range = (whitePoint - blackPoint) || 1;
+
+  for (let i = 0; i < d.length; i += 4) {
+    let r = d[i], g = d[i + 1], b = d[i + 2];
+    r = (r - blackPoint) * 255 / range;
+    g = (g - blackPoint) * 255 / range;
+    b = (b - blackPoint) * 255 / range;
+    r += brightness; g += brightness; b += brightness;
+    r = cf * (r - 128) + 128;
+    g = cf * (g - 128) + 128;
+    b = cf * (b - 128) + 128;
+    const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+    if (lum > 128 && highlights !== 0) {
+      const t = (lum - 128) / 127;
+      r += highlights * t; g += highlights * t; b += highlights * t;
+    } else if (lum <= 128 && shadows !== 0) {
+      const t = (128 - lum) / 128;
+      r += shadows * t; g += shadows * t; b += shadows * t;
+    }
+    d[i] = Math.max(0, Math.min(255, r));
+    d[i + 1] = Math.max(0, Math.min(255, g));
+    d[i + 2] = Math.max(0, Math.min(255, b));
+  }
+  finalCtx.putImageData(imageData, 0, 0);
+}
+
+document.getElementById('btnDownload').addEventListener('click', () => {
+  if (!state.workingImage) return;
+  const a = document.createElement('a');
+  a.download = 'staged_' + Date.now() + '.jpg';
+  a.href = finalCanvas.toDataURL('image/jpeg', 0.95);
+  a.click();
+});
+</script>
+</body>
+</html>
