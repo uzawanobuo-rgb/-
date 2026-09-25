@@ -88,7 +88,6 @@
       <div id="dests"></div>
       <div class="hint" style="margin-top:6px">
         所要時間は「バス平均時速 約<span id="spdLabel"></span>km/h ＋ 停留所までの徒歩」で出した<b>目安</b>です。空欄なら自動計算、数字を入れればその値を使います。<br>
-        本数は、QRで開いた時刻表を見て「7時台 4本　8時台 4本」のように入れてください（空欄なら表示しません）。<br>
         QRは初期状態で、物件からその行き先までのGoogleマップ経路検索（公共交通）を開きます。バス会社の時刻表ページなどに差し替えたいときはURLを入力してください。
       </div>
     </div>
@@ -2503,9 +2502,9 @@ let state = {
   title: DEFAULTS.title, subtitle: DEFAULTS.subtitle, btitle: DEFAULTS.btitle, bsub: DEFAULTS.bsub,
   zoom: 1, rings: true, marks: true, streets: true, speed: 12, overhead: 4,
   dests: [
-    { name: '京都河原町駅周辺', short: '京都河原町', lat: 35.0036, lng: 135.7690, color: COLORS[0], min: '', freq: '', qr: '' },
-    { name: '四条烏丸', short: '四条烏丸', lat: 35.0036, lng: 135.7597, color: COLORS[1], min: '', freq: '', qr: '' },
-    { name: '京都駅', short: '京都駅', lat: 34.9858, lng: 135.7588, color: COLORS[2], min: '', freq: '', qr: '' },
+    { name: '京都河原町駅周辺', short: '京都河原町', lat: 35.0036, lng: 135.7690, color: COLORS[0], min: '', qr: '' },
+    { name: '四条烏丸', short: '四条烏丸', lat: 35.0036, lng: 135.7597, color: COLORS[1], min: '', qr: '' },
+    { name: '京都駅', short: '京都駅', lat: 34.9858, lng: 135.7588, color: COLORS[2], min: '', qr: '' },
   ],
 };
 const STORE_KEY = 'kyotoAccessMap.v1';
@@ -2517,7 +2516,7 @@ try {
     // 行き先は3か所固定。保存済みの入力（所要分・本数・QR）だけ引き継ぐ
     state.dests = fixed.map((d, i) => {
       const o = (saved.dests || [])[i] || {};
-      return Object.assign(d, { min: o.min || '', freq: o.freq || '', qr: o.qr || '' });
+      return Object.assign(d, { min: o.min || '', qr: o.qr || '' });
     });
   }
 } catch (e) {}
@@ -2563,83 +2562,133 @@ function qrUrlOf(d) {
 // 描画
 // ===================================================================
 const W = 1600, H = 1000;
-const MAP = { x: 50, y: 225, w: 1500, h: 510 };
+const MAP = { x: 50, y: 206, w: 1500, h: 534 };
 const FONT = `"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic","Meiryo",sans-serif`;
 const measureCtx = document.createElement('canvas').getContext('2d');
 function textW(str, size, weight) {
   measureCtx.font = `${weight || 400} ${size}px ${FONT}`;
   return measureCtx.measureText(str).width;
 }
+// 山並み（東山・北山・西山）の概略
+const HILLS = [
+  [[35.080, 135.782], [35.058, 135.786], [35.045, 135.790], [35.032, 135.793], [35.022, 135.788], [35.010, 135.787], [34.998, 135.789],
+    [34.986, 135.783], [34.972, 135.780], [34.955, 135.778], [34.930, 135.782], [34.930, 135.900], [35.080, 135.900]],
+  [[35.052, 135.640], [35.054, 135.700], [35.050, 135.722], [35.054, 135.745], [35.052, 135.765], [35.058, 135.782], [35.100, 135.782], [35.100, 135.640]],
+  [[35.060, 135.600], [35.030, 135.668], [35.000, 135.675], [34.970, 135.690], [34.930, 135.700], [34.930, 135.600]],
+];
+const DAIMONJI = [35.0255, 135.8005];
 
-let proj = null; // 現在の投影（クリック位置の逆変換用）
+// 物件と3つの行き先がちょうど収まる縮尺にする（余白を最小に）
+let proj = null;
+const PAD = { l: 330, r: 330, t: 80, b: 80 };
 function makeProjection() {
   const pts = state.dests.map(d => ({ lat: d.lat, lng: d.lng }));
   if (hasProp()) pts.push({ lat: state.lat, lng: state.lng });
-  if (!pts.length) pts.push({ lat: 35.0036, lng: 135.7597 });
-  let minLat = Math.min(...pts.map(p => p.lat)), maxLat = Math.max(...pts.map(p => p.lat));
-  let minLng = Math.min(...pts.map(p => p.lng)), maxLng = Math.max(...pts.map(p => p.lng));
+  const minLat = Math.min(...pts.map(p => p.lat)), maxLat = Math.max(...pts.map(p => p.lat));
+  const minLng = Math.min(...pts.map(p => p.lng)), maxLng = Math.max(...pts.map(p => p.lng));
   const lat0 = (minLat + maxLat) / 2, lng0 = (minLng + maxLng) / 2;
   const kx = 111.32 * Math.cos(lat0 * Math.PI / 180), ky = 110.95;
-  let spanX = Math.max((maxLng - minLng) * kx, 3.2), spanY = Math.max((maxLat - minLat) * ky, 1.5);
-  // 余白（ラベルが入る分）
-  spanX = spanX * 1.45 + 0.8; spanY = spanY * 1.6 + 0.8;
-  let s = Math.min(MAP.w / spanX, MAP.h / spanY) / (Number(state.zoom) || 1); // px/km
-  const cx = MAP.x + MAP.w / 2, cy = MAP.y + MAP.h / 2 + 10;
+  const spanX = Math.max((maxLng - minLng) * kx, 0.4), spanY = Math.max((maxLat - minLat) * ky, 0.4);
+  let s = Math.min((MAP.w - PAD.l - PAD.r) / spanX, (MAP.h - PAD.t - PAD.b) / spanY, 520);
+  s /= (Number(state.zoom) || 1); // px/km
+  const cx = MAP.x + PAD.l + (MAP.w - PAD.l - PAD.r) / 2, cy = MAP.y + PAD.t + (MAP.h - PAD.t - PAD.b) / 2;
   const P = (lat, lng) => [cx + (lng - lng0) * kx * s, cy - (lat - lat0) * ky * s];
   const inv = (x, y) => ({ lng: lng0 + (x - cx) / (kx * s), lat: lat0 - (y - cy) / (ky * s) });
   return { P, inv, s };
 }
 
 function polyline(pts, P) { return pts.map((p, i) => (i ? 'L' : 'M') + P(p[0], p[1]).map(v => v.toFixed(1)).join(',')).join(''); }
-function smoothPath(pts, P) {
+function smoothPath(pts, P, close) {
   const q = pts.map(p => P(p[0], p[1]));
-  if (q.length < 3) return polyline(pts, P);
   let d = `M${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}`;
   for (let i = 1; i < q.length - 1; i++) {
     const mx = (q[i][0] + q[i + 1][0]) / 2, my = (q[i][1] + q[i + 1][1]) / 2;
     d += `Q${q[i][0].toFixed(1)},${q[i][1].toFixed(1)} ${mx.toFixed(1)},${my.toFixed(1)}`;
   }
   const l = q[q.length - 1];
-  return d + `L${l[0].toFixed(1)},${l[1].toFixed(1)}`;
+  return d + `L${l[0].toFixed(1)},${l[1].toFixed(1)}` + (close ? 'Z' : '');
+}
+function distToPolyline(x, y, q) {
+  let best = Infinity;
+  for (let i = 0; i < q.length - 1; i++) {
+    const [ax, ay] = q[i], [bx, by] = q[i + 1];
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L));
+    best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
+  }
+  return best;
+}
+function inPoly(x, y, q) {
+  let c = false;
+  for (let i = 0, j = q.length - 1; i < q.length; j = i++) {
+    if ((q[i][1] > y) !== (q[j][1] > y) && x < (q[j][0] - q[i][0]) * (y - q[i][1]) / (q[j][1] - q[i][1]) + q[i][0]) c = !c;
+  }
+  return c;
+}
+function rng(seed) { // mulberry32
+  return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 }
 
-// ---- アイコン（すべてこのツールのオリジナル図形） ----
-function icon(type, x, y) {
-  const g = (inner) => `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})">${inner}</g>`;
+// ---- イラスト（すべてこのツールのオリジナル図形） ----
+const ROOF = '#3d4a56', WOOD = '#8a4b2f', WALL = '#f4ecd9', VERM = '#e0502f', GOLD = '#e9b949';
+function icon(type, x, y, k = 1) {
+  const g = inner => `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k})">${inner}</g>`;
   switch (type) {
-    case 'castle': return g(`<rect x="-22" y="-4" width="44" height="16" rx="2" fill="#efe6d2" stroke="#8a7a5c"/>
-      <path d="M-26,-4 L0,-16 L26,-4 Z" fill="#4a5a6a"/><rect x="-14" y="-24" width="28" height="10" fill="#efe6d2" stroke="#8a7a5c"/>
-      <path d="M-18,-22 L0,-32 L18,-22 Z" fill="#4a5a6a"/><rect x="-5" y="2" width="10" height="10" fill="#8a6a4a"/>`);
-    case 'palace': return g(`<rect x="-24" y="-6" width="48" height="16" fill="#f3ead8" stroke="#9a8866"/>
-      <path d="M-30,-6 Q0,-26 30,-6 Z" fill="#6f5e4a"/><rect x="-24" y="10" width="48" height="3" fill="#bca97f"/>`);
-    case 'tower': return g(`<rect x="-7" y="-4" width="14" height="16" fill="#e6e6e6" stroke="#999"/>
-      <path d="M-3,-4 L-2,-30 L2,-30 L3,-4 Z" fill="#fafafa" stroke="#999"/>
-      <ellipse cx="0" cy="-30" rx="7" ry="3.5" fill="#e8692e"/><line x1="0" y1="-34" x2="0" y2="-42" stroke="#e8692e" stroke-width="2"/>`);
-    case 'pagoda': { let s = ''; for (let i = 0; i < 4; i++) { const yy = 10 - i * 11, w = 20 - i * 3;
-        s += `<rect x="${-w * 0.55}" y="${yy - 7}" width="${w * 1.1}" height="7" fill="#7a4b32"/><path d="M${-w},${yy - 6} L${w},${yy - 6} L${w * 0.6},${yy - 11} L${-w * 0.6},${yy - 11} Z" fill="#3e4b57"/>`; }
-      return g(s + `<line x1="0" y1="-34" x2="0" y2="-46" stroke="#3e4b57" stroke-width="2"/>`); }
-    case 'temple': return g(`<rect x="-18" y="-4" width="36" height="15" fill="#f1e5cc" stroke="#9a7d55"/>
-      <path d="M-28,-2 Q-14,-6 0,-20 Q14,-6 28,-2 Z" fill="#3e4b57"/><rect x="-4" y="3" width="8" height="8" fill="#8a5a3a"/>`);
-    case 'gold': return g(`<rect x="-20" y="4" width="40" height="3" fill="#6fb0d8"/><rect x="-14" y="-6" width="28" height="10" fill="#e4b73c"/>
-      <path d="M-18,-6 L18,-6 L10,-12 L-10,-12 Z" fill="#4a4030"/><rect x="-10" y="-20" width="20" height="8" fill="#e4b73c"/>
-      <path d="M-14,-20 L14,-20 L0,-28 Z" fill="#4a4030"/>`);
-    case 'torii': return g(`<path d="M-20,-18 Q0,-22 20,-18 L20,-14 Q0,-18 -20,-14 Z" fill="#d9472b"/>
-      <rect x="-15" y="-11" width="30" height="3" fill="#d9472b"/><rect x="-13" y="-14" width="4" height="26" fill="#d9472b"/>
-      <rect x="9" y="-14" width="4" height="26" fill="#d9472b"/>`);
+    case 'castle': return g(`<path d="M-30,14 L-26,0 L26,0 L30,14 Z" fill="#a9a59a"/>
+      <rect x="-22" y="-12" width="44" height="12" fill="${WALL}"/><path d="M-28,-10 L0,-22 L28,-10 Z" fill="${ROOF}"/>
+      <rect x="-13" y="-30" width="26" height="10" fill="${WALL}"/><path d="M-18,-28 L0,-40 L18,-28 Z" fill="${ROOF}"/>
+      <circle cx="-15" cy="-26" r="1.8" fill="${GOLD}"/><circle cx="15" cy="-26" r="1.8" fill="${GOLD}"/>
+      <rect x="-4" y="-8" width="8" height="8" fill="${WOOD}"/>`);
+    case 'palace': return g(`<rect x="-30" y="-6" width="60" height="16" fill="${WALL}" stroke="#b99f73"/>
+      <path d="M-36,-5 Q-18,-10 0,-22 Q18,-10 36,-5 Z" fill="#6b5846"/>
+      ${[-22, -11, 0, 11, 22].map(px => `<rect x="${px - 1.5}" y="-4" width="3" height="14" fill="${VERM}"/>`).join('')}
+      <rect x="-34" y="10" width="68" height="4" fill="#d8c8a2"/>`);
+    case 'tower': return g(`<rect x="-10" y="-6" width="20" height="18" fill="#dfe3e6" stroke="#9aa"/>
+      <path d="M-4,-6 L-2.5,-40 L2.5,-40 L4,-6 Z" fill="#fff" stroke="#9aa"/>
+      <ellipse cx="0" cy="-40" rx="9" ry="4.5" fill="#e8692e"/><rect x="-1" y="-54" width="2" height="12" fill="#e8692e"/>`);
+    case 'pagoda': { let s = ''; for (let i = 0; i < 5; i++) { const yy = 12 - i * 10, w = 20 - i * 2.6;
+        s += `<rect x="${-w * 0.5}" y="${yy - 6}" width="${w}" height="6" fill="${WOOD}"/><path d="M${-w - 3},${yy - 5} L${w + 3},${yy - 5} L${w * 0.55},${yy - 10} L${-w * 0.55},${yy - 10} Z" fill="${ROOF}"/>`; }
+      return g(s + `<rect x="-1" y="-56" width="2" height="18" fill="${ROOF}"/>`); }
+    case 'temple': return g(`<rect x="-24" y="-4" width="48" height="16" fill="${WALL}" stroke="#b58f5f"/>
+      ${[-18, -6, 6, 18].map(px => `<rect x="${px - 1.5}" y="-3" width="3" height="15" fill="${WOOD}"/>`).join('')}
+      <path d="M-34,-2 Q-18,-6 -8,-20 L8,-20 Q18,-6 34,-2 Z" fill="${ROOF}"/><rect x="-10" y="-24" width="20" height="4" fill="${ROOF}"/>`);
+    case 'kiyomizu': return g(`<path d="M-30,16 L-30,2 L30,2 L30,16" fill="none" stroke="${WOOD}" stroke-width="2"/>
+      ${[-24, -12, 0, 12, 24].map(px => `<line x1="${px}" y1="2" x2="${px}" y2="16" stroke="${WOOD}" stroke-width="2"/>`).join('')}
+      <rect x="-24" y="-10" width="48" height="12" fill="${VERM}"/><path d="M-32,-8 Q-16,-12 0,-24 Q16,-12 32,-8 Z" fill="#7a5a3a"/>`);
+    case 'gold': return g(`<ellipse cx="0" cy="12" rx="36" ry="8" fill="#8ccbe8"/><ellipse cx="-4" cy="12" rx="20" ry="3" fill="#bfe4f4"/>
+      <rect x="-16" y="-4" width="32" height="12" fill="${GOLD}"/><path d="M-21,-4 L21,-4 L13,-11 L-13,-11 Z" fill="#4a3f2c"/>
+      <rect x="-11" y="-19" width="22" height="8" fill="${GOLD}"/><path d="M-15,-19 L15,-19 L8,-25 L-8,-25 Z" fill="#4a3f2c"/>
+      <rect x="-6" y="-31" width="12" height="6" fill="${GOLD}"/><path d="M-9,-31 L9,-31 L0,-38 Z" fill="#4a3f2c"/>
+      <circle cx="-30" cy="0" r="7" fill="#5f9e5c"/><circle cx="30" cy="2" r="6" fill="#5f9e5c"/>`);
+    case 'torii': return g(`<rect x="-16" y="-20" width="32" height="10" fill="${WALL}"/><path d="M-22,-19 L0,-28 L22,-19 Z" fill="#6b5846"/>
+      <path d="M-26,-12 Q0,-16 26,-12 L26,-8 Q0,-12 -26,-8 Z" fill="${VERM}"/>
+      <rect x="-19" y="-4" width="38" height="3" fill="${VERM}"/><rect x="-16" y="-8" width="4.5" height="24" fill="${VERM}"/>
+      <rect x="11.5" y="-8" width="4.5" height="24" fill="${VERM}"/>`);
   }
   return '';
 }
-function tree(x, y, r) {
-  return `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)})"><rect x="-1.5" y="0" width="3" height="${r * 0.7}" fill="#8a6a4a"/>
-    <circle cx="0" cy="${-r * 0.3}" r="${r}" fill="#8cc58a"/><circle cx="${-r * 0.35}" cy="${-r * 0.55}" r="${r * 0.55}" fill="#a6d5a0"/></g>`;
+function tree(x, y, r, tone) {
+  const c = tone ? ['#6fb36d', '#8fca87', '#b5dfa9'] : ['#7fbf72', '#9fd28f', '#c3e6b2'];
+  const f = v => v.toFixed(1);
+  return `<g transform="translate(${f(x)},${f(y)})"><rect x="-2" y="${f(-r * 0.2)}" width="4" height="${f(r * 1.1)}" rx="1" fill="#8a6a4a"/>
+    <ellipse cx="0" cy="${f(-r * 0.7)}" rx="${f(r * 0.95)}" ry="${f(r * 1.05)}" fill="${c[0]}"/>
+    <ellipse cx="${f(-r * 0.15)}" cy="${f(-r * 0.95)}" rx="${f(r * 0.7)}" ry="${f(r * 0.75)}" fill="${c[1]}"/>
+    <ellipse cx="${f(-r * 0.35)}" cy="${f(-r * 1.2)}" rx="${f(r * 0.32)}" ry="${f(r * 0.3)}" fill="${c[2]}"/></g>`;
+}
+function mountain(x, y, w, h) {
+  const f = v => v.toFixed(1);
+  return `<path d="M${f(x - w / 2)},${f(y)} Q${f(x - w * 0.18)},${f(y - h * 1.15)} ${f(x)},${f(y - h)} Q${f(x + w * 0.2)},${f(y - h * 1.1)} ${f(x + w / 2)},${f(y)} Z" fill="#9fcf93"/>
+    <path d="M${f(x)},${f(y - h)} Q${f(x + w * 0.2)},${f(y - h * 1.1)} ${f(x + w / 2)},${f(y)} L${f(x + w * 0.1)},${f(y)} Z" fill="#8cc280"/>`;
 }
 function busIcon(x, y, color) {
-  return `<g transform="translate(${(x - 26).toFixed(1)},${(y - 16).toFixed(1)})">
-    <rect x="0" y="0" width="52" height="30" rx="7" fill="${color}"/>
-    <rect x="5" y="5" width="9" height="9" rx="1.5" fill="#fff"/><rect x="17" y="5" width="9" height="9" rx="1.5" fill="#fff"/>
-    <rect x="29" y="5" width="9" height="9" rx="1.5" fill="#fff"/><rect x="41" y="5" width="7" height="13" rx="1.5" fill="#fff"/>
-    <rect x="3" y="20" width="36" height="3" fill="#fff" opacity=".6"/>
-    <circle cx="12" cy="30" r="4.5" fill="#333"/><circle cx="40" cy="30" r="4.5" fill="#333"/></g>`;
+  return `<g transform="translate(${(x - 28).toFixed(1)},${(y - 17).toFixed(1)})">
+    <rect x="-3" y="-3" width="62" height="38" rx="10" fill="#fff" opacity=".9"/>
+    <rect x="0" y="0" width="56" height="32" rx="8" fill="${color}"/>
+    <rect x="5" y="5" width="10" height="10" rx="2" fill="#fff"/><rect x="18" y="5" width="10" height="10" rx="2" fill="#fff"/>
+    <rect x="31" y="5" width="10" height="10" rx="2" fill="#fff"/><rect x="44" y="5" width="8" height="14" rx="2" fill="#fff"/>
+    <rect x="3" y="21" width="38" height="3" fill="#fff" opacity=".6"/>
+    <circle cx="13" cy="32" r="5" fill="#333"/><circle cx="43" cy="32" r="5" fill="#333"/></g>`;
 }
 function qrSvg(text, x, y, size) {
   let qr;
@@ -2660,25 +2709,29 @@ function overlaps(a, b, pad = 0) {
 function inMap(r, pad = 8) {
   return r.x >= MAP.x + pad && r.y >= MAP.y + pad && r.x + r.w <= MAP.x + MAP.w - pad && r.y + r.h <= MAP.y + MAP.h - pad;
 }
-function niceStep(km) { return km > 6 ? 2 : 1; }
 
 function headerArt() {
-  const x0 = 1080;
-  return `<g opacity=".95">
-    <circle cx="1320" cy="75" r="40" fill="#f7c873"/>
-    <path d="M1190,60 q14,-18 32,-6 q16,-12 30,4 q18,0 16,12 h-86 q-6,-8 8,-10 z" fill="#dfe9ef"/>
-    <path d="M1420,40 q14,-16 30,-4 q14,-8 24,6 h-62 z" fill="#dfe9ef"/>
-    <path d="M${x0},215 Q1180,120 1260,150 Q1330,90 1420,140 Q1480,110 1560,160 L1560,215 Z" fill="#9fcf9c"/>
-    <path d="M${x0 + 60},215 Q1220,160 1300,180 Q1380,150 1460,185 Q1510,170 1560,190 L1560,215 Z" fill="#7dbb7e"/>
-    <g transform="translate(1440,190) scale(1.7)">${icon('pagoda', 0, 0)}</g>
-    <g transform="translate(1330,182) scale(1.8)">${icon('temple', 0, 0)}</g>
-    ${tree(1200, 195, 12)}${tree(1230, 200, 10)}${tree(1265, 198, 11)}${tree(1400, 200, 10)}${tree(1500, 196, 12)}${tree(1540, 200, 10)}
+  let t = '';
+  [[1120, 186, 11], [1150, 190, 13], [1182, 186, 10], [1250, 190, 12], [1282, 186, 10], [1395, 190, 12], [1425, 186, 10],
+    [1520, 188, 13], [1548, 190, 11], [1225, 176, 9], [1500, 170, 9]].forEach(([x, y, r], i) => { t += tree(x, y, r, i % 2); });
+  return `<g>
+    <circle cx="1330" cy="68" r="42" fill="#f7c873"/><circle cx="1330" cy="68" r="56" fill="#f7c873" opacity=".2"/>
+    <path d="M1150,62 q14,-20 34,-8 q16,-14 34,2 q20,0 18,14 h-96 q-8,-8 10,-8 z" fill="#dde9ef"/>
+    <path d="M1440,44 q14,-16 30,-4 q14,-8 26,6 h-66 z" fill="#dde9ef"/>
+    <path d="M1030,200 Q1120,120 1210,138 Q1280,86 1370,124 Q1440,92 1500,120 Q1540,112 1560,124 L1560,200 Z" fill="#b8ddb0"/>
+    <path d="M1060,200 Q1150,150 1240,164 Q1320,140 1400,160 Q1480,138 1560,156 L1560,200 Z" fill="#96cb91"/>
+    <g transform="translate(1340,178) scale(2)">${icon('temple', 0, 0)}</g>
+    <g transform="translate(1470,176) scale(2)">${icon('pagoda', 0, 0)}</g>
+    <path d="M1150,196 Q1190,176 1230,196" stroke="${VERM}" stroke-width="5" fill="none"/>
+    <path d="M1160,190 V198 M1175,184 V198 M1190,182 V198 M1205,184 V198 M1220,190 V198" stroke="${VERM}" stroke-width="2.5"/>
+    ${t}
   </g>`;
 }
 
 function render() {
   proj = makeProjection();
   const { P, s } = proj;
+  const R = rng(Math.round((state.lat || 35) * 1e4) ^ Math.round((state.lng || 135) * 1e4));
   const out = [];
   out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
   <style>text{font-family:${FONT};}</style>
@@ -2691,131 +2744,62 @@ function render() {
 
   // ヘッダー
   out.push(headerArt());
-  out.push(`<text x="90" y="112" font-size="58" font-weight="700" fill="#16323a">${esc(state.title)}</text>`);
-  out.push(`<text x="92" y="170" font-size="28" fill="#5c6b70">${esc(state.subtitle)}</text>`);
+  out.push(`<text x="90" y="100" font-size="56" font-weight="700" fill="#16323a">${esc(state.title)}</text>`);
+  out.push(`<text x="92" y="152" font-size="26" fill="#5c6b70">${esc(state.subtitle)}</text>`);
 
-  // ---- 地図 ----
-  out.push(`<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="24" fill="#eef1e4" stroke="#dde3d6" stroke-width="2"/>`);
-  out.push(`<g clip-path="url(#mapclip)">`);
-  // 細街路（碁盤の目の雰囲気）
-  const minor = [];
+  // ---- 地図：まずラベル類の配置を決め、その後で下から順に描く ----
   const tl = proj.inv(MAP.x, MAP.y), br = proj.inv(MAP.x + MAP.w, MAP.y + MAP.h);
-  const stepKm = 0.22;
-  const dLat = stepKm / 110.95, dLng = stepKm / (111.32 * Math.cos(35 * Math.PI / 180));
-  for (let la = Math.floor(br.lat / dLat) * dLat; la < tl.lat; la += dLat) { const y = P(la, 0)[1]; minor.push(`M${MAP.x},${y.toFixed(1)}H${MAP.x + MAP.w}`); }
-  for (let ln = Math.floor(tl.lng / dLng) * dLng; ln < br.lng; ln += dLng) { const x = P(35, ln)[0]; minor.push(`M${x.toFixed(1)},${MAP.y}V${MAP.y + MAP.h}`); }
-  out.push(`<path d="${minor.join('')}" stroke="#fbfbf6" stroke-width="3" fill="none" opacity=".9"/>`);
-  // 公園
-  for (const [nm, s0, w0, n0, e0] of PARKS) {
-    const [x1, y1] = P(n0, w0), [x2, y2] = P(s0, e0);
-    out.push(`<rect x="${x1.toFixed(1)}" y="${y1.toFixed(1)}" width="${(x2 - x1).toFixed(1)}" height="${(y2 - y1).toFixed(1)}" rx="8" fill="#cfe6c6"/>`);
-  }
-  // 川
-  for (const r of RIVERS) {
-    const d = smoothPath(r.pts, P);
-    out.push(`<path d="${d}" stroke="#bfe0f0" stroke-width="${r.w + 6}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
-    out.push(`<path d="${d}" stroke="#9fd0ea" stroke-width="${r.w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
-  }
-  // 主要道路
-  const roadPaths = [];
-  for (const [nm, lat, w0, e0, major] of STREETS_EW) { const [x1, y] = P(lat, w0), [x2] = P(lat, e0); roadPaths.push([`M${x1.toFixed(1)},${y.toFixed(1)}H${x2.toFixed(1)}`, major]); }
-  for (const [nm, lng, s0, n0, major] of STREETS_NS) { const [x, y1] = P(s0, lng), [, y2] = P(n0, lng); roadPaths.push([`M${x.toFixed(1)},${y1.toFixed(1)}V${y2.toFixed(1)}`, major]); }
-  for (const [d, major] of roadPaths) out.push(`<path d="${d}" stroke="#dcdccf" stroke-width="${major ? 14 : 10}" stroke-linecap="round" fill="none"/>`);
-  for (const [d, major] of roadPaths) out.push(`<path d="${d}" stroke="#ffffff" stroke-width="${major ? 10 : 6}" stroke-linecap="round" fill="none"/>`);
-  // 鉄道
-  for (const r of RAILS) {
-    const d = polyline(r.pts, P);
-    out.push(`<path d="${d}" stroke="#6d7479" stroke-width="8" fill="none" stroke-linejoin="round"/>`);
-    out.push(`<path d="${d}" stroke="#ffffff" stroke-width="4" stroke-dasharray="14 14" fill="none" stroke-linejoin="round"/>`);
-  }
-  // 京都駅舎
-  { const [x, y] = P(34.9858, 135.7588); out.push(`<rect x="${(x - 40).toFixed(1)}" y="${(y - 11).toFixed(1)}" width="80" height="22" rx="11" fill="#fff" stroke="#6d7479" stroke-width="3"/>`); }
-
-  // ラベル類の衝突判定用
   const occupied = [];
-  const labels = []; // 後で前面に描く
+  const propPt = hasProp() ? P(state.lat, state.lng) : null;
+  const destPts = state.dests.map(d => P(d.lat, d.lng));
+  destPts.forEach(([x, y]) => occupied.push({ x: x - 16, y: y - 16, w: 32, h: 32 }));
 
-  // 通り名
-  if (state.streets) {
-    for (const [nm, lat, w0, e0, major] of STREETS_EW) {
-      if (!major) continue;
-      const lng = Math.max(w0, tl.lng) + (Math.min(e0, br.lng) - Math.max(w0, tl.lng)) * 0.07;
-      const [x, y] = P(lat, lng); const tw = textW(nm, 15);
-      const r = { x: x, y: y - 9, w: tw + 8, h: 18 };
-      if (inMap(r)) labels.push({ r, svg: `<text x="${(x + 4).toFixed(1)}" y="${(y + 5).toFixed(1)}" font-size="15" fill="#8b9086" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(nm)}</text>`, weak: 1 });
-    }
-    for (const [nm, lng, s0, n0, major] of STREETS_NS) {
-      if (!major) continue;
-      const lat = Math.min(n0, tl.lat) - (Math.min(n0, tl.lat) - Math.max(s0, br.lat)) * 0.06;
-      const [x, y] = P(lat, lng);
-      const r = { x: x - 10, y: y, w: 20, h: nm.length * 16 };
-      const chars = [...nm].map((c, i) => `<tspan x="${x.toFixed(1)}" dy="${i ? 16 : 0}">${esc(c)}</tspan>`).join('');
-      if (inMap(r)) labels.push({ r, svg: `<text y="${(y + 13).toFixed(1)}" font-size="15" text-anchor="middle" fill="#8b9086" stroke="#fff" stroke-width="4" paint-order="stroke">${chars}</text>`, weak: 1 });
-    }
-    const km = RIVERS[0].pts.find(p => p[0] < (tl.lat + br.lat) / 2 - 0.004) || RIVERS[0].pts[6];
-    const [rx, ry] = P(km[0], km[1] + 0.0012);
-    labels.push({ r: { x: rx + 8, y: ry - 12, w: 40, h: 22 }, svg: `<text x="${(rx + 10).toFixed(1)}" y="${(ry + 6).toFixed(1)}" font-size="18" fill="#3f86ad" stroke="#fff" stroke-width="4" paint-order="stroke">鴨川</text>`, weak: 1 });
-  }
-
-  // 距離の同心円
-  if (state.rings && hasProp()) {
-    const [px, py] = P(state.lat, state.lng);
-    const maxKm = Math.hypot(MAP.w, MAP.h) / s;
-    const step = niceStep(maxKm);
-    for (let k = step; k < maxKm; k += step) {
-      const R = k * s;
-      out.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${R.toFixed(1)}" fill="none" stroke="#6f8f8c" stroke-width="2" stroke-dasharray="4 8" opacity=".55"/>`);
-      const lx = px + R * Math.cos(-Math.PI / 4), ly = py + R * Math.sin(-Math.PI / 4);
-      const r = { x: lx - 22, y: ly - 12, w: 44, h: 24 };
-      if (inMap(r)) labels.push({ r, svg: `<rect x="${r.x.toFixed(1)}" y="${r.y.toFixed(1)}" width="44" height="24" rx="12" fill="#fff" stroke="#9ab3b0"/><text x="${lx.toFixed(1)}" y="${(ly + 6).toFixed(1)}" font-size="15" text-anchor="middle" fill="#4f6f6c" font-weight="700">${k}km</text>` });
-    }
-  }
-
-  // ルート（点線＋バス）
-  const routeSvg = [];
-  const routePts = [];
-  const destCards = [];
-  if (hasProp()) {
-    const [px, py] = P(state.lat, state.lng);
+  // ルート
+  const routeSvg = [], routePts = [], busSvg = [], routeGeo = [];
+  const scaleBox = { x: MAP.x + 10, y: MAP.y + MAP.h - 70, w: 240, h: 62 };
+  occupied.push(scaleBox, { x: MAP.x + MAP.w - 96, y: MAP.y + 12, w: 80, h: 100 });
+  if (propPt) {
+    const [px, py] = propPt;
+    // 物件から見た方向順に並べ、外側のルートほど外へ膨らませて重なりを防ぐ
+    const ang = destPts.map(([x, y]) => Math.atan2(y - py, x - px));
+    const order = ang.map((a, i) => i).sort((a, b) => ang[a] - ang[b]);
+    const rank = []; order.forEach((idx, r) => { rank[idx] = r; });
     state.dests.forEach((d, i) => {
-      const [dx, dy] = P(d.lat, d.lng);
+      const [dx, dy] = destPts[i];
       const mx = (px + dx) / 2, my = (py + dy) / 2;
       const len = Math.hypot(dx - px, dy - py) || 1;
       const nx = -(dy - py) / len, ny = (dx - px) / len;
-      const bend = (i % 2 ? -1 : 1) * Math.min(60, len * 0.12);
+      const bend = (rank[i] - (state.dests.length - 1) / 2) * Math.min(90, len * 0.22);
       const cx = mx + nx * bend, cy = my + ny * bend;
-      routeSvg.push(`<path d="M${px.toFixed(1)},${py.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${dx.toFixed(1)},${dy.toFixed(1)}" stroke="#fff" stroke-width="10" fill="none" stroke-linecap="round" opacity=".8"/>`);
-      routeSvg.push(`<path d="M${px.toFixed(1)},${py.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${dx.toFixed(1)},${dy.toFixed(1)}" stroke="${d.color}" stroke-width="5" fill="none" stroke-dasharray="13 9" stroke-linecap="round"/>`);
+      const d0 = `M${px.toFixed(1)},${py.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${dx.toFixed(1)},${dy.toFixed(1)}`;
+      routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" opacity=".85"/>`);
+      routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="6" fill="none" stroke-dasharray="14 10" stroke-linecap="round"/>`);
+      routeGeo.push({ px, py, cx, cy, dx, dy, len, color: d.color });
       for (let t = 0.02; t < 1; t += 0.02) routePts.push([(1 - t) ** 2 * px + 2 * (1 - t) * t * cx + t * t * dx, (1 - t) ** 2 * py + 2 * (1 - t) * t * cy + t * t * dy]);
-      const bx = 0.25 * px + 0.5 * cx + 0.25 * dx, by = 0.25 * py + 0.5 * cy + 0.25 * dy;
-      if (len > 110) { routeSvg.push(busIcon(bx, by - 4, d.color)); occupied.push({ x: bx - 28, y: by - 22, w: 56, h: 40 }); }
     });
   }
+  const countIn = (r, pts, pad) => pts.filter(([x, y]) => x > r.x - pad && x < r.x + r.w + pad && y > r.y - pad && y < r.y + r.h + pad).length;
 
-  // 物件ラベル
+  // 物件ラベル（ルートや行き先と重ならない向きへ）
   let propSvg = '';
-  if (hasProp()) {
-    const [px, py] = P(state.lat, state.lng);
+  if (propPt) {
+    const [px, py] = propPt;
     const name = state.name || '物件';
-    const nameW = textW(name, 30, 700), stopW = state.stop ? textW(state.stop, 18) : 0;
-    const bw = Math.max(nameW, stopW) + 120, bh = state.stop ? 96 : 76;
-    // ルートや行き先に重ならない向きにラベルを置く（上・下・左・右）
-    const opts = [
-      ['up', px - bw / 2, py - bh - 26], ['down', px - bw / 2, py + 26],
-      ['left', px - bw - 30, py - bh / 2], ['right', px + 30, py - bh / 2],
-    ];
-    const destPts = state.dests.map(d => P(d.lat, d.lng));
-    let pick = null, pickScore = Infinity;
-    for (const [dir, ox, oy] of opts) {
+    const nameW = textW(name, 32, 700), stopW = state.stop ? textW(state.stop, 19) + 26 : 0;
+    const bw = Math.max(nameW, stopW) + 124, bh = state.stop ? 100 : 80;
+    const meanX = destPts.reduce((a, p) => a + p[0], 0) / (destPts.length || 1);
+    const side = meanX >= px ? ['left', 'right'] : ['right', 'left'];
+    const pos = { up: [px - bw / 2, py - bh - 28], down: [px - bw / 2, py + 28], left: [px - bw - 32, py - bh / 2], right: [px + 32, py - bh / 2] };
+    let pick = null, best = Infinity;
+    [side[0], 'up', 'down', side[1]].forEach((dir, order) => {
+      const [ox, oy] = pos[dir];
       const r = { x: Math.min(Math.max(ox, MAP.x + 12), MAP.x + MAP.w - bw - 12), y: Math.min(Math.max(oy, MAP.y + 12), MAP.y + MAP.h - bh - 12), w: bw, h: bh };
-      const inside = ([x, y], pad) => x > r.x - pad && x < r.x + r.w + pad && y > r.y - pad && y < r.y + r.h + pad;
-      let score = routePts.filter(q => inside(q, 8)).length + destPts.filter(q => inside(q, 20)).length * 50;
-      if (Math.abs(r.x - ox) + Math.abs(r.y - oy) > 1) score += 5; // 枠に押し込まれた場合は減点
-      if (dir !== 'up') score += 0.5;
-      if (score < pickScore) { pickScore = score; pick = { dir, ...r }; }
-    }
+      let sc = countIn(r, routePts, 8) + countIn(r, destPts, 24) * 50 + order * 0.5;
+      if (Math.abs(r.x - ox) + Math.abs(r.y - oy) > 1) sc += 20;
+      if (sc < best) { best = sc; pick = { dir, ...r }; }
+    });
     const bx = pick.x, by = pick.y;
-    occupied.push({ x: bx, y: by, w: bw, h: bh }, { x: px - 14, y: py - 14, w: 28, h: 28 });
+    occupied.push({ x: bx, y: by, w: bw, h: bh }, { x: px - 16, y: py - 16, w: 32, h: 32 });
     let tip;
     if (pick.dir === 'up' || pick.dir === 'down') {
       const tipX = Math.min(Math.max(px, bx + 24), bx + bw - 24), edge = pick.dir === 'up' ? by + bh - 1 : by + 1;
@@ -2824,94 +2808,224 @@ function render() {
       const tipY = Math.min(Math.max(py, by + 20), by + bh - 20), edge = pick.dir === 'left' ? bx + bw - 1 : bx + 1;
       tip = `M${edge},${tipY - 14} L${pick.dir === 'left' ? px - 12 : px + 12},${py} L${edge},${tipY + 14} Z`;
     }
-    propSvg = `<g filter="url(#sh)"><rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh}" rx="12" fill="#12303a"/><path d="${tip}" fill="#12303a"/></g>
-      <g transform="translate(${(bx + 22).toFixed(1)},${(by + 14).toFixed(1)})">
-        <rect x="0" y="0" width="44" height="48" rx="3" fill="#eef3f6"/>
-        ${[0, 1, 2].map(r => [0, 1].map(c => `<rect x="${8 + c * 17}" y="${7 + r * 12}" width="11" height="8" fill="#6aa9cf"/>`).join('')).join('')}
-        <rect x="17" y="38" width="10" height="10" fill="#8aa"/></g>
-      <text x="${(bx + 82).toFixed(1)}" y="${(by + 48).toFixed(1)}" font-size="30" font-weight="700" fill="#fff">${esc(name)}</text>
-      ${state.stop ? `<text x="${(bx + 82).toFixed(1)}" y="${(by + 80).toFixed(1)}" font-size="18" fill="#bfe3e0">🚏 ${esc(state.stop)}</text>` : ''}
-      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="13" fill="#12303a" stroke="#fff" stroke-width="4"/>`;
+    propSvg = `<g filter="url(#sh)"><rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh}" rx="14" fill="#12303a"/><path d="${tip}" fill="#12303a"/></g>
+      <g transform="translate(${(bx + 22).toFixed(1)},${(by + 16).toFixed(1)})">
+        <rect x="0" y="0" width="46" height="50" rx="3" fill="#eef3f6"/>
+        ${[0, 1, 2].map(r => [0, 1].map(c => `<rect x="${8 + c * 18}" y="${7 + r * 12}" width="12" height="8" fill="#6aa9cf"/>`).join('')).join('')}
+        <rect x="18" y="40" width="10" height="10" fill="#8aa"/>
+        <circle cx="-2" cy="46" r="7" fill="#8cc58a"/><circle cx="48" cy="46" r="6" fill="#8cc58a"/></g>
+      <text x="${(bx + 86).toFixed(1)}" y="${(by + 50).toFixed(1)}" font-size="32" font-weight="700" fill="#fff">${esc(name)}</text>
+      ${state.stop ? `<text x="${(bx + 86).toFixed(1)}" y="${(by + 84).toFixed(1)}" font-size="19" fill="#bfe3e0">🚏 ${esc(state.stop)}</text>` : ''}
+      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="14" fill="#12303a" stroke="#fff" stroke-width="4"/>`;
   }
 
-  // 行き先ピン＋カード
-  const pinSvg = [];
-  state.dests.forEach((d) => {
-    const [dx, dy] = P(d.lat, d.lng);
-    occupied.push({ x: dx - 16, y: dy - 16, w: 32, h: 32 });
-  });
+  // 行き先カード
+  const cardSvg = [], destCards = [];
   state.dests.forEach((d, i) => {
-    const [dx, dy] = P(d.lat, d.lng);
+    const [dx, dy] = destPts[i];
     const mins = minutesOf(d);
     const dist = hasProp() ? kmBetween(state, d) : null;
     const nameW = textW(d.name, 28, 700);
-    const lineW = textW('約 ', 22) + textW(String(mins), 40, 700) + textW(' 分', 22) + (dist != null ? textW(`（直線 ${dist.toFixed(1)}km）`, 17) + 8 : 0);
-    const cw = Math.max(nameW, lineW) + 44, ch = 104;
-    const cands = [[24, -ch / 2], [-cw - 24, -ch / 2], [24, -ch - 10], [24, 10], [-cw - 24, -ch - 10], [-cw - 24, 10], [-cw / 2, -ch - 26], [-cw / 2, 26]];
+    const lineW = textW('約 ', 22) + textW(String(mins), 42, 700) + textW(' 分', 22) + (dist != null ? textW(`（直線 ${dist.toFixed(1)}km）`, 17) + 8 : 0);
+    const cw = Math.max(nameW, lineW) + 46, ch = 106;
+    const cands = [[26, -ch / 2], [-cw - 26, -ch / 2], [26, -ch - 8], [26, 8], [-cw - 26, -ch - 8], [-cw - 26, 8], [-cw / 2, -ch - 28], [-cw / 2, 28]];
     let best = null, bestScore = Infinity;
     for (const [ox, oy] of cands) {
       const r = { x: dx + ox, y: dy + oy, w: cw, h: ch };
       let score = inMap(r) ? 0 : 1000;
       for (const o of occupied) if (overlaps(r, o, 6)) score += 100;
       for (const c of destCards) if (overlaps(r, c, 6)) score += 300;
+      score += countIn(r, routePts, 4) * 3;
       if (score < bestScore) { bestScore = score; best = r; }
       if (score === 0) break;
     }
     best.x = Math.min(Math.max(best.x, MAP.x + 10), MAP.x + MAP.w - cw - 10);
     best.y = Math.min(Math.max(best.y, MAP.y + 10), MAP.y + MAP.h - ch - 10);
     destCards.push(best);
-    const tint = d.color + '1f';
-    let lx = best.x + 22;
+    const lx = best.x + 23;
     const numX = lx + textW('約 ', 22);
-    const unitX = numX + textW(String(mins), 40, 700) + 4;
-    pinSvg.push(`<g filter="url(#sh)"><rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="14" fill="#fff"/></g>
-      <rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="14" fill="${tint}" stroke="${d.color}" stroke-opacity=".35" stroke-width="2"/>
-      <text x="${lx.toFixed(1)}" y="${(best.y + 40).toFixed(1)}" font-size="28" font-weight="700" fill="#16323a">${esc(d.name)}</text>
-      <text x="${lx.toFixed(1)}" y="${(best.y + 86).toFixed(1)}" font-size="22" fill="#16323a">約</text>
-      <text x="${numX.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="40" font-weight="700" fill="${d.color}">${esc(mins)}</text>
-      <text x="${unitX.toFixed(1)}" y="${(best.y + 86).toFixed(1)}" font-size="22" fill="#16323a">分</text>
-      ${dist != null ? `<text x="${(unitX + textW('分', 22) + 8).toFixed(1)}" y="${(best.y + 85).toFixed(1)}" font-size="17" fill="#6b7a7e">（直線 ${dist.toFixed(1)}km）</text>` : ''}
-      <circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="14" fill="${d.color}" stroke="#fff" stroke-width="4"/>`);
+    const unitX = numX + textW(String(mins), 42, 700) + 4;
+    cardSvg.push(`<g filter="url(#sh)"><rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="#fff"/></g>
+      <rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="${d.color}" fill-opacity=".13" stroke="${d.color}" stroke-opacity=".4" stroke-width="2"/>
+      <text x="${lx.toFixed(1)}" y="${(best.y + 41).toFixed(1)}" font-size="28" font-weight="700" fill="#16323a">${esc(d.name)}</text>
+      <text x="${lx.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">約</text>
+      <text x="${numX.toFixed(1)}" y="${(best.y + 90).toFixed(1)}" font-size="42" font-weight="700" fill="${d.color}">${esc(mins)}</text>
+      <text x="${unitX.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">分</text>
+      ${dist != null ? `<text x="${(unitX + textW('分', 22) + 8).toFixed(1)}" y="${(best.y + 87).toFixed(1)}" font-size="17" fill="#6b7a7e">（直線 ${dist.toFixed(1)}km）</text>` : ''}
+      <circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="15" fill="${d.color}" stroke="#fff" stroke-width="4"/>`);
   });
   occupied.push(...destCards);
-
-  // 名所アイコン
-  const markSvg = [];
-  if (state.marks) {
-    for (const [nm, lat, lng, type] of LANDMARKS) {
-      if (state.dests.some(d => d.name.includes(nm))) continue;
-      const [x, y] = P(lat, lng);
-      const tw = textW(nm, 16, 700);
-      const r = { x: Math.min(x - 30, x - tw / 2), y: y - 48, w: Math.max(60, tw), h: 80 };
-      if (!inMap(r)) continue;
-      if (occupied.some(o => overlaps(r, o, 4))) continue;
-      occupied.push(r);
-      markSvg.push(icon(type, x, y) + `<text x="${x.toFixed(1)}" y="${(y + 30).toFixed(1)}" font-size="16" font-weight="700" text-anchor="middle" fill="#4b4f47" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(nm)}</text>`);
-    }
-    // 木（飾り）: 公園の中
-    for (const [nm, s0, w0, n0, e0] of PARKS) {
-      for (let k = 0; k < 3; k++) {
-        const la = s0 + (n0 - s0) * (0.25 + 0.25 * k), ln = w0 + (e0 - w0) * (k % 2 ? 0.25 : 0.72);
-        const [x, y] = P(la, ln); const r = { x: x - 10, y: y - 16, w: 20, h: 26 };
-        if (inMap(r) && !occupied.some(o => overlaps(r, o))) markSvg.push(tree(x, y, 9));
-      }
+  // バスのアイコン：カードや物件ラベルに隠れない位置に置く
+  for (const g of routeGeo) {
+    if (g.len < 150) continue;
+    for (const t of [0.5, 0.4, 0.6, 0.32, 0.68]) {
+      const bx = (1 - t) ** 2 * g.px + 2 * (1 - t) * t * g.cx + t * t * g.dx, by = (1 - t) ** 2 * g.py + 2 * (1 - t) * t * g.cy + t * t * g.dy;
+      const r = { x: bx - 31, y: by - 26, w: 62, h: 44 };
+      if (occupied.some(o => overlaps(r, o, 2))) continue;
+      busSvg.push(busIcon(bx, by - 4, g.color)); occupied.push(r); break;
     }
   }
 
-  out.push(routeSvg.join(''));
-  // 弱いラベル（通り名）は重なる場合省略
-  for (const l of labels) { if (l.weak && occupied.some(o => overlaps(l.r, o, 2))) continue; out.push(l.svg); }
+  // 名所
+  const markSvg = [];
+  const k = Math.max(1.2, Math.min(1.9, s / 150));
+  if (state.marks) {
+    for (const [nm, lat, lng, type0] of LANDMARKS) {
+      if (state.dests.some(d => d.name.includes(nm))) continue;
+      const type = nm === '清水寺' ? 'kiyomizu' : type0;
+      const [x, y] = P(lat, lng);
+      const tw = textW(nm, 17, 700);
+      const r = { x: x - Math.max(36 * k, tw / 2 + 4), y: y - 56 * k, w: Math.max(72 * k, tw + 8), h: 56 * k + 34 };
+      if (!inMap(r) || occupied.some(o => overlaps(r, o, 4))) continue;
+      occupied.push(r);
+      markSvg.push(icon(type, x, y, k) + `<text x="${x.toFixed(1)}" y="${(y + 18 * k + 16).toFixed(1)}" font-size="17" font-weight="700" text-anchor="middle" fill="#4b4f47" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(nm)}</text>`);
+    }
+  }
+
+  // ---- 下地 ----
+  out.push(`<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="24" fill="#eef1e3"/>`);
+  out.push(`<g clip-path="url(#mapclip)">`);
+  const minor = [];
+  const stepKm = 0.2;
+  const dLat = stepKm / 110.95, dLng = stepKm / (111.32 * Math.cos(35 * Math.PI / 180));
+  for (let la = Math.floor(br.lat / dLat) * dLat; la < tl.lat; la += dLat) { const y = P(la, 0)[1]; minor.push(`M${MAP.x},${y.toFixed(1)}H${MAP.x + MAP.w}`); }
+  for (let ln = Math.floor(tl.lng / dLng) * dLng; ln < br.lng; ln += dLng) { const x = P(35, ln)[0]; minor.push(`M${x.toFixed(1)},${MAP.y}V${MAP.y + MAP.h}`); }
+  out.push(`<path d="${minor.join('')}" stroke="#fbfbf5" stroke-width="${Math.max(2, s / 90).toFixed(1)}" fill="none"/>`);
+  // 山
+  const hillPx = HILLS.map(h => h.map(p => P(p[0], p[1])));
+  HILLS.forEach(h => {
+    out.push(`<path d="${smoothPath(h, P, true)}" fill="#bfe0b4"/>`);
+  });
+  // 公園
+  const parkPx = [];
+  for (const [nm, s0, w0, n0, e0] of PARKS) {
+    const [x1, y1] = P(n0, w0), [x2, y2] = P(s0, e0);
+    parkPx.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+    out.push(`<rect x="${x1.toFixed(1)}" y="${y1.toFixed(1)}" width="${(x2 - x1).toFixed(1)}" height="${(y2 - y1).toFixed(1)}" rx="10" fill="#cde6c2"/>`);
+  }
+  // 川
+  const riverPx = RIVERS.map(r => ({ w: r.w, q: r.pts.map(p => P(p[0], p[1])) }));
+  for (const r of RIVERS) {
+    const d = smoothPath(r.pts, P);
+    out.push(`<path d="${d}" stroke="#cbe7f3" stroke-width="${r.w + 8}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+    out.push(`<path d="${d}" stroke="#8ecbe8" stroke-width="${r.w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+    out.push(`<path d="${d}" stroke="#c4e6f6" stroke-width="${Math.max(2, r.w * 0.2)}" stroke-dasharray="18 26" fill="none" stroke-linecap="round"/>`);
+  }
+  // 主要道路
+  const roadPaths = [];
+  for (const [, lat, w0, e0, major] of STREETS_EW) { const [x1, y] = P(lat, w0), [x2] = P(lat, e0); roadPaths.push([`M${x1.toFixed(1)},${y.toFixed(1)}H${x2.toFixed(1)}`, major, { x: x1, y: y - 10, w: x2 - x1, h: 20 }]); }
+  for (const [, lng, s0, n0, major] of STREETS_NS) { const [x, y1] = P(s0, lng), [, y2] = P(n0, lng); roadPaths.push([`M${x.toFixed(1)},${y1.toFixed(1)}V${y2.toFixed(1)}`, major, { x: x - 10, y: y2, w: 20, h: y1 - y2 }]); }
+  for (const [d, major] of roadPaths) out.push(`<path d="${d}" stroke="#dedccd" stroke-width="${major ? 16 : 11}" stroke-linecap="round" fill="none"/>`);
+  for (const [d, major] of roadPaths) out.push(`<path d="${d}" stroke="#ffffff" stroke-width="${major ? 12 : 7}" stroke-linecap="round" fill="none"/>`);
+  // 鉄道
+  const railPx = RAILS.map(r => r.pts.map(p => P(p[0], p[1])));
+  for (const r of RAILS) {
+    const d = polyline(r.pts, P);
+    out.push(`<path d="${d}" stroke="#6d7479" stroke-width="9" fill="none" stroke-linejoin="round"/>`);
+    out.push(`<path d="${d}" stroke="#ffffff" stroke-width="4.5" stroke-dasharray="15 15" fill="none" stroke-linejoin="round"/>`);
+  }
+  // 京都駅ビル
+  {
+    const [x1, y1] = P(34.9878, 135.7552), [x2, y2] = P(34.9861, 135.7628);
+    const w = x2 - x1, h = Math.max(22, y2 - y1);
+    let win = '';
+    for (let xx = x1 + 6; xx < x2 - 8; xx += 12) win += `<rect x="${xx.toFixed(1)}" y="${(y1 + 5).toFixed(1)}" width="7" height="${(h - 10).toFixed(1)}" fill="#cfe2ee"/>`;
+    out.push(`<rect x="${x1.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="#9fb3c2"/>${win}`);
+  }
+
+  // 木々（空いている場所に散らす）
+  const treeSvg = [], mtnSvg = [];
+  const freeAt = (x, y, rad) => {
+    const tr = { x: x - rad, y: y - rad * 2.2, w: rad * 2, h: rad * 2.6 };
+    if (occupied.some(o => overlaps(tr, o, 2))) return false;
+    if (roadPaths.some(([, , b]) => overlaps(tr, b, 0))) return false;
+    if (riverPx.some(r => distToPolyline(x, y, r.q) < r.w / 2 + rad + 4)) return false;
+    if (railPx.some(q => distToPolyline(x, y, q) < rad + 8)) return false;
+    if (routePts.some(([rx, ry]) => Math.hypot(rx - x, ry - y) < rad + 12)) return false;
+    if (propPt && Math.hypot(propPt[0] - x, propPt[1] - y) < 34) return false;
+    return true;
+  };
+  const step = 64;
+  for (let gy = MAP.y + 30; gy < MAP.y + MAP.h + 20; gy += step) {
+    for (let gx = MAP.x + 20; gx < MAP.x + MAP.w + 20; gx += step) {
+      const x = gx + (R() - 0.5) * step * 0.7, y = gy + (R() - 0.5) * step * 0.7;
+      const onHill = hillPx.some(q => inPoly(x, y, q));
+      const onPark = parkPx.some(p => x > p.x && x < p.x + p.w && y > p.y && y < p.y + p.h);
+      if (onHill && R() < 0.35) {
+        const w = 90 + R() * 60, h = 38 + R() * 26;
+        const r = { x: x - w / 2, y: y - h, w, h };
+        if (!occupied.some(o => overlaps(r, o, 2)) && !roadPaths.some(([, , b]) => overlaps(r, b, 0)) && !railPx.some(q => distToPolyline(x, y - h / 2, q) < w / 2 + 6) && !routePts.some(([rx, ry]) => rx > r.x && rx < r.x + w && ry > r.y && ry < y)) { mtnSvg.push(mountain(x, y, w, h)); continue; }
+      }
+      const pr = onHill ? 0.8 : onPark ? 0.95 : 0.22;
+      if (R() > pr) continue;
+      const nTrees = 1 + Math.floor(R() * (onHill || onPark ? 3 : 3));
+      for (let t = 0; t < nTrees; t++) {
+        const tx = x + (t ? (R() - 0.5) * 30 : 0), ty = y + (t ? (R() - 0.3) * 16 : 0), rad = 8 + R() * 5;
+        if (freeAt(tx, ty, rad)) treeSvg.push([ty, tree(tx, ty, rad, R() > 0.5)]);
+      }
+    }
+  }
+  treeSvg.sort((a, b) => a[0] - b[0]);
+  out.push(mtnSvg.join(''));
+  out.push(treeSvg.map(t => t[1]).join(''));
+
+  // 大文字
+  { const [x, y] = P(DAIMONJI[0], DAIMONJI[1]); const r = { x: x - 22, y: y - 22, w: 44, h: 44 };
+    if (inMap(r) && !occupied.some(o => overlaps(r, o))) out.push(`<text x="${x.toFixed(1)}" y="${(y + 15).toFixed(1)}" font-size="44" font-weight="900" text-anchor="middle" fill="#fff" opacity=".9">大</text>`); }
+
+  // 距離の同心円
+  const labels = [];
+  if (state.rings && propPt) {
+    const [px, py] = propPt;
+    const maxKm = Math.hypot(MAP.w, MAP.h) / s;
+    const stepR = maxKm > 12 ? 2 : 1;
+    for (let kk = stepR; kk < maxKm; kk += stepR) {
+      const Rr = kk * s;
+      out.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${Rr.toFixed(1)}" fill="none" stroke="#5f8784" stroke-width="2" stroke-dasharray="3 9" stroke-linecap="round" opacity=".6"/>`);
+      for (const ang of [-Math.PI / 4, -3 * Math.PI / 4, Math.PI / 4, 3 * Math.PI / 4]) {
+        const lx = px + Rr * Math.cos(ang), ly = py + Rr * Math.sin(ang);
+        const r = { x: lx - 24, y: ly - 13, w: 48, h: 26 };
+        if (inMap(r) && !occupied.some(o => overlaps(r, o, 2))) {
+          labels.push(`<rect x="${r.x.toFixed(1)}" y="${r.y.toFixed(1)}" width="48" height="26" rx="13" fill="#fff" stroke="#9ab3b0"/><text x="${lx.toFixed(1)}" y="${(ly + 6).toFixed(1)}" font-size="15" text-anchor="middle" fill="#4f6f6c" font-weight="700">${kk}km</text>`);
+          occupied.push(r);
+          break;
+        }
+      }
+    }
+  }
+  // 通り名
+  if (state.streets) {
+    for (const [nm, lat, w0, e0, major] of STREETS_EW) {
+      if (!major) continue;
+      const [x, y] = P(lat, Math.max(w0, tl.lng)); const xx = Math.max(x, MAP.x) + 24;
+      const r = { x: xx, y: y - 10, w: textW(nm, 15) + 6, h: 20 };
+      if (inMap(r) && !occupied.some(o => overlaps(r, o, 2))) labels.push(`<text x="${(xx + 3).toFixed(1)}" y="${(y + 5).toFixed(1)}" font-size="15" fill="#8b9086" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(nm)}</text>`);
+    }
+    for (const [nm, lng, s0, n0, major] of STREETS_NS) {
+      if (!major) continue;
+      const [x, y] = P(Math.min(n0, tl.lat), lng); const yy = Math.max(y, MAP.y) + 22;
+      const r = { x: x - 10, y: yy, w: 20, h: nm.length * 16 };
+      const chars = [...nm].map((c, i) => `<tspan x="${x.toFixed(1)}" dy="${i ? 16 : 0}">${esc(c)}</tspan>`).join('');
+      if (inMap(r) && !occupied.some(o => overlaps(r, o, 2))) labels.push(`<text y="${(yy + 13).toFixed(1)}" font-size="15" text-anchor="middle" fill="#8b9086" stroke="#fff" stroke-width="4" paint-order="stroke">${chars}</text>`);
+    }
+    const kp = riverPx[0].q.find(([x, y]) => y > MAP.y + MAP.h * 0.55 && x > MAP.x + 20 && x < MAP.x + MAP.w - 80);
+    if (kp) { const r = { x: kp[0] + 12, y: kp[1] - 13, w: 44, h: 24 };
+      if (!occupied.some(o => overlaps(r, o))) labels.push(`<text x="${(kp[0] + 14).toFixed(1)}" y="${(kp[1] + 6).toFixed(1)}" font-size="18" font-weight="700" fill="#3f86ad" stroke="#fff" stroke-width="4" paint-order="stroke">鴨川</text>`); }
+  }
+
+  out.push(labels.join(''));
   out.push(markSvg.join(''));
+  out.push(routeSvg.join(''));
+  out.push(busSvg.join(''));
   out.push(propSvg);
-  out.push(pinSvg.join(''));
+  out.push(cardSvg.join(''));
 
   // 方位・縮尺
   const nx = MAP.x + MAP.w - 56, ny = MAP.y + 50;
-  out.push(`<circle cx="${nx}" cy="${ny}" r="28" fill="#fff" stroke="#dde3d6" stroke-width="2"/><path d="M${nx},${ny - 18} L${nx + 10},${ny + 14} L${nx},${ny + 7} L${nx - 10},${ny + 14} Z" fill="#16323a"/>
-`);
+  out.push(`<circle cx="${nx}" cy="${ny}" r="28" fill="#fff" stroke="#dde3d6" stroke-width="2"/><path d="M${nx},${ny - 18} L${nx + 10},${ny + 14} L${nx},${ny + 7} L${nx - 10},${ny + 14} Z" fill="#16323a"/>`);
   out.push(`<text x="${nx}" y="${ny + 48}" font-size="16" font-weight="700" text-anchor="middle" fill="#16323a">N</text>`);
-  const sbKm = s > 300 ? 0.5 : 1, sbw = sbKm * s, sx = MAP.x + 28, sy = MAP.y + MAP.h - 28;
-  out.push(`<rect x="${sx - 10}" y="${sy - 34}" width="${sbw + 84}" height="46" rx="10" fill="#fff" opacity=".85"/>
+  const sbKm = s > 280 ? 0.5 : 1, sbw = sbKm * s, sx = MAP.x + 28, sy = MAP.y + MAP.h - 28;
+  out.push(`<rect x="${sx - 10}" y="${sy - 36}" width="${(sbw + 84).toFixed(1)}" height="48" rx="10" fill="#fff" opacity=".9"/>
     <path d="M${sx},${sy - 12} V${sy} H${(sx + sbw).toFixed(1)} V${sy - 12}" stroke="#16323a" stroke-width="3" fill="none"/>
     <text x="${(sx + sbw + 10).toFixed(1)}" y="${sy + 1}" font-size="17" fill="#16323a" font-weight="700">${sbKm === 0.5 ? '500m' : '1km'}</text>
     <text x="${sx}" y="${sy - 18}" font-size="13" fill="#6b7a7e">徒歩 約${Math.round(sbKm * 1000 / 80)}分</text>`);
@@ -2920,6 +3034,7 @@ function render() {
       <text x="${MAP.x + MAP.w / 2}" y="${MAP.y + MAP.h / 2 + 9}" font-size="24" fill="#fff" text-anchor="middle">住所を検索するか、地図をクリックして物件の位置を指定</text>`);
   }
   out.push(`</g>`);
+  out.push(`<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="24" fill="none" stroke="#dde3d6" stroke-width="2"/>`);
 
   // ---- 下段 ----
   const B = { x: 50, y: 758, w: 1500, h: 222 };
@@ -2927,22 +3042,18 @@ function render() {
   out.push(`<text x="${B.x + 28}" y="${B.y + 42}" font-size="30" font-weight="700" fill="#16323a">${esc(state.btitle)}</text>`);
   out.push(`<text x="${B.x + 30}" y="${B.y + 72}" font-size="19" fill="#5c6b70">${esc(state.bsub)}</text>`);
   const n = state.dests.length;
-  if (n) {
-    const gap = 22, cw = (B.w - 56 - gap * (n - 1)) / n, cy = B.y + 88, ch = 118;
-    state.dests.forEach((d, i) => {
-      const cx = B.x + 28 + i * (cw + gap);
-      const qs = 104;
-      const hasFreq = String(d.freq || '').trim() !== '';
-      const mins = minutesOf(d);
-      const nameSize = Math.min(24, (cw - qs - 60) / Math.max(1, (d.short + '方面').length) * 1.05);
-      out.push(`<rect x="${cx.toFixed(1)}" y="${cy}" width="${cw.toFixed(1)}" height="${ch}" rx="12" fill="#fff"/>
-        <rect x="${(cx + 12).toFixed(1)}" y="${cy + 12}" width="7" height="${ch - 24}" rx="3.5" fill="${d.color}"/>
-        <text x="${(cx + 36).toFixed(1)}" y="${cy + 36}" font-size="${nameSize.toFixed(1)}" fill="#16323a">${esc(d.short)}方面</text>
-        <text x="${(cx + 36).toFixed(1)}" y="${cy + 76}" font-size="22" fill="#16323a">約 <tspan font-size="34" font-weight="700">${esc(mins)}</tspan> 分</text>
-        <text x="${(cx + 36).toFixed(1)}" y="${cy + 104}" font-size="${hasFreq ? 18 : 15}" fill="${hasFreq ? d.color : '#6b7a7e'}">${esc(hasFreq ? d.freq : 'QRで経路・時刻表 ▶')}</text>`);
-      out.push(qrSvg(qrUrlOf(d), cx + cw - qs - 8, cy + (ch - qs) / 2, qs));
-    });
-  }
+  const gap = 22, cw = (B.w - 56 - gap * (n - 1)) / n, cy = B.y + 88, ch = 118;
+  state.dests.forEach((d, i) => {
+    const cx = B.x + 28 + i * (cw + gap);
+    const qs = 104;
+    const mins = minutesOf(d);
+    out.push(`<rect x="${cx.toFixed(1)}" y="${cy}" width="${cw.toFixed(1)}" height="${ch}" rx="12" fill="#fff"/>
+      <rect x="${(cx + 12).toFixed(1)}" y="${cy + 12}" width="7" height="${ch - 24}" rx="3.5" fill="${d.color}"/>
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 36}" font-size="24" fill="#16323a">${esc(d.short)}方面</text>
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 76}" font-size="22" fill="#16323a">約 <tspan font-size="34" font-weight="700">${esc(mins)}</tspan> 分</text>
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 104}" font-size="16" fill="${d.color}">QRで経路・時刻表 ▶</text>`);
+    out.push(qrSvg(qrUrlOf(d), cx + cw - qs - 8, cy + (ch - qs) / 2, qs));
+  });
   out.push(`<text x="${W - 50}" y="${H - 6}" font-size="12" text-anchor="end" fill="#9aa">所要時間は目安です。道路状況・ダイヤにより変わります。</text>`);
   out.push(`</svg>`);
   return out.join('\n');
@@ -2970,7 +3081,6 @@ function renderDests() {
       <div style="font-weight:700;color:${esc(d.color)}">${esc(d.name)}</div>
       <div class="row">
         <input type="text" data-k="min" value="${esc(d.min)}" placeholder="所要分（自動: ${est ?? '–'}分）">
-        <input type="text" data-k="freq" value="${esc(d.freq)}" placeholder="本数 例: 7時台 4本　8時台 4本" style="flex:2">
       </div>
       <div class="row">
         <input type="text" data-k="qr" value="${esc(d.qr)}" placeholder="QRのURL（空欄＝Googleマップ経路）">
