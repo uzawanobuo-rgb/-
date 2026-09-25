@@ -85,10 +85,13 @@
 
     <div class="box">
       <h2>② 行き先（京都河原町・四条烏丸・京都駅）</h2>
+      <div class="status" id="busStatus" style="margin:0 0 8px"></div>
       <div id="dests"></div>
       <div class="hint" style="margin-top:6px">
-        所要時間は「バス平均時速 約<span id="spdLabel"></span>km/h ＋ 停留所までの徒歩」で出した<b>目安</b>です。空欄なら自動計算、数字を入れればその値を使います。<br>
-        QRは初期状態で、物件からその行き先までのGoogleマップ経路検索（公共交通）を開きます。バス会社の時刻表ページなどに差し替えたいときはURLを入力してください。
+        物件の位置が決まると、OpenStreetMapのバス路線データから、近くのバス停と<b>乗換なしで行ける路線</b>を自動で調べます。<br>
+        所要時間は「バス停までの徒歩＋路線に沿った距離÷バス平均時速 約<span id="spdLabel"></span>km/h」の<b>目安</b>です（乗換なしの路線がない場合は直線距離から推定）。数字を入れればその値を使います。<br>
+        QRは、京都市バスの路線が見つかればその系統の時刻表ページ、それ以外はGoogleマップの経路検索（公共交通）を開きます。URLを入れれば差し替えられます。<br>
+        OSMのデータは有志の登録なので、抜けや古い情報があることがあります。公開前に路線を確認してください。
       </div>
     </div>
 
@@ -102,8 +105,8 @@
       <input type="text" id="btitle">
       <label>下段の補足</label>
       <input type="text" id="bsub">
-      <label>最寄りバス停（任意、物件名の下に表示）</label>
-      <input type="text" id="stop" placeholder="例: 四条大宮 徒歩3分">
+      <label>最寄りバス停（空欄なら自動、物件名の下に表示）</label>
+      <input type="text" id="stop" placeholder="自動で表示されます（例: 四条大宮 徒歩3分）">
       <label>地図の範囲 <span id="zoomLabel"></span></label>
       <input type="range" id="zoom" min="0.5" max="2.5" step="0.05" value="1" style="width:100%">
       <div class="row" style="margin-top:6px">
@@ -2502,9 +2505,9 @@ let state = {
   title: DEFAULTS.title, subtitle: DEFAULTS.subtitle, btitle: DEFAULTS.btitle, bsub: DEFAULTS.bsub,
   zoom: 1, rings: true, marks: true, streets: true, speed: 12, overhead: 4,
   dests: [
-    { name: '京都河原町駅周辺', short: '京都河原町', lat: 35.0036, lng: 135.7690, color: COLORS[0], min: '', qr: '' },
-    { name: '四条烏丸', short: '四条烏丸', lat: 35.0036, lng: 135.7597, color: COLORS[1], min: '', qr: '' },
-    { name: '京都駅', short: '京都駅', lat: 34.9858, lng: 135.7588, color: COLORS[2], min: '', qr: '' },
+    { name: '京都河原町駅周辺', short: '京都河原町', lat: 35.0036, lng: 135.7690, radius: 350, color: COLORS[0], min: '', qr: '' },
+    { name: '四条烏丸', short: '四条烏丸', lat: 35.0036, lng: 135.7597, radius: 350, color: COLORS[1], min: '', qr: '' },
+    { name: '京都駅', short: '京都駅', lat: 34.9858, lng: 135.7588, radius: 450, color: COLORS[2], min: '', qr: '' },
   ],
 };
 const STORE_KEY = 'kyotoAccessMap.v1';
@@ -2546,13 +2549,19 @@ function estMinutes(d) {
   const km = roadKm(state, d);
   return Math.max(3, Math.round(km / (Number(state.speed) || 12) * 60 + (Number(state.overhead) || 0)));
 }
+function autoMinutes(d) {
+  const b = busOf(state.dests.indexOf(d));
+  return b && b.best ? b.minutes : estMinutes(d);
+}
 function minutesOf(d) {
   const m = String(d.min || '').trim();
-  return m !== '' ? m : (estMinutes(d) ?? '–');
+  return m !== '' ? m : (autoMinutes(d) ?? '–');
 }
 function hasProp() { return Number.isFinite(state.lat) && Number.isFinite(state.lng); }
 function qrUrlOf(d) {
   if (d.qr && d.qr.trim()) return d.qr.trim();
+  const b = busOf(state.dests.indexOf(d));
+  if (b && b.qrUrl) return b.qrUrl;
   const dest = `${d.lat},${d.lng}`;
   if (!hasProp()) return `https://www.google.com/maps/search/?api=1&query=${dest}`;
   return `https://www.google.com/maps/dir/?api=1&origin=${state.lat.toFixed(6)},${state.lng.toFixed(6)}&destination=${dest}&travelmode=transit`;
@@ -2785,8 +2794,9 @@ function render() {
   if (propPt) {
     const [px, py] = propPt;
     const name = state.name || '物件';
-    const nameW = textW(name, 32, 700), stopW = state.stop ? textW(state.stop, 19) + 26 : 0;
-    const bw = Math.max(nameW, stopW) + 124, bh = state.stop ? 100 : 80;
+    const stop = stopLabel();
+    const nameW = textW(name, 32, 700), stopW = stop ? textW(stop, 19) + 26 : 0;
+    const bw = Math.max(nameW, stopW) + 124, bh = stop ? 100 : 80;
     const meanX = destPts.reduce((a, p) => a + p[0], 0) / (destPts.length || 1);
     const side = meanX >= px ? ['left', 'right'] : ['right', 'left'];
     const pos = { up: [px - bw / 2, py - bh - 28], down: [px - bw / 2, py + 28], left: [px - bw - 32, py - bh / 2], right: [px + 32, py - bh / 2] };
@@ -2815,7 +2825,7 @@ function render() {
         <rect x="18" y="40" width="10" height="10" fill="#8aa"/>
         <circle cx="-2" cy="46" r="7" fill="#8cc58a"/><circle cx="48" cy="46" r="6" fill="#8cc58a"/></g>
       <text x="${(bx + 86).toFixed(1)}" y="${(by + 50).toFixed(1)}" font-size="32" font-weight="700" fill="#fff">${esc(name)}</text>
-      ${state.stop ? `<text x="${(bx + 86).toFixed(1)}" y="${(by + 84).toFixed(1)}" font-size="19" fill="#bfe3e0">🚏 ${esc(state.stop)}</text>` : ''}
+      ${stop ? `<text x="${(bx + 86).toFixed(1)}" y="${(by + 84).toFixed(1)}" font-size="19" fill="#bfe3e0">🚏 ${esc(stop)}</text>` : ''}
       <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="14" fill="#12303a" stroke="#fff" stroke-width="4"/>`;
   }
 
@@ -2825,7 +2835,9 @@ function render() {
     const [dx, dy] = destPts[i];
     const mins = minutesOf(d);
     const dist = hasProp() ? kmBetween(state, d) : null;
-    const nameW = textW(d.name, 28, 700);
+    const direct = isDirect(i);
+    const badgeW = direct ? textW('乗換なし', 15, 700) + 20 : 0;
+    const nameW = textW(d.name, 28, 700) + (direct ? badgeW + 12 : 0);
     const lineW = textW('約 ', 22) + textW(String(mins), 42, 700) + textW(' 分', 22) + (dist != null ? textW(`（直線 ${dist.toFixed(1)}km）`, 17) + 8 : 0);
     const cw = Math.max(nameW, lineW) + 46, ch = 106;
     // 点のまわり一周（15°刻み×距離2段階）を候補にし、点線・他のカード・ラベルと重ならない位置を選ぶ
@@ -2863,6 +2875,7 @@ function render() {
     cardSvg.push(`<g filter="url(#sh)"><rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="#fff"/></g>
       <rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="${d.color}" fill-opacity=".13" stroke="${d.color}" stroke-opacity=".4" stroke-width="2"/>
       <text x="${lx.toFixed(1)}" y="${(best.y + 41).toFixed(1)}" font-size="28" font-weight="700" fill="#16323a">${esc(d.name)}</text>
+      ${direct ? `<rect x="${(lx + textW(d.name, 28, 700) + 12).toFixed(1)}" y="${(best.y + 19).toFixed(1)}" width="${badgeW.toFixed(1)}" height="26" rx="13" fill="${d.color}"/><text x="${(lx + textW(d.name, 28, 700) + 12 + badgeW / 2).toFixed(1)}" y="${(best.y + 37).toFixed(1)}" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">乗換なし</text>` : ''}
       <text x="${lx.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">約</text>
       <text x="${numX.toFixed(1)}" y="${(best.y + 90).toFixed(1)}" font-size="42" font-weight="700" fill="${d.color}">${esc(mins)}</text>
       <text x="${unitX.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">分</text>
@@ -3066,7 +3079,7 @@ function render() {
       <rect x="${(cx + 12).toFixed(1)}" y="${cy + 12}" width="7" height="${ch - 24}" rx="3.5" fill="${d.color}"/>
       <text x="${(cx + 36).toFixed(1)}" y="${cy + 36}" font-size="24" fill="#16323a">${esc(d.short)}方面</text>
       <text x="${(cx + 36).toFixed(1)}" y="${cy + 76}" font-size="22" fill="#16323a">約 <tspan font-size="34" font-weight="700">${esc(mins)}</tspan> 分</text>
-      <text x="${(cx + 36).toFixed(1)}" y="${cy + 104}" font-size="16" fill="${d.color}">QRで経路・時刻表 ▶</text>`);
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 104}" font-size="16" fill="${d.color}">${isDirect(i) ? '乗換なし ｜ QRで時刻表 ▶' : 'QRで経路・時刻表 ▶'}</text>`);
     out.push(qrSvg(qrUrlOf(d), cx + cw - qs - 8, cy + (ch - qs) / 2, qs));
   });
   out.push(`<text x="${W - 50}" y="${H - 6}" font-size="12" text-anchor="end" fill="#9aa">所要時間は目安です。道路状況・ダイヤにより変わります。</text>`);
@@ -3091,14 +3104,19 @@ function renderDests() {
     const el = document.createElement('div');
     el.className = 'dest';
     el.style.borderLeftColor = d.color;
-    const est = estMinutes(d);
+    const est = autoMinutes(d);
+    const b = busOf(i);
+    const info = !b ? '' : b.best
+      ? `✓ 乗換なし：${esc(b.best.from)} → ${esc(b.best.to)}（${b.best.stops}停留所）<br>路線：${esc(b.refs.map(r => r + '系統').join('・') || b.best.name)}<br>QR：${b.qrUrl ? '市バス' + esc(b.qrRef) + '系統の時刻表' : 'Googleマップの経路検索'}`
+      : '乗換なしの路線は見つかりませんでした（時間は距離からの目安、QRはGoogleマップ）';
     el.innerHTML = `
       <div style="font-weight:700;color:${esc(d.color)}">${esc(d.name)}</div>
+      ${info ? `<div class="hint" style="margin:2px 0 4px;color:${b.best ? '#13706b' : '#b25a1f'}">${info}</div>` : ''}
       <div class="row">
         <input type="text" data-k="min" value="${esc(d.min)}" placeholder="所要分（自動: ${est ?? '–'}分）">
       </div>
       <div class="row">
-        <input type="text" data-k="qr" value="${esc(d.qr)}" placeholder="QRのURL（空欄＝Googleマップ経路）">
+        <input type="text" data-k="qr" value="${esc(d.qr)}" placeholder="QRのURL（空欄＝自動）">
       </div>
 `;
     el.querySelectorAll('input').forEach(inp => {
@@ -3114,7 +3132,7 @@ function renderDests() {
 function updateEstimatePlaceholders() {
   document.querySelectorAll('#dests .dest').forEach((el, i) => {
     const d = state.dests[i]; if (!d) return;
-    el.querySelector('[data-k=min]').placeholder = `所要分（自動: ${estMinutes(d) ?? '–'}分）`;
+    el.querySelector('[data-k=min]').placeholder = `所要分（自動: ${autoMinutes(d) ?? '–'}分）`;
   });
 }
 
@@ -3135,6 +3153,7 @@ function setProp(lat, lng, msg) {
   updateEstimatePlaceholders();
   if (msg) setStatus(msg, 'ok');
   refresh();
+  scheduleBus();
 }
 
 // ---- 住所 → 緯度経度（国土地理院 住所検索API） ----
@@ -3169,6 +3188,139 @@ async function geocode() {
   } catch (e) {
     setStatus('位置検索に失敗しました（' + e.message + '）。地図をクリックして指定してください。', 'err');
   }
+}
+
+// ---- バス路線の自動判定（OpenStreetMap のバス路線データ / Overpass API） ----
+const OVERPASS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+const ORIGIN_RADIUS = 550; // 物件から歩ける範囲のバス停(m)
+const WALK_M_PER_MIN = 80;
+const STOP_ROLE = /^(stop|platform)?(_entry_only|_exit_only)?$/;
+function propKey() { return hasProp() ? state.lat.toFixed(5) + ',' + state.lng.toFixed(5) : ''; }
+function busOf(i) { return state.bus && state.bus.key === propKey() ? state.bus.dests[i] : null; }
+function nearestStop() { return state.bus && state.bus.key === propKey() ? state.bus.nearest : null; }
+function stopLabel() {
+  if (String(state.stop || '').trim()) return state.stop.trim();
+  const n = nearestStop();
+  return n ? `${n.name} 徒歩${n.walk}分` : '';
+}
+function isDirect(i) { const b = busOf(i); return !!(b && b.best); }
+
+async function overpass(q) {
+  let lastErr;
+  for (const url of OVERPASS) {
+    try {
+      const res = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      if (res.ok) return await res.json();
+      lastErr = new Error('HTTP ' + res.status);
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('取得できませんでした');
+}
+function busQuery(lat, lng) {
+  const a = `around:${ORIGIN_RADIUS},${lat},${lng}`;
+  return `[out:json][timeout:40];
+(node(${a})[highway=bus_stop];node(${a})[public_transport=platform][bus=yes];node(${a})[public_transport=stop_position][bus=yes];)->.near;
+.near out body;
+rel(bn.near)[type=route][route=bus]->.r;
+.r out body;
+node(r.r)->.s;
+.s out body;`;
+}
+// 京都市バスの系統番号 → 系統別時刻表ページ（例: 204号系統 → 20400.htm、23号系統 → 02300.htm）
+function timetableUrl(route) {
+  if (!route) return null;
+  const who = `${route.operator} ${route.network} ${route.name}`;
+  const m = String(route.ref || '').trim().match(/^(\d{1,3})$/);
+  if (m && /京都市|市バス|市営/.test(who)) return `https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/kto/${m[1].padStart(3, '0')}00.htm`;
+  return null;
+}
+function analyzeBus(js, lat, lng) {
+  const here = { lat, lng };
+  const nodes = new Map();
+  for (const e of js.elements || []) if (e.type === 'node') nodes.set(e.id, e);
+  const rels = (js.elements || []).filter(e => e.type === 'relation');
+  const ll = n => ({ lat: n.lat, lng: n.lon });
+  // 最寄りバス停
+  let nearest = null;
+  for (const n of nodes.values()) {
+    const t = n.tags || {};
+    if (!t.name || !(t.highway === 'bus_stop' || t.public_transport === 'platform')) continue;
+    const m = kmBetween(here, ll(n)) * 1000;
+    if (m <= ORIGIN_RADIUS && (!nearest || m < nearest.m)) nearest = { name: t.name.replace(/[（(].*?[）)]$/, ''), m };
+  }
+  if (nearest) nearest.walk = Math.max(1, Math.round(nearest.m * 1.25 / WALK_M_PER_MIN));
+  const speed = Number(state.speed) || 12;
+  const dests = state.dests.map(d => {
+    const cands = [];
+    for (const r of rels) {
+      const t = r.tags || {};
+      const seq = (r.members || []).filter(m => m.type === 'node' && STOP_ROLE.test(m.role || '') && nodes.has(m.ref)).map(m => nodes.get(m.ref));
+      if (seq.length < 2) continue;
+      const oneWay = t['public_transport:version'] === '2';
+      const cum = [0];
+      for (let k = 1; k < seq.length; k++) cum.push(cum[k - 1] + kmBetween(ll(seq[k - 1]), ll(seq[k])) * 1000);
+      let best = null;
+      for (let i = 0; i < seq.length; i++) {
+        const walkM = kmBetween(here, ll(seq[i])) * 1000;
+        if (walkM > ORIGIN_RADIUS) continue;
+        for (let j = 0; j < seq.length; j++) {
+          if (j === i || (oneWay && j < i)) continue;
+          if (kmBetween(d, ll(seq[j])) * 1000 > d.radius) continue;
+          const along = Math.abs(cum[j] - cum[i]) * 1.15;
+          if (along < 200) continue;
+          const walk = walkM * 1.25 / WALK_M_PER_MIN, ride = along / 1000 / speed * 60;
+          const total = walk + ride;
+          if (!best || total < best.total) {
+            const names = seq.slice(Math.min(i, j), Math.max(i, j) + 1).map(n => (n.tags || {}).name || '').filter((nm, k, a) => nm && nm !== a[k - 1]);
+            best = { total, walk, ride, from: (seq[i].tags || {}).name || '', to: (seq[j].tags || {}).name || '', stops: Math.max(1, names.length - 1) };
+          }
+        }
+      }
+      if (best) cands.push(Object.assign(best, { ref: t.ref || '', name: t.name || '', operator: t.operator || '', network: t.network || '', id: r.id }));
+    }
+    cands.sort((a, b) => a.total - b.total);
+    const best = cands[0] || null;
+    // QR用：時刻表ページがある京都市バスの路線を優先（最速から+4分以内）
+    const qrRoute = best ? cands.find(c => timetableUrl(c) && c.total <= best.total + 4) || null : null;
+    const refs = [...new Set(cands.filter(c => best && c.total <= best.total + 8).map(c => c.ref).filter(Boolean))].slice(0, 5);
+    return best ? {
+      best: { ref: best.ref, name: best.name, operator: best.operator, from: best.from, to: best.to, stops: best.stops },
+      minutes: Math.max(3, Math.round(best.total)), refs,
+      qrUrl: qrRoute ? timetableUrl(qrRoute) : null, qrRef: qrRoute ? qrRoute.ref : '',
+    } : { best: null, refs: [] };
+  });
+  return { nearest, dests };
+}
+const DIRECT_TITLE = '京都の主要エリアへ、バスで乗換なし';
+let busTimer = null, busSeq = 0;
+function scheduleBus() { clearTimeout(busTimer); busTimer = setTimeout(detectBus, 500); }
+async function detectBus() {
+  if (!hasProp()) return;
+  const key = propKey(), seq = ++busSeq;
+  const st = $('busStatus');
+  st.className = 'status'; st.textContent = 'バス路線を調べています…';
+  try {
+    const js = await overpass(busQuery(state.lat, state.lng));
+    if (seq !== busSeq) return;
+    state.bus = Object.assign(analyzeBus(js, state.lat, state.lng), { key });
+    const nDirect = state.bus.dests.filter(d => d.best).length;
+    st.className = 'status ok';
+    st.textContent = (state.bus.nearest ? `最寄りバス停: ${state.bus.nearest.name}（徒歩${state.bus.nearest.walk}分）\n` : '近くにバス停が見つかりませんでした\n')
+      + `乗換なしで行ける行き先: ${nDirect} / ${state.dests.length}`;
+    if (nDirect === state.dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
+    if (nDirect < state.dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
+  } catch (e) {
+    if (seq !== busSeq) return;
+    state.bus = null;
+    st.className = 'status err';
+    st.textContent = 'バス路線データを取得できませんでした（' + e.message + '）。\n所要時間は距離からの目安、QRはGoogleマップの経路検索で作ります。';
+  }
+  renderDests();
+  refresh();
 }
 
 // ---- URL → 物件名・住所 ----
@@ -3293,7 +3445,7 @@ $('zoomLabel').textContent = `×${(1 / state.zoom).toFixed(2)}`;
 $('spdLabel').textContent = state.speed;
 ['plat', 'plng'].forEach(id => $(id).addEventListener('input', () => {
   const la = parseFloat($('plat').value), ln = parseFloat($('plng').value);
-  if (Number.isFinite(la) && Number.isFinite(ln)) { state.lat = la; state.lng = ln; updateEstimatePlaceholders(); refresh(); }
+  if (Number.isFinite(la) && Number.isFinite(ln)) { state.lat = la; state.lng = ln; updateEstimatePlaceholders(); refresh(); scheduleBus(); }
 }));
 $('btnFetch').onclick = loadUrl;
 $('btnGeo').onclick = geocode;
@@ -3301,6 +3453,7 @@ $('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); })
 $('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
 renderDests();
 refresh();
+if (hasProp() && !busOf(0)) scheduleBus();
 </script>
 </body>
 </html>
