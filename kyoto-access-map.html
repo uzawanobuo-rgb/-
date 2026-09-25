@@ -2794,8 +2794,8 @@ function render() {
     [side[0], 'up', 'down', side[1]].forEach((dir, order) => {
       const [ox, oy] = pos[dir];
       const r = { x: Math.min(Math.max(ox, MAP.x + 12), MAP.x + MAP.w - bw - 12), y: Math.min(Math.max(oy, MAP.y + 12), MAP.y + MAP.h - bh - 12), w: bw, h: bh };
-      let sc = countIn(r, routePts, 8) + countIn(r, destPts, 24) * 50 + order * 0.5;
-      if (Math.abs(r.x - ox) + Math.abs(r.y - oy) > 1) sc += 20;
+      let sc = countIn(r, routePts, 10) * 40 + countIn(r, destPts, 24) * 500 + order * 0.5;
+      if (Math.abs(r.x - ox) + Math.abs(r.y - oy) > 1) sc += 30;
       if (sc < best) { best = sc; pick = { dir, ...r }; }
     });
     const bx = pick.x, by = pick.y;
@@ -2828,16 +2828,28 @@ function render() {
     const nameW = textW(d.name, 28, 700);
     const lineW = textW('約 ', 22) + textW(String(mins), 42, 700) + textW(' 分', 22) + (dist != null ? textW(`（直線 ${dist.toFixed(1)}km）`, 17) + 8 : 0);
     const cw = Math.max(nameW, lineW) + 46, ch = 106;
-    const cands = [[26, -ch / 2], [-cw - 26, -ch / 2], [26, -ch - 8], [26, 8], [-cw - 26, -ch - 8], [-cw - 26, 8], [-cw / 2, -ch - 28], [-cw / 2, 28]];
+    // 点のまわり一周（15°刻み×距離2段階）を候補にし、点線・他のカード・ラベルと重ならない位置を選ぶ
     let best = null, bestScore = Infinity;
-    for (const [ox, oy] of cands) {
-      const r = { x: dx + ox, y: dy + oy, w: cw, h: ch };
-      let score = inMap(r) ? 0 : 1000;
-      for (const o of occupied) if (overlaps(r, o, 6)) score += 100;
-      for (const c of destCards) if (overlaps(r, c, 6)) score += 300;
-      score += countIn(r, routePts, 4) * 3;
-      if (score < bestScore) { bestScore = score; best = r; }
-      if (score === 0) break;
+    for (const gapPx of [24, 60, 110]) {
+      for (let deg = 0; deg < 360; deg += 15) {
+        const t = deg * Math.PI / 180, c = Math.cos(t), sn = Math.sin(t);
+        const f = Math.min((cw / 2 + gapPx) / Math.max(Math.abs(c), 1e-6), (ch / 2 + gapPx) / Math.max(Math.abs(sn), 1e-6));
+        const r = { x: dx + c * f - cw / 2, y: dy + sn * f - ch / 2, w: cw, h: ch };
+        let score = inMap(r) ? 0 : 5000;
+        score += countIn(r, routePts, 10) * 400; // 点線にかぶるのは最優先で避ける
+        for (const o of occupied) if (overlaps(r, o, 6)) score += 300;
+        for (const o of destCards) if (overlaps(r, o, 6)) score += 1000;
+        score += Math.abs(sn) * 6 + gapPx * 0.4;
+        // 引き出し線が点線を横切る場合も減点
+        const lx = Math.min(Math.max(dx, r.x + 16), r.x + r.w - 16), ly = Math.min(Math.max(dy, r.y + 16), r.y + r.h - 16);
+        const L = Math.hypot(lx - dx, ly - dy);
+        if (L > 40) {
+          score += 30;
+          const seg = [[dx, dy], [lx, ly]];
+          score += routePts.filter(([qx, qy]) => Math.hypot(qx - dx, qy - dy) > 24 && distToPolyline(qx, qy, seg) < 7).length * 150;
+        } // 同点なら左右・点の近くを優先
+        if (score < bestScore) { bestScore = score; best = r; }
+      }
     }
     best.x = Math.min(Math.max(best.x, MAP.x + 10), MAP.x + MAP.w - cw - 10);
     best.y = Math.min(Math.max(best.y, MAP.y + 10), MAP.y + MAP.h - ch - 10);
@@ -2845,6 +2857,9 @@ function render() {
     const lx = best.x + 23;
     const numX = lx + textW('約 ', 22);
     const unitX = numX + textW(String(mins), 42, 700) + 4;
+    // カードが点から離れた場合は、行き先の色の引き出し線でつなぐ
+    const nx = Math.min(Math.max(dx, best.x + 16), best.x + cw - 16), ny = Math.min(Math.max(dy, best.y + 16), best.y + ch - 16);
+    if (Math.hypot(nx - dx, ny - dy) > 40) cardSvg.push(`<line x1="${dx.toFixed(1)}" y1="${dy.toFixed(1)}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="${d.color}" stroke-width="3" stroke-linecap="round" opacity=".8"/>`);
     cardSvg.push(`<g filter="url(#sh)"><rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="#fff"/></g>
       <rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="${d.color}" fill-opacity=".13" stroke="${d.color}" stroke-opacity=".4" stroke-width="2"/>
       <text x="${lx.toFixed(1)}" y="${(best.y + 41).toFixed(1)}" font-size="28" font-weight="700" fill="#16323a">${esc(d.name)}</text>
@@ -2876,7 +2891,7 @@ function render() {
       const [x, y] = P(lat, lng);
       const tw = textW(nm, 17, 700);
       const r = { x: x - Math.max(36 * k, tw / 2 + 4), y: y - 56 * k, w: Math.max(72 * k, tw + 8), h: 56 * k + 34 };
-      if (!inMap(r) || occupied.some(o => overlaps(r, o, 4))) continue;
+      if (!inMap(r) || occupied.some(o => overlaps(r, o, 4)) || countIn(r, routePts, 4)) continue;
       occupied.push(r);
       markSvg.push(icon(type, x, y, k) + `<text x="${x.toFixed(1)}" y="${(y + 18 * k + 16).toFixed(1)}" font-size="17" font-weight="700" text-anchor="middle" fill="#4b4f47" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(nm)}</text>`);
     }
