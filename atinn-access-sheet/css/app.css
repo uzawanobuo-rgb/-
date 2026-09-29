@@ -4,7 +4,7 @@
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { font-family: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
+body { font-family: "M PLUS 1p", "Hiragino Sans", "Yu Gothic", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; }
 a { color: var(--teal); }
 button, input, select, textarea { font: inherit; color: inherit; }
 
