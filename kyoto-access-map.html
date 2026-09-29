@@ -2498,7 +2498,7 @@ const COLORS = ['#13928c', '#e8692e', '#3b82c4', '#8a5cc2'];
 // 状態
 // ===================================================================
 const DEFAULTS = {
-  title: '京都の主要エリアへ、バスでアクセス',
+  title: '京都の主要エリアへのアクセス',
   subtitle: '物件から主要エリアへのアクセス概要図',
   btitle: '行き先別の所要時間と時刻表',
   bsub: 'QRを読み取ると、物件からの経路とバスの発車時刻を確認できます',
@@ -2518,6 +2518,7 @@ try {
   const saved = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
   if (saved && typeof saved === 'object') {
     const fixed = state.dests;
+    if (saved.title === '京都の主要エリアへ、バスでアクセス') saved.title = DEFAULTS.title; // 旧デフォルトは新デフォルトへ
     state = Object.assign(state, saved);
     // 行き先は3か所固定。保存済みの入力（所要分・本数・QR）だけ引き継ぐ
     state.dests = fixed.map((d, i) => {
