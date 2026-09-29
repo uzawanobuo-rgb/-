@@ -1,0 +1,21 @@
+{
+  "_note": "所要時間の検算用。door_to_door_min = 物件→駅の徒歩（物件ページ記載）＋乗車時間（乗換がある場合は乗換の歩き・待ちを含む乗換案内の値）。改札やホームでの待ち時間は含めない。2026-09の調査値。",
+  "pattern1_roppongi4": {
+    "property": { "name": "アットイン六本木4", "building_url": "https://atinn.jp/building/1521", "lat": 35.6598549, "lng": 139.7218323,
+      "stations_walk": { "広尾": 11, "乃木坂": 15, "六本木": 16, "表参道": 19 } },
+    "results": [
+      { "target": "渋谷", "door_to_door_min": 20, "transfers": 0, "route": "徒歩約5分 → 都営バス都01『西麻布』→『渋谷駅前』14分", "note": "バス停までの徒歩5分は地図上の推定（要確認）", "source": "https://www.navitime.co.jp/bus/diagram/timelist?departure=00017381&arrival=00016951&line=00004287" },
+      { "target": "新宿", "door_to_door_min": 25, "transfers": 0, "route": "六本木駅まで徒歩16分 → 都営大江戸線9分", "source": "https://www.navitime.co.jp/transfer/searchlist?orvStationCode=00009098&dnvStationCode=00004254&defaultCondition=0" },
+      { "target": "品川", "door_to_door_min": 29, "display_min": 30, "transfers": 1, "route": "広尾駅まで徒歩11分 → 日比谷線 → 恵比寿でJR山手線（計18分）", "source": "https://ekitan.com/transit/route/sf-2934/st-2236" },
+      { "target": "東京", "door_to_door_min": 31, "transfers": 1, "excluded": true, "reason": "31分以上のため除外", "route": "広尾駅まで徒歩11分 → 日比谷線 → 銀座で丸ノ内線（計20分）", "source": "https://www.navitime.co.jp/transfer/searchlist?orvStationCode=00002403&dnvStationCode=00006668&defaultCondition=0" }
+    ]
+  },
+  "pattern2_otemachi": {
+    "destination": { "name": "大手町", "lat": 35.6862, "lng": 139.7660 },
+    "results": [
+      { "plan_url": "https://atinn.jp/plan/33492", "name": "アットインmini門前仲町5-1", "lat": 35.676281, "lng": 139.7924957, "door_to_door_min": 17, "transfers": 0, "route": "門前仲町駅まで徒歩11分 → 東京メトロ東西線6分", "source": "https://ekitan.com/transit/route/sf-3192/st-1709" },
+      { "plan_url": "https://atinn.jp/plan/27788", "name": "アットイン飯田橋5-1", "lat": 35.700489, "lng": 139.7338257, "door_to_door_min": 14, "transfers": 0, "route": "神楽坂駅まで徒歩6分 → 東京メトロ東西線8分", "note": "最寄りは牛込神楽坂（徒歩3分・大江戸線）だが大手町へは乗換が要るので神楽坂の方が速い", "source": "https://ekitan.com/transit/route/sf-1795/st-1709" },
+      { "plan_url": "https://atinn.jp/plan/34063", "name": "アットイン田町2", "lat": 35.6431923, "lng": 139.7535706, "door_to_door_min": 21, "transfers": 0, "route": "三田駅まで徒歩13分 → 都営三田線8分", "note": "田町駅（徒歩11分）からJRだと東京駅で降りて歩くため約22〜24分で遅い", "source": "https://ekitan.com/transit/route/sf-3071/st-1709" }
+    ]
+  }
+}

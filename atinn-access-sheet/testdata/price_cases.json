@@ -1,0 +1,80 @@
+{
+  "_note": "料金計算の検算用。page_values は 2026-09-29 に各プランページ『ご利用料金(１ヶ月以上)』から読み取った値。サイト側の料金は変わるので、E2Eテストではなく計算ロジックの単体テストに使うこと。case 1 は営業のExcel見積もりと1円単位で一致確認済み。",
+  "cases": [
+    {
+      "id": 1,
+      "plan_url": "https://atinn.jp/plan/33705",
+      "plan_name": "【3ヶ月以上～・ロングSALE】アットイン品川9",
+      "page_values": {
+        "daily_list": 7460,
+        "rent_list": 6580,
+        "utilities": 880,
+        "daily_campaign": 3560,
+        "cleaning_list": 48400,
+        "cleaning_campaign": 24200,
+        "insurance_per_month": 830
+      },
+      "input": { "check_in": "2026-10-01", "check_out": "2026-10-31", "persons": 1 },
+      "expected": {
+        "days": 31,
+        "daily_applied": 3560,
+        "rent_applied": 2680,
+        "usage_fee": 110360,
+        "cleaning": 24200,
+        "insurance_months": 1,
+        "insurance": 830,
+        "total": 135390,
+        "monthly_estimate": 106800
+      },
+      "verified_against": "営業Excel見積もり（スクリーンショット）"
+    },
+    {
+      "id": 2,
+      "plan_url": "https://atinn.jp/plan/33492",
+      "plan_name": "【3ヶ月以上～・ロングSALE】□アットインmini門前仲町5-1",
+      "page_values": {
+        "daily_list": 7660, "rent_list": 6780, "utilities": 880,
+        "daily_campaign": 3820,
+        "cleaning_list": 48400, "cleaning_campaign": 24200,
+        "insurance_per_month": 830
+      },
+      "input": { "check_in": "2026-10-01", "check_out": "2026-10-30", "persons": 1 },
+      "expected": { "days": 30, "daily_applied": 3820, "usage_fee": 114600, "cleaning": 24200, "insurance_months": 1, "insurance": 830, "total": 139630, "monthly_estimate": 114600 }
+    },
+    {
+      "id": 3,
+      "plan_url": "https://atinn.jp/plan/27788",
+      "plan_name": "【スペシャルSALE】アットイン飯田橋5-1",
+      "page_values": {
+        "daily_list": 9020, "rent_list": 8140, "utilities": 880,
+        "daily_campaign": 4940,
+        "cleaning_list": 48400, "cleaning_campaign": 24200,
+        "insurance_per_month": 830
+      },
+      "input": { "check_in": "2026-10-01", "check_out": "2026-10-30", "persons": 1 },
+      "expected": { "days": 30, "daily_applied": 4940, "usage_fee": 148200, "cleaning": 24200, "insurance_months": 1, "insurance": 830, "total": 173230, "monthly_estimate": 148200 }
+    },
+    {
+      "id": 4,
+      "plan_url": "https://atinn.jp/plan/34063",
+      "plan_name": "【3ヶ月以上～・ロングSALE】◆アットイン田町2",
+      "page_values": {
+        "daily_list": 9700, "rent_list": 8820, "utilities": 880,
+        "daily_campaign": 4500,
+        "cleaning_list": 48400, "cleaning_campaign": 24200,
+        "insurance_per_month": 830
+      },
+      "input": { "check_in": "2026-10-01", "check_out": "2026-10-30", "persons": 1 },
+      "expected": { "days": 30, "daily_applied": 4500, "usage_fee": 135000, "cleaning": 24200, "insurance_months": 1, "insurance": 830, "total": 160030, "monthly_estimate": 135000 }
+    },
+    {
+      "id": 5,
+      "plan_url": "https://atinn.jp/plan/33705",
+      "plan_name": "3か月利用の例（品川9）",
+      "page_values": { "daily_campaign": 3560, "cleaning_campaign": 24200, "insurance_per_month": 830 },
+      "input": { "check_in": "2026-10-01", "check_out": "2026-12-31", "persons": 1 },
+      "expected": { "days": 92, "daily_applied": 3560, "usage_fee": 327520, "cleaning": 24200, "insurance_months": 3, "insurance": 2490, "total": 354210 },
+      "verified_against": "未検証（ルールからの計算値）。営業Excelで要照合"
+    }
+  ]
+}
