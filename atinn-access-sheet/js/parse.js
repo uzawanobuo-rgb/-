@@ -212,8 +212,9 @@
       const m = /^(\d{1,2}:\d{2})発→(\d{1,2}:\d{2})着(\d+)分（乗車(\d+)分）/.exec(L[i]);
       if (!m) continue;
       let transfers = null;
-      const points = [], segs = [];
-      let pend = { arr: null, dep: null }, expectPoint = false, expectSeg = false, j = i + 1;
+      // 地点：時刻の直後の名前。「時刻表」「出口」「地図」のリンクが付くものだけが乗り降りする地点（途中駅は名前だけ）
+      const pts = [];
+      let pend = { arr: null, dep: null }, expectPoint = false, j = i + 1;
       for (; j < L.length; j++) {
         const x = L[j];
         if (/^(\d{1,2}:\d{2})発→/.test(x) || /^ルートに表示される記号/.test(x) || /^ルート\d+$/.test(x)) break;
@@ -223,21 +224,24 @@
         if (tm) {
           const kind = tm[2] || (L[j + 1] === '発' ? '発' : L[j + 1] === '着' ? '着' : '発');
           if (kind === '発') pend.dep = hm(tm[1]); else pend.arr = hm(tm[1]);
-          expectPoint = true; expectSeg = false;
+          expectPoint = true;
           continue;
         }
+        const last = pts[pts.length - 1];
+        if (/^(時刻表|出口|地図)$|^出口[:：]/.test(x)) { if (last) last.real = true; continue; }
         if (SKIP.test(x)) continue;
         if (expectPoint) {
-          points.push({ name: cleanStation(x), raw: x, arr: pend.arr, dep: pend.dep });
-          pend = { arr: null, dep: null }; expectPoint = false; expectSeg = true;
+          pts.push({ name: cleanStation(x), raw: x, arr: pend.arr, dep: pend.dep, real: false, seg: null });
+          pend = { arr: null, dep: null }; expectPoint = false;
           continue;
         }
-        if (expectSeg) {
+        if (last && last.real && !last.seg) {
           const w = /^徒歩(\d+)?分?/.exec(x);
-          segs.push(w ? { walk: true, min: w[1] ? +w[1] : null } : { walk: false, line: x });
-          expectSeg = false;
+          last.seg = w ? { walk: true, min: w[1] ? +w[1] : null } : { walk: false, line: x };
         }
       }
+      const points = pts.filter(p => p.real);
+      const segs = points.slice(0, -1).map(p => p.seg || { walk: true, min: null });
       i = j - 1;
       const rideIdx = segs.map((sg, k) => sg.walk ? -1 : k).filter(k => k >= 0);
       if (points.length < 2 || !rideIdx.length) continue;
@@ -255,6 +259,21 @@
     return routes;
   }
 
+  // HTML → 行のリスト（ページの見た目＝CSSに左右されないよう、タグの種類だけで改行を決める）
+  function htmlToText(html) {
+    let t = String(html || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, '');
+    t = t.replace(/<br\s*\/?>|<\/(li|div|p|dd|dt|dl|ul|ol|tr|h\d|section|table)>|<(li|div|p|dd|dt|dl|ul|ol|tr|h\d|section|table)\b[^>]*>/gi, '\n');
+    t = t.replace(/<[^>]+>/g, '');
+    t = t.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&amp;/g, '&');
+    return t.split('\n').map(x => x.replace(/[ \t]+/g, ' ').trim()).filter(Boolean).join('\n');
+  }
+  // 画面の表示（innerText）は環境で改行位置が変わるので、要約行が2行に分かれていたらつなぐ
+  function normalizeTransitText(text) {
+    return String(text || '').replace(/\r/g, '')
+      .replace(/(\d{1,2}:\d{2})\s*発\s*→\s*(\d{1,2}:\d{2})\s*着\s*(\d+)\s*分\s*[(（]\s*乗車\s*(\d+)\s*分\s*[)）]/g, '$1発→$2着$3分（乗車$4分）')
+      .replace(/(\d{1,2}:\d{2})\s+(発|着)\s*$/gm, '$1\n$2');
+  }
+
   // 貼り付けられた内容（ブックマークレットのJSON またはページ全文）から、乗車時間がいちばん短い経路を選ぶ
   function parseTransit(payload) {
     let p = payload;
@@ -262,13 +281,14 @@
       const s = p.trim();
       if (s.startsWith('{')) { try { p = JSON.parse(s); } catch (e) { p = { text: s }; } } else p = { text: s };
     }
-    const routes = parseTransitRoutes(p.text || '');
+    let routes = p.html ? parseTransitRoutes(htmlToText(p.html)) : [];
+    if (!routes.length) routes = parseTransitRoutes(normalizeTransitText(p.text || ''));
     if (!routes.length) return null;
     const best = routes.slice().sort((a, b) => a.ride - b.ride || a.transfers - b.transfers)[0];
     return Object.assign({ url: p.url || '', routes }, best);
   }
 
-  const M = { cleanLine, cleanStation, parseTransitRoutes, parseTransit, toHalf, stripBrackets, parsePrice, parseStations, parseCoords, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
+  const M = { htmlToText, normalizeTransitText, cleanLine, cleanStation, parseTransitRoutes, parseTransit, toHalf, stripBrackets, parsePrice, parseStations, parseCoords, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnParse = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

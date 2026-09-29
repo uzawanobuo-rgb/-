@@ -163,7 +163,9 @@
   function transitBookmarkletMain() {
     const d = document;
     if (!/transit\.yahoo\.co\.jp$/.test(location.hostname) && !confirm('Yahoo!乗換案内のページではないようです。続けますか？')) return;
-    const json = JSON.stringify({ v: 1, src: 'yahoo-transit', url: location.href, text: d.body.innerText.slice(0, 120000), fetchedAt: new Date().toISOString() });
+    // 経路部分のHTMLも送る（画面の見た目に左右されずに読めるように）
+    const area = d.querySelector('#srline') || d.querySelector('main') || d.body;
+    const json = JSON.stringify({ v: 2, src: 'yahoo-transit', url: location.href, html: area.outerHTML.slice(0, 600000), text: d.body.innerText.slice(0, 120000), fetchedAt: new Date().toISOString() });
     const n = (d.body.innerText.match(/\d{1,2}:\d{2}発→/g) || []).length;
     const o = d.createElement('div');
     o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif';
@@ -719,7 +721,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
   }
   function applyTransit(path, text, toName) {
     const r = Parse.parseTransit(text || '');
-    if (!r) { toast('経路を読み取れませんでした。Yahoo!乗換案内の検索結果のページで「乗換取込」を押してください'); return; }
+    if (!r) { toast('経路を読み取れませんでした。ブックマーク「乗換取込」を登録し直して（使い方の欄から再ドラッグ）、検索結果のページでもう一度押してください'); return; }
     const route = getPath(path);
     const prop = propForRoute(path);
     const near = (prop.stations || []).find(s => s.name === r.from);
