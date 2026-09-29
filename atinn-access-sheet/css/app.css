@@ -113,3 +113,4 @@ ol.howto { margin: 0; padding-left: 20px; line-height: 1.7; font-size: 13px; }
   #export-root > .atinn-sheet { transform: scale(0.9998); transform-origin: 0 0; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+.import-box { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed #B8D9D6; border-radius: 10px; background: #F4FAF9; }
