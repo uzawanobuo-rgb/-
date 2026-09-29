@@ -2830,27 +2830,41 @@ function headerArt() {
 let lastBox = null;
 function render() {
   const z = Number(state.zoom) || 1;
-  let fit = { k: 1, dx: 0, dy: 0, z: 1 };
-  const good = []; // はみ出し・重なりがない倍率（カードは点から離れても引き出し線でつなぐので可）
+  let fit = { k: 1, dx: 0, dy: 0, z: 1 }, best = null;
   if (hasProp()) {
-    const M = 22, tw = MAP.w - 2 * M, th = MAP.h - 2 * M, mcx = MAP.x + MAP.w / 2, mcy = MAP.y + MAP.h / 2;
-    for (let it = 0; it < 8; it++) {
+    // 少しずつ拡大し、ラベル・カードがはみ出す／重なる直前の倍率を採用（ルートをできるだけ大きく見せる）
+    const M = 24, mcx = MAP.x + MAP.w / 2, mcy = MAP.y + MAP.h / 2;
+    const scaled = (f, r) => ({ k: f.k * r, dx: f.dx * r, dy: f.dy * r, z: 1 });
+    for (let it = 0, passes = 0; it < 40; it++) {
       renderOnce(fit);
       const b = lastBox;
       if (!b) break;
-      const inside = b.x >= MAP.x + M - 3 && b.y >= MAP.y + M - 3 && b.x + b.w <= MAP.x + MAP.w - M + 3 && b.y + b.h <= MAP.y + MAP.h - M + 3;
-      if (inside && !b.bad) good.push({ ...fit });
-      const f = Math.min(tw / b.w, th / b.h);
-      if (inside && !b.bad && f < 1.03) break;
-      // ラベルは拡大しないので、倍率は控えめに寄せていく。重なる・はみ出すときだけ少し引く（ルートを大きく見せるのを優先）
-      const nk = fit.k * (b.bad && f >= 1 ? 0.9 : Math.max(0.6, Math.min(1.8, f > 1 ? 1 + (f - 1) * 0.9 : f * 0.97)));
       const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
-      // 中身の中心が地図の中心に来るようにずらす（中心の地理的位置を保ったまま倍率を変える）
-      fit = { k: nk, z: 1, dx: -(bcx - mcx - fit.dx) * nk / fit.k, dy: -(bcy - mcy - fit.dy) * nk / fit.k };
+      // 全体（物件名・カード込み）が地図の中央に来るよう、同じ倍率で一度ずらして描き直す
+      // ただしルートと点は枠からはみ出さない範囲で
+      const shiftIn = (want, lo, hi, a1, a2) => {
+        let v = want;
+        if (a1 + v < lo) v = lo - a1;
+        if (a2 + v > hi) v = (a2 - a1 > hi - lo) ? (lo + hi) / 2 - (a1 + a2) / 2 : hi - a2;
+        return v;
+      };
+      const sx = shiftIn(mcx - bcx, MAP.x + M, MAP.x + MAP.w - M, b.core.x, b.core.x + b.core.w);
+      const sy = shiftIn(mcy - bcy, MAP.y + M, MAP.y + MAP.h - M, b.core.y, b.core.y + b.core.h);
+      // ルートと点が枠内に収まっているか（カード・物件名のはみ出しや重なりは b.bad で判定済み）
+      const c = b.core;
+      const inside = c.x >= MAP.x + M - 1 && c.y >= MAP.y + M - 1 && c.x + c.w <= MAP.x + MAP.w - M + 1 && c.y + c.h <= MAP.y + MAP.h - M + 1;
+      if (passes < 2 && (Math.abs(sx) > 8 || Math.abs(sy) > 8 || (!inside && (Math.abs(sx) > 0.5 || Math.abs(sy) > 0.5)))) {
+        fit = { ...fit, dx: fit.dx + sx, dy: fit.dy + sy };
+        passes++;
+        continue;
+      }
+      passes = 0;
+      if (inside && !b.bad) { best = { ...fit }; fit = scaled(fit, 1.08); }
+      else if (best) break;
+      else fit = scaled(fit, 0.9);
+      if (fit.k > 8 || fit.k < 0.2) break;
     }
   }
-  const pickMax = arr => arr.reduce((m, f) => (!m || f.k > m.k ? f : m), null);
-  const best = pickMax(good);
   return renderOnce({ ...(best || fit), z });
 }
 function renderOnce(fit) {
@@ -3048,7 +3062,9 @@ function renderOnce(fit) {
     const all = fitRects.concat(destPts.concat([propPt], routePts).map(([x, y]) => ({ x: x - 16, y: y - 16, w: 32, h: 32 })));
     const x1 = Math.min(...all.map(r => r.x)), y1 = Math.min(...all.map(r => r.y));
     const x2 = Math.max(...all.map(r => r.x + r.w)), y2 = Math.max(...all.map(r => r.y + r.h));
-    lastBox = { x: x1, y: y1, w: x2 - x1, h: y2 - y1, bad: fitBad };
+    const core = destPts.concat([propPt], routePts); // ルートと点（ラベルを除く）
+    const cx1 = Math.min(...core.map(p => p[0])), cy1 = Math.min(...core.map(p => p[1])), cx2 = Math.max(...core.map(p => p[0])), cy2 = Math.max(...core.map(p => p[1]));
+    lastBox = { x: x1, y: y1, w: x2 - x1, h: y2 - y1, bad: fitBad, core: { x: cx1, y: cy1, w: cx2 - cx1, h: cy2 - cy1 } };
   } else lastBox = null;
   // バスのアイコン：カードや物件ラベルに隠れない位置に置く
   for (const g of routeGeo) {
