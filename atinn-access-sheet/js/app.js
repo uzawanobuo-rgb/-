@@ -159,6 +159,27 @@
   }
   const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + bookmarkletMain.toString() + ')()');
 
+  // Yahoo!乗換案内の検索結果ページで実行し、経路の本文をコピーする。解析はツール側（parse.js の parseTransit）。
+  function transitBookmarkletMain() {
+    const d = document;
+    if (!/transit\.yahoo\.co\.jp$/.test(location.hostname) && !confirm('Yahoo!乗換案内のページではないようです。続けますか？')) return;
+    const json = JSON.stringify({ v: 1, src: 'yahoo-transit', url: location.href, text: d.body.innerText.slice(0, 120000), fetchedAt: new Date().toISOString() });
+    const n = (d.body.innerText.match(/\d{1,2}:\d{2}発→/g) || []).length;
+    const o = d.createElement('div');
+    o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif';
+    o.innerHTML = '<div style="background:#fff;color:#1E2B33;padding:24px;border-radius:12px;max-width:420px;text-align:center;line-height:1.6"><div style="font-size:17px;font-weight:bold;margin-bottom:6px">' + (n ? '経路を ' + n + ' 件読み取りました' : '経路が見つかりません') + '</div><div style="font-size:13px;color:#555;margin-bottom:16px">' + (n ? '「コピーする」を押して、ツールの経路の貼り付け欄に貼ってください。<br>乗車時間がいちばん短い経路が入ります。' : '検索結果のページで押してください。') + '</div>' + (n ? '<button style="font-size:16px;padding:10px 22px;background:#0F7C7A;color:#fff;border:0;border-radius:8px;cursor:pointer">コピーする</button>' : '') + '<button style="font-size:14px;padding:10px 14px;margin-left:8px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">閉じる</button></div>';
+    d.body.appendChild(o);
+    const bs = o.querySelectorAll('button');
+    bs[bs.length - 1].onclick = () => o.remove();
+    if (n) bs[0].onclick = async () => {
+      try { await navigator.clipboard.writeText(json); }
+      catch (e) { const t = d.createElement('textarea'); t.value = json; d.body.appendChild(t); t.select(); d.execCommand('copy'); t.remove(); }
+      bs[0].textContent = 'コピーしました ✓';
+      setTimeout(() => o.remove(), 1200);
+    };
+  }
+  const TRANSIT_BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + transitBookmarkletMain.toString() + ')()');
+
   // ---------- 外部サービス（座標） ----------
   function jsonp(url, timeout) {
     return new Promise((resolve, reject) => {
@@ -284,11 +305,12 @@
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
 <li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）を開き、登録したブックマークをクリック →「コピーする」。</li>
 <li>このツールの<b>貼り付け欄</b>に貼り付け（Ctrl+V）→「取り込む」。写真・料金・最寄駅・地図座標が入ります。</li>
-<li>所要時間は「Yahoo!乗換案内」「Googleマップ」のリンクで調べて入力します（徒歩＋乗車時間。日中・平日の目安）。</li>
+<li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内</b>」で検索 → 結果のページでブックマーク「<b>乗換取込</b>」→「コピーする」→ 枠の貼り付け欄に Ctrl+V。乗車時間・乗換・路線がまとめて入ります。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
 <div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">アットイン取込</a>
-<span class="muted">← ブックマークバーへドラッグ</span></div>
+<a class="bm" href="${esc(TRANSIT_BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">乗換取込</a>
+<span class="muted">← 2つともブックマークバーへドラッグ</span></div>
 <p class="muted" style="margin:0">ブックマークレットが使えないときは、プランページで<b>全選択（Ctrl+A）→コピー（Ctrl+C）</b>して貼り付けても、料金・最寄駅などは取り込めます（写真・座標は除く。座標は住所から検索できます）。</p>
 </div></details>`;
   }
@@ -360,11 +382,18 @@ ${field('禁煙/喫煙', inp(`${path}.smoking`))}${field('設定人数', inp(`${
     return `<div class="warn-t">座標不明：${miss.map(n => `${esc(n)} <button type="button" class="btn small" data-action="coord" data-name="${esc(n)}">座標を入力</button>`).join(' ')} <span class="muted">（不明な区間は地図で省略）</span></div>`;
   }
 
+  // 平日（翌月1日以降の最初の平日）10:00発、有料特急・新幹線・高速バス・飛行機なし
+  function yahooUrl(fromName, toName) {
+    let t = Calc.parse(Calc.defaultCheckIn());
+    while ([0, 6].includes(new Date(t).getUTCDay())) t += 86400000;
+    const d = new Date(t), pad = n => String(n).padStart(2, '0');
+    const st = n => /駅$|バス|〔/.test(n) ? n : n + '駅';
+    return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(st(fromName))}&to=${encodeURIComponent(st(toName))}&y=${d.getUTCFullYear()}&m=${pad(d.getUTCMonth() + 1)}&d=${pad(d.getUTCDate())}&hh=10&m1=0&m2=0&type=1&ticket=ic&expkind=1&ws=3&s=0&al=0&shin=0&ex=0&hb=0&lb=1&sr=1`;
+  }
   function searchLinks(fromName, toName, fromCoord) {
     const links = [];
     if (fromName && toName) {
-      const d = new Date(Calc.parse(Calc.defaultCheckIn()));
-      links.push(`<a class="btn small" target="_blank" rel="noopener" href="https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(fromName)}&to=${encodeURIComponent(toName)}&y=${d.getUTCFullYear()}&m=${String(d.getUTCMonth() + 1).padStart(2, '0')}&d=${String(d.getUTCDate()).padStart(2, '0')}&hh=10&m1=0&m2=0&type=1">Yahoo!乗換案内</a>`);
+      links.push(`<a class="btn primary small" target="_blank" rel="noopener" href="${esc(yahooUrl(fromName, toName))}">① Yahoo!乗換案内で検索</a>`);
     }
     if (fromCoord && toName) links.push(`<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&origin=${fromCoord.lat},${fromCoord.lng}&destination=${encodeURIComponent(toName)}&travelmode=transit">Googleマップ経路</a>`);
     return links.join('');
@@ -389,7 +418,14 @@ ${field('徒歩（分） <small>物件→乗車駅</small>', inp(`${path}.walk`,
 ${field('乗車（分） <small>電車・バス</small>', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
 </div>
 <table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
-<div class="row"><button type="button" class="btn small" data-action="add-leg" data-path="${path}">＋ 乗換を追加</button>${searchLinks(route.station || stList[0], o.toName, o.fromCoord)}</div>
+<div class="transit-box">
+<div class="row">${searchLinks(route.station || stList[0], o.toName, o.fromCoord)}</div>
+<div class="f"><span>② 検索結果で「乗換取込」→「コピーする」→ ここに Ctrl+V</span>
+<div class="row" style="flex-wrap:nowrap"><input type="text" data-paste-route="${path}" data-to="${esc(o.toName || '')}" placeholder="ここに貼り付けると、乗車時間・乗換・路線が入ります">
+<button type="button" class="btn small" data-action="transit-clip" data-path="${path}" data-to="${esc(o.toName || '')}">クリップボードから</button></div></div>
+${route.note && /Yahoo/.test(route.note) ? `<div class="muted">✓ ${esc(route.note)}</div>` : ''}
+</div>
+<div class="row"><button type="button" class="btn small" data-action="add-leg" data-path="${path}">＋ 乗換を追加</button></div>
 <div class="grid g4">
 ${field('表示する分 <small>任意</small>', inp(`${path}.display`, { type: 'number', ph: String(info.total ?? '') }))}
 ${field('乗換回数 <small>任意</small>', inp(`${path}.transfers`, { type: 'number', ph: String(legs.length - 1) }))}
@@ -601,7 +637,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
   }
 
   let toastTimer = null;
-  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 3200); }
+  function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('on'); clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), msg.length > 40 ? 6000 : 3200); }
 
   // ---------- イベント ----------
   const COORD_PATH = /\.(lat|lng|destLat|destLng)$/;
@@ -671,7 +707,38 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
   document.addEventListener('paste', e => {
     const t = e.target;
     if (t.dataset && t.dataset.paste) setTimeout(() => importInto(t.dataset.paste, t.value), 0);
+    if (t.dataset && t.dataset.pasteRoute) {
+      e.preventDefault();
+      applyTransit(t.dataset.pasteRoute, (e.clipboardData || window.clipboardData).getData('text'), t.dataset.to);
+    }
   });
+
+  // 乗換取込の結果を経路に入れる
+  function propForRoute(path) {
+    return path.startsWith('p1.') ? state.p1.property : state.p2.properties[+path.split('.')[2]];
+  }
+  function applyTransit(path, text, toName) {
+    const r = Parse.parseTransit(text || '');
+    if (!r) { toast('経路を読み取れませんでした。Yahoo!乗換案内の検索結果のページで「乗換取込」を押してください'); return; }
+    const route = getPath(path);
+    const prop = propForRoute(path);
+    const near = (prop.stations || []).find(s => s.name === r.from);
+    if (route.station !== r.from) route.walk = near ? near.walk : '';
+    else if (near && route.walk === '') route.walk = near.walk;
+    route.station = r.from;
+    route.legs = r.legs.map(l => Object.assign({}, l));
+    route.ride = r.ride;
+    route.transfers = r.transfers;
+    route.display = '';
+    route.source = r.url || route.source;
+    route.note = `Yahoo!乗換案内から取込（${r.dep}発・乗車${r.ride}分・乗換${r.transfers}回）`;
+    persist(); renderForm(); renderPreview(); autoResolveStations();
+    const want = String(toName || '').replace(/駅$/, '');
+    const msgs = [`${r.from} → ${r.to}：乗車${r.ride}分・乗換${r.transfers === 0 ? 'なし' : r.transfers + '回'}を入れました`];
+    if (want && r.to !== want && !r.to.startsWith(want)) msgs.push(`（行き先が「${r.to}」です。${want}の検索結果か確認してください）`);
+    if (route.walk === '') msgs.push(`「${r.from}」は物件の最寄駅にないので、徒歩（分）を入れてください`);
+    toast(msgs.join(''));
+  }
 
   document.addEventListener('click', async e => {
     const b = e.target.closest('[data-action]');
@@ -684,6 +751,10 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         state = normalize(Object.assign(Samples[state.pattern](), { pattern: state.pattern }));
         if (state.pattern === 'p1') state.p2 = defaultState().p2; else state.p1 = defaultState().p1;
         persist(); renderForm(); renderPreview(); break;
+      case 'transit-clip':
+        try { applyTransit(path, await navigator.clipboard.readText(), b.dataset.to); }
+        catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); }
+        break;
       case 'restore-prev': {
         const v = prevSaved();
         if (!v) return;
