@@ -303,6 +303,8 @@
       defaults = () => { state.p2.routes[i] = emptyRoute(); fillRouteDefaults(state.p2.routes[i], prop, state.p2.destName); };
     }
     const miss = applyImport(prop, parsed, defaults);
+    const ta = document.querySelector(`textarea[data-paste="${path}"]`);
+    if (ta) ta.value = '';
     persist(); renderForm(); renderPreview(); autoResolveStations();
     toast(miss.length ? `取り込みました（未取得：${miss.join('・')} → 手入力してください）` : '取り込みました。内容を確認してください');
   }
@@ -328,23 +330,25 @@
 
   function renderPropEditor(path, prop, opts) {
     opts = opts || {};
-    const pv = 'price';
-    const imp = prop.imported && prop.imported.price || {};
-    const priceField = (k, label) => {
-      const changed = prop.imported && String(numOrEmpty(imp[k])) !== String(numOrEmpty(prop.price && prop.price[k]));
-      return field(label, inp(`${path}.${pv}.${k}`, { type: 'number', cls: changed ? 'changed' : '' }));
-    };
-    const stRows = (prop.stations || []).map((s, i) => `<tr>
-<td>${inp(`${path}.stations.${i}.name`, { ph: '駅名' })}</td><td>${inp(`${path}.stations.${i}.line`, { ph: '路線' })}</td>
-<td class="num">${inp(`${path}.stations.${i}.walk`, { type: 'number', ph: '分' })}</td>
-<td class="act"><button type="button" class="x" data-action="del-station" data-path="${path}" data-i="${i}" title="削除">×</button></td></tr>`).join('');
-    const photos = opts.photos ? `<div class="sub-h">写真（カードに表示）</div>
-<div class="photos">${(prop.photos || []).map((p, i) => `<button type="button" class="${!prop.photoCustom && (prop.photoIdx || 0) === i ? 'on' : ''}" style="background-image:url('${esc(p.data || p.src)}')" data-action="photo" data-path="${path}" data-i="${i}" title="${esc(p.caption || '')}"></button>`).join('')}
-${prop.photoCustom ? `<button type="button" class="on" style="background-image:url('${esc(prop.photoCustom)}')" title="アップロードした写真"></button>` : ''}</div>
-<div class="row"><label class="btn small">写真をアップロード<input type="file" accept="image/*" hidden data-action="upload-photo" data-path="${path}"></label>
-<label class="row muted"><input type="checkbox" data-bind="${path}.hidePhoto" ${prop.hidePhoto ? 'checked' : ''}> 写真を載せない</label>
-${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真はありません</span>'}</div>` : '';
     const planUrl = /^https?:\/\//.test(prop.planUrl || '') ? prop.planUrl : '';
+    const hasCoord = prop.lat !== '' && prop.lat != null && prop.lng !== '' && prop.lng != null;
+    // かんたん表示（パターン2の物件A〜C）：貼り付け欄だけ。緯度・経度は取り込みで入るので状態だけ出す
+    if (opts.simple) {
+      return `<div class="card-b" style="padding:0">
+<div class="import-box">
+<div class="f"><span>プランページでブックマーク「アットイン取込」を押す → ここに貼り付け（Ctrl+V）</span>
+<textarea class="paste" data-paste="${path}" placeholder="ここに Ctrl+V で貼り付けると取り込みます"></textarea></div>
+</div>
+<div class="grid">
+${field('物件名（シートに表示）', inp(`${path}.name`, { ph: 'アットイン六本木4' }), 'span2')}
+${field('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }), 'span2')}
+</div>
+<div class="row">${hasCoord
+  ? `<span class="muted">地図の位置：✓ 取得済み</span><a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>`
+  : `<span class="warn-t">地図の位置：未取得</span><button type="button" class="btn small" data-action="geocode-prop" data-path="${path}">住所から検索</button>`}
+${planUrl ? `<a class="btn small" href="${esc(planUrl)}" target="_blank" rel="noopener">プランページ ↗</a>` : ''}</div>
+` + renderPropRest(path, prop, opts);
+    }
     return `<div class="card-b" style="padding:0">
 <div class="import-box">
 <div class="f"><span>① プランURL</span>
@@ -364,9 +368,30 @@ ${field('緯度', inp(`${path}.lat`, { ph: '35.6598' }))}
 ${field('経度', inp(`${path}.lng`, { ph: '139.7218' }))}
 </div>
 <div class="row"><button type="button" class="btn small" data-action="geocode-prop" data-path="${path}">住所から座標を検索</button>
-${prop.lat !== '' && prop.lat != null ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>` : ''}
+${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>` : ''}
 <span class="muted">Googleマップの座標（35.66, 139.72）を緯度欄に貼っても入ります</span></div>
-<div class="sub-h">最寄駅</div>
+` + renderPropRest(path, prop, opts);
+  }
+
+  // 最寄駅・料金・写真・タグ・詳細（両方の表示で共通）
+  function renderPropRest(path, prop, opts) {
+    const pv = 'price';
+    const imp = prop.imported && prop.imported.price || {};
+    const priceField = (k, label) => {
+      const changed = prop.imported && String(numOrEmpty(imp[k])) !== String(numOrEmpty(prop.price && prop.price[k]));
+      return field(label, inp(`${path}.${pv}.${k}`, { type: 'number', cls: changed ? 'changed' : '' }));
+    };
+    const stRows = (prop.stations || []).map((s, i) => `<tr>
+<td>${inp(`${path}.stations.${i}.name`, { ph: '駅名' })}</td><td>${inp(`${path}.stations.${i}.line`, { ph: '路線' })}</td>
+<td class="num">${inp(`${path}.stations.${i}.walk`, { type: 'number', ph: '分' })}</td>
+<td class="act"><button type="button" class="x" data-action="del-station" data-path="${path}" data-i="${i}" title="削除">×</button></td></tr>`).join('');
+    const photos = opts.photos ? `<div class="sub-h">写真（カードに表示）</div>
+<div class="photos">${(prop.photos || []).map((p, i) => `<button type="button" class="${!prop.photoCustom && (prop.photoIdx || 0) === i ? 'on' : ''}" style="background-image:url('${esc(p.data || p.src)}')" data-action="photo" data-path="${path}" data-i="${i}" title="${esc(p.caption || '')}"></button>`).join('')}
+${prop.photoCustom ? `<button type="button" class="on" style="background-image:url('${esc(prop.photoCustom)}')" title="アップロードした写真"></button>` : ''}</div>
+<div class="row"><label class="btn small">写真をアップロード<input type="file" accept="image/*" hidden data-action="upload-photo" data-path="${path}"></label>
+<label class="row muted"><input type="checkbox" data-bind="${path}.hidePhoto" ${prop.hidePhoto ? 'checked' : ''}> 写真を載せない</label>
+${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真はありません</span>'}</div>` : '';
+    return `<div class="sub-h">最寄駅</div>
 <table class="mini"><thead><tr><th>駅名</th><th>路線</th><th>徒歩</th><th></th></tr></thead><tbody>${stRows}</tbody></table>
 <div class="row"><button type="button" class="btn small" data-action="add-station" data-path="${path}">＋ 駅を追加</button></div>
 <div class="sub-h">料金（ご利用料金(1ヶ月以上)・税込）${prop.imported ? '<span class="muted">黄色＝取込値から修正</span>' : ''}</div>
@@ -511,7 +536,7 @@ ${renderTextCard('p1', built.model)}`;
       const coord = prop.lat !== '' && prop.lat != null ? { lat: prop.lat, lng: prop.lng } : null;
       return `<details class="card" ${ui.open['p2prop' + i] === false ? '' : 'open'} data-ui="p2prop${i}"><summary><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>物件${LETTERS[i]}<span class="badge ${ok ? 'ok' : 'ng'}">${prop.name ? esc(prop.name) : '未入力'}${info.display !== null ? `・約${info.display}分` : ''}</span></summary>
 <div class="card-b">
-${renderPropEditor(`p2.properties.${i}`, prop, { photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
+${renderPropEditor(`p2.properties.${i}`, prop, { simple: true, photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
 <div class="sub-h">${esc(p.destName || '目的地')}までの所要時間</div>
 ${renderRouteEditor(`p2.routes.${i}`, r, { id: 'p2-' + i, head: `<b>${LETTERS[i]} → ${esc(p.destName || '目的地')}</b>`, toName: p.destName, searchTo: destSearchName(), missing: '上の「1 目的地と条件」で目的地を入れると検索できます', stations: prop.stations, fromCoord: coord })}
 ${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row"><button type="button" class="btn small" data-action="clear-prop" data-i="${i}">この物件を空にする</button></div>` : ''}
