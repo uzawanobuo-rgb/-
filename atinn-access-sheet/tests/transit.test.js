@@ -47,3 +47,15 @@ test('ブックマークレットのJSONでも読める', () => {
   assert.equal(r.url, 'https://transit.yahoo.co.jp/search/result?from=a&to=b');
   assert.equal(r.ride, 20);
 });
+
+test('ブックマークレットが送るHTML（経路部分）から読む：途中駅は乗換駅にしない', () => {
+  const html = page('hiroo-shinagawa.srline.html');
+  const r = P.parseTransit({ v: 2, src: 'yahoo-transit', url: 'u', html, text: '' });
+  assert.deepEqual([r.from, r.to, r.ride, r.transfers], ['広尾', '品川', 24, 1]);
+  assert.deepEqual(r.legs.map(l => [l.line, l.to]), [['東京メトロ日比谷線', '恵比寿'], ['JR山手線', '品川']]);
+});
+
+test('画面表示で要約が2行に分かれていても読める', () => {
+  const t = page('hiroo-shinagawa.txt').replace(/着(\d+分（乗車)/g, '着\n$1');
+  assert.equal(P.parseTransit(t).ride, 22);
+});
