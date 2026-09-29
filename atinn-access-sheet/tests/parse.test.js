@@ -90,6 +90,8 @@ const REAL = {
   '33705': { name: 'アットイン品川9', address: '東京都港区高輪4-19-11', near: ['品川', 8, 'JR山手線'], stations: 5, floors: 4, built: '1976年10月' },
   '33492': { name: 'アットインmini門前仲町5-1', address: '東京都江東区福住1-5-4', near: ['門前仲町', 11, '東京メトロ東西線'], stations: 5, floors: 5, built: '2017年07月' },
   '27788': { name: 'アットイン飯田橋5-1', address: '東京都新宿区箪笥町18-3', near: ['牛込神楽坂', 3, '都営大江戸線'], stations: 6, floors: 9, built: '1987年05月' },
+  '30877': { name: 'アットイン平塚4-1', address: '神奈川県平塚市明石町21-25', near: ['平塚', 8, 'JR東海道本線(東京～熱海)'], stations: 1, floors: 10, built: '2025年09月',
+    price: { dailyList: 8580, rentList: 7700, utilities: 880, dailyCampaign: 3680, cleaningList: 48400, cleaningCampaign: 0, insurancePerMonth: 830 }, max: 2 },
   '34063': { name: 'アットイン田町2', address: '東京都港区芝浦2-8-9', near: ['芝浦ふ頭', 7, 'ゆりかもめ'], stations: 4, floors: 11, built: '2000年01月' },
 };
 for (const id of Object.keys(REAL)) {
@@ -107,6 +109,8 @@ for (const id of Object.keys(REAL)) {
     assert.equal(r.built, e.built);
     assert.equal(r.smoking, '禁煙');
     // 料金は price_cases.json（ページから読み取った値）と一致
+    if (e.max) assert.equal(r.maxCapacity, e.max);
+    if (e.price) { assert.deepEqual(r.price, e.price); return; }
     const pc = priceCases.find(c => c.plan_url.endsWith(id) && c.page_values.daily_list);
     const pv = pc.page_values;
     assert.deepEqual(r.price, { dailyList: pv.daily_list, rentList: pv.rent_list, utilities: pv.utilities, dailyCampaign: pv.daily_campaign, cleaningList: pv.cleaning_list, cleaningCampaign: pv.cleaning_campaign, insurancePerMonth: pv.insurance_per_month });
@@ -120,4 +124,11 @@ test('交通：路線名の中にカッコがある（平塚4-1）', () => {
   assert.equal(r.name, 'アットイン平塚4-1');
   assert.equal(r.address, '神奈川県平塚市明石町21-25');
   assert.equal(r.floors, 10);
+});
+
+test('清掃キャンペーン0円（無料）は0として読む。郵便番号は拾わない', () => {
+  const t = 'ご利用料金(１ヶ月以上)\n利用料(賃料+水道光熱費)\n8,580\n賃料:7,700\n水道光熱費:880\nキャンペーン\n即日から11月30日までの期間内でご利用の方限定\n3,680\nルーム\nクリーニング\n48,400\nキャンペーン\n0\n住宅保険\n1ヶ月あたり830\nご注意事項\n詳細情報\n住所\t〒254-0042 神奈川県平塚市明石町21-25';
+  const r = P.parsePrice(t);
+  assert.equal(r.cleaningCampaign, 0);
+  assert.equal(r.insurancePerMonth, 830);
 });

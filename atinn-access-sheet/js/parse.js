@@ -28,14 +28,14 @@
     if (start < 0) start = t.search(/ご利用料金/);
     if (start < 0) return null;
     let sec = t.slice(start, start + 2000);
-    const next = sec.slice(10).search(/ご利用料金|ご予約|お問い合わせ|物件概要|設備・サービス/);
+    const next = sec.slice(10).search(/ご利用料金|ご予約|お問い合わせ|物件概要|設備・サービス|ご注意事項|予約\s*\[|同じ建物の他プラン|詳細情報/);
     if (next > 0) sec = sec.slice(0, next + 10);
     sec = sec.replace(/^ご利用料金\s*[(（][^)）]*[)）]/, '');
     // 「利用料(賃料+水道光熱費)」の括弧内を消す（ラベルの誤認識を防ぐ）
     sec = sec.replace(/[(（]\s*賃料\s*[+＋]\s*水道光熱費\s*[)）]/g, '');
 
     const out = { dailyList: null, rentList: null, utilities: null, dailyCampaign: null, cleaningList: null, cleaningCampaign: null, insurancePerMonth: null };
-    const re = /(利用料|賃料|水道光熱費|キャンペーン|クリーニング|住宅保険)|(\d{1,3}(?:,\d{3})+|\d{3,})(?![\d,]*\s*[年月日件名])/g;
+    const re = /(利用料|賃料|水道光熱費|キャンペーン|クリーニング|住宅保険)|((?<![\d,.\-])(?:\d{1,3}(?:,\d{3})+|\d{3,}|0)(?![\d,.\-]|\s*[年月日件名ヶケか]))/g;
     let label = null, afterCleaning = false, m;
     while ((m = re.exec(sec))) {
       if (m[1]) {
@@ -137,7 +137,7 @@
     else if (/喫煙可/.test(t)) out.smoking = '喫煙可';
     m = /設定人数\s*:?\s*(\d{1,2})/.exec(t);
     if (m) out.capacity = Number(m[1]);
-    m = /最大(?:人数|利用人数|定員)?\s*:?\s*(\d{1,2})/.exec(t);
+    m = /設定人数[^\n]*?最大\s*[:：]?\s*(\d{1,2})/.exec(t) || /最大(?:人数|利用人数|定員)\s*:?\s*(\d{1,2})/.exec(t);
     if (m) out.maxCapacity = Number(m[1]);
     m = /主な設備[^\n]*\n((?:[ \t]*[^\t\n]{1,30}\n){1,40})/.exec(t + '\n');
     if (m) out.equipment = m[1].split('\n').map(x => x.trim()).filter(Boolean).join('、');
