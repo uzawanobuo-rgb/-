@@ -85,7 +85,10 @@
 
     <div class="box">
       <h2>② 行き先（京都河原町・四条烏丸・京都駅）</h2>
-      <div class="status" id="busStatus" style="margin:0 0 8px"></div>
+      <div class="row" style="margin:0 0 8px;align-items:flex-start">
+        <div class="status" id="busStatus" style="margin:0"></div>
+        <button class="fix sub" id="btnBus" title="バス・電車の経路をもう一度調べる">経路を再検索</button>
+      </div>
       <div id="dests"></div>
       <div class="hint" style="margin-top:6px">
         物件の位置が決まると、OpenStreetMapの路線データから次の順で経路を調べます：<br>
@@ -129,6 +132,7 @@
   </div>
 
   <div class="right-panel">
+    <div id="mapStatus" style="display:none;background:#12303a;color:#fff;border-radius:6px;padding:6px 10px;margin-bottom:6px;font-size:13px"></div>
     <div id="preview"></div>
     <div class="dl">
       <button id="btnPng">PNG保存（1600×1000）</button>
@@ -3332,10 +3336,13 @@ async function overpass(q) {
   let lastErr;
   for (const url of OVERPASS) {
     try {
-      const res = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+      // 応答がないサーバーは見切って次へ（混雑時に何分も待たないように）
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 35000);
+      const res = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal })
+        .finally(() => clearTimeout(timer));
       if (res.ok) return await res.json();
       lastErr = new Error('HTTP ' + res.status);
-    } catch (e) { lastErr = e; }
+    } catch (e) { lastErr = e.name === 'AbortError' ? new Error('応答なし') : e; }
   }
   throw lastErr || new Error('取得できませんでした');
 }
@@ -3501,33 +3508,45 @@ async function detectBus() {
   if (!hasProp()) return;
   const key = propKey(), seq = ++busSeq, lat = state.lat, lng = state.lng;
   const st = $('busStatus');
+  const got = {}, failed = {}, names = { bus: 'バス', train: '電車', road: '道路経路' };
+  // 届いた順に地図へ反映する（電車の検索は時間がかかることがあるため）
+  const apply = () => {
+    if (seq !== busSeq) return;
+    const B = got.bus, T = got.train, R = got.road;
+    const speed = Number(state.speed) || 12, over = Number(state.overhead) || 0;
+    const dests = state.dests.map((d, i) => {
+      if (B && B.dests[i]) return B.dests[i];
+      if (T && T[i]) return T[i];
+      if (R && R[i]) return { mode: 'road', minutes: Math.max(3, Math.round(R[i].km / speed * 60 + over)), roadKm: R[i].km, path: R[i].path, dataOk: !!(B && T) };
+      return { mode: null };
+    });
+    const pending = Object.keys(names).filter(k => !(k in got) && !failed[k]);
+    state.bus = { key, nearest: B ? B.nearest : null, dests, complete: !pending.length };
+    const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
+    const errs = Object.keys(failed).map(k => names[k]);
+    st.className = pending.length ? 'status' : errs.length === 3 ? 'status err' : 'status ok';
+    st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
+      + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所 ／ その他: ${dests.length - nBus - nTrain}か所`
+      + (pending.length ? `\n${pending.map(k => names[k]).join('・')}の経路を調べています…` : '')
+      + (errs.length ? `\n（${errs.join('・')}のデータを取得できませんでした。その分は距離からの目安で表示）` : '');
+    setMapStatus(pending.length ? `${pending.map(k => names[k]).join('・')}の経路を調べています…（地図は届いた分から更新されます）` : '');
+    if (!pending.length) {
+      if (nBus === dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
+      if (nBus < dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
+    }
+    renderDests();
+    refresh();
+  };
   st.className = 'status'; st.textContent = 'バス・電車の路線を調べています…';
-  const [bus, train, road] = await Promise.allSettled([
-    overpass(busQuery(lat, lng)).then(js => analyzeBus(js, lat, lng)),
-    overpass(trainQuery(lat, lng)).then(js => analyzeTrain(js, lat, lng)),
-    roadRoutes(lat, lng),
+  setMapStatus('バス・電車の経路を調べています…');
+  const run = (k, p) => p.then(v => { got[k] = v; }, () => { failed[k] = true; }).then(apply);
+  await Promise.all([
+    run('bus', overpass(busQuery(lat, lng)).then(js => analyzeBus(js, lat, lng))),
+    run('train', overpass(trainQuery(lat, lng)).then(js => analyzeTrain(js, lat, lng))),
+    run('road', roadRoutes(lat, lng)),
   ]);
-  if (seq !== busSeq) return;
-  const B = bus.status === 'fulfilled' ? bus.value : null, T = train.status === 'fulfilled' ? train.value : null, R = road.status === 'fulfilled' ? road.value : null;
-  const speed = Number(state.speed) || 12, over = Number(state.overhead) || 0;
-  const dests = state.dests.map((d, i) => {
-    if (B && B.dests[i]) return B.dests[i];
-    if (T && T[i]) return T[i];
-    if (R && R[i]) return { mode: 'road', minutes: Math.max(3, Math.round(R[i].km / speed * 60 + over)), roadKm: R[i].km, path: R[i].path, dataOk: !!(B && T) };
-    return { mode: null };
-  });
-  state.bus = { key, nearest: B ? B.nearest : null, dests };
-  const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
-  const errs = [!B && 'バス', !T && '電車', !R && '道路経路'].filter(Boolean);
-  st.className = errs.length === 3 ? 'status err' : 'status ok';
-  st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
-    + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所 ／ その他: ${dests.length - nBus - nTrain}か所`
-    + (errs.length ? `\n（${errs.join('・')}のデータを取得できませんでした。その分は距離からの目安で表示）` : '');
-  if (nBus === dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
-  if (nBus < dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
-  renderDests();
-  refresh();
 }
+function setMapStatus(msg) { const el = $('mapStatus'); el.textContent = msg; el.style.display = msg ? '' : 'none'; }
 
 // ---- URL → 物件名・住所 ----
 async function fetchHtml(url) {
@@ -3662,7 +3681,8 @@ $('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); })
 $('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
 renderDests();
 refresh();
-if (hasProp() && (!busOf(0) || !('mode' in busOf(0)) || (busOf(0).mode && !busOf(0).path))) scheduleBus();
+$('btnBus').onclick = () => { if (hasProp()) detectBus(); else setStatus('先に物件の位置を指定してください', 'err'); };
+if (hasProp() && (!busOf(0) || !state.bus.complete)) scheduleBus();
 </script>
 </body>
 </html>
