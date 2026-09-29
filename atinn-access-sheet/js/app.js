@@ -476,8 +476,8 @@ ${coordStatus(names)}
     return `
 <details class="card" open><summary><span class="step">1</span>物件を入力<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
 <div class="card-b">
-<div class="grid">
-${field('チェックイン日 <small>未入力なら翌月1日</small>', inp('p1.checkIn', { type: 'date' }))}
+<div class="grid align-end">
+${field('チェックイン日<br><small>未入力なら翌月1日</small>', inp('p1.checkIn', { type: 'date' }))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
 ${renderPropEditor('p1.property', prop, {})}
@@ -526,9 +526,9 @@ ${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https:/
 <div class="grid">
 ${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('p2.customer', { ph: '山田' }), 'all')}
 </div>
-<div class="grid g3">
-${field('チェックイン <small>未入力なら翌月1日</small>', inp('p2.checkIn', { type: 'date' }))}
-${field('チェックアウト <small>未入力なら30日間</small>', inp('p2.checkOut', { type: 'date' }))}
+<div class="grid g3 align-end">
+${field('チェックイン<br><small>未入力なら翌月1日</small>', inp('p2.checkIn', { type: 'date' }))}
+${field('チェックアウト<br><small>未入力なら30日間</small>', inp('p2.checkOut', { type: 'date' }))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
 <div class="grid">
