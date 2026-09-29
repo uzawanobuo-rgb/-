@@ -110,75 +110,84 @@
       let lat = null, lng = null;
       const m = h.match(/maps\.google\.[a-z.]+\/maps\?[^"'<>\s]*?q=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i) || h.match(/google\.[a-z.]+\/maps[^"'<>\s]*?[?&;](?:q|ll|center)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i);
       if (m) { lat = +m[1]; lng = +m[2]; }
-      const srcs = [];
+      const cands = [];
       d.querySelectorAll('img').forEach(i => {
         const s = i.currentSrc || i.src || i.dataset.src || i.dataset.lazy || i.getAttribute('data-original');
-        if (s && !/^data:|\.svg|logo|icon|banner|sprite|btn_|button/i.test(s) && !srcs.some(x => x.s === s)) {
+        if (s && !/^data:|\.svg|logo|icon|banner|sprite|btn_|button/i.test(s) && !cands.some(x => x.s === s)) {
           const fig = i.closest('figure,li,div');
           const cap = (i.alt || i.title || (fig && fig.querySelector('figcaption,p,span') && fig.querySelector('figcaption,p,span').innerText) || '').trim().slice(0, 60);
-          srcs.push({ s, a: cap });
+          cands.push({ el: i, s, a: cap });
         }
       });
-      const load = s => new Promise(r => {
+      // ブラウザはクリック直後しかコピーを許さないので、写真は並列で読み、最大2.5秒で打ち切る
+      const load = x => new Promise(r => {
+        if (x.el.complete && x.el.naturalWidth && x.el.currentSrc === x.s) return r(x.el);
         const im = new Image();
-        try { if (new URL(s, location.href).origin !== location.origin) im.crossOrigin = 'anonymous'; } catch (e) { /* noop */ }
-        const t = setTimeout(() => r(null), 6000);
+        try { if (new URL(x.s, location.href).origin !== location.origin) im.crossOrigin = 'anonymous'; } catch (e) { /* noop */ }
+        const t = setTimeout(() => r(null), 2500);
         im.onload = () => { clearTimeout(t); r(im); };
         im.onerror = () => { clearTimeout(t); r(null); };
-        im.src = s;
+        im.src = x.s;
       });
+      const loaded = await Promise.all(cands.slice(0, 16).map(load));
       const images = [];
-      for (const x of srcs) {
-        if (images.length >= 8) break;
-        const im = await load(x.s);
-        if (!im || im.naturalWidth < 300 || im.naturalHeight < 200) continue;
+      cands.slice(0, 16).forEach((x, k) => {
+        const im = loaded[k];
+        if (images.length >= 8 || !im || im.naturalWidth < 300 || im.naturalHeight < 200) return;
         let data = null;
         try {
-          const k = Math.min(1, 640 / im.naturalWidth);
+          const f = Math.min(1, 640 / im.naturalWidth);
           const c = d.createElement('canvas');
-          c.width = Math.round(im.naturalWidth * k); c.height = Math.round(im.naturalHeight * k);
+          c.width = Math.round(im.naturalWidth * f); c.height = Math.round(im.naturalHeight * f);
           c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
           data = c.toDataURL('image/jpeg', 0.8);
         } catch (e) { /* 別ドメインの画像は URL のみ */ }
         images.push({ src: new URL(x.s, location.href).href, data, caption: x.a });
-      }
+      });
       const json = JSON.stringify({ v: 1, src: 'atinn-bookmarklet', url: location.href, title: d.title, h1: (d.querySelector('h1') || {}).innerText || '', text: d.body.innerText.slice(0, 80000), lat, lng, images, fetchedAt: new Date().toISOString() });
-      const o = d.createElement('div');
-      o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif';
-      o.innerHTML = '<div style="background:#fff;color:#1E2B33;padding:24px;border-radius:12px;max-width:420px;text-align:center;line-height:1.6"><div style="font-size:17px;font-weight:bold;margin-bottom:6px">物件データを取得しました</div><div style="font-size:13px;color:#555;margin-bottom:16px">写真 ' + images.length + '枚' + (lat ? '・地図座標あり' : '・地図座標なし') + '<br>「コピーする」を押して、ツールの貼り付け欄に貼ってください。</div><button style="font-size:16px;padding:10px 22px;background:#0F7C7A;color:#fff;border:0;border-radius:8px;cursor:pointer">コピーする</button><button style="font-size:14px;padding:10px 14px;margin-left:8px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">閉じる</button></div>';
-      d.body.appendChild(o);
+      const info = '写真 ' + images.length + '枚' + (lat ? '・地図座標あり' : '・地図座標なし');
+      const copy = async () => {
+        try { await navigator.clipboard.writeText(json); return true; } catch (e) { /* 次の方法 */ }
+        try { const t = d.createElement('textarea'); t.value = json; t.style.cssText = 'position:fixed;left:-9999px'; d.body.appendChild(t); t.select(); const ok = d.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; }
+      };
+      const box = html => { const o = d.createElement('div'); o.innerHTML = html; d.body.appendChild(o.firstChild); return d.body.lastChild; };
+      if (await copy()) {
+        const o = box('<div style="position:fixed;right:20px;bottom:20px;z-index:2147483647;background:#0F7C7A;color:#fff;padding:14px 18px;border-radius:10px;font:14px/1.6 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25)"><b style="font-size:16px">✓ コピーしました</b><br>' + info + '<br>ツールに戻って Ctrl+V で貼り付けてください</div>');
+        setTimeout(() => o.remove(), 3500);
+        return;
+      }
+      // コピーが許可されなかったときだけボタンを出す
+      const o = box('<div style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif"><div style="background:#fff;color:#1E2B33;padding:24px;border-radius:12px;max-width:420px;text-align:center;line-height:1.6"><div style="font-size:17px;font-weight:bold;margin-bottom:6px">物件データを取得しました</div><div style="font-size:13px;color:#555;margin-bottom:16px">' + info + '<br>「コピーする」を押して、ツールの貼り付け欄に貼ってください。</div><button style="font-size:16px;padding:10px 22px;background:#0F7C7A;color:#fff;border:0;border-radius:8px;cursor:pointer">コピーする</button><button style="font-size:14px;padding:10px 14px;margin-left:8px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">閉じる</button></div></div>');
       const bs = o.querySelectorAll('button');
       bs[1].onclick = () => o.remove();
-      bs[0].onclick = async () => {
-        try { await navigator.clipboard.writeText(json); }
-        catch (e) { const t = d.createElement('textarea'); t.value = json; d.body.appendChild(t); t.select(); d.execCommand('copy'); t.remove(); }
-        bs[0].textContent = 'コピーしました ✓';
-        setTimeout(() => o.remove(), 1200);
-      };
+      bs[0].onclick = async () => { await copy(); bs[0].textContent = 'コピーしました ✓'; setTimeout(() => o.remove(), 1200); };
     })().catch(e => alert('取得に失敗しました: ' + e));
   }
   const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + bookmarkletMain.toString() + ')()');
 
   // Yahoo!乗換案内の検索結果ページで実行し、経路の本文をコピーする。解析はツール側（parse.js の parseTransit）。
   function transitBookmarkletMain() {
-    const d = document;
-    if (!/transit\.yahoo\.co\.jp$/.test(location.hostname) && !confirm('Yahoo!乗換案内のページではないようです。続けますか？')) return;
-    // 経路部分のHTMLも送る（画面の見た目に左右されずに読めるように）
-    const area = d.querySelector('#srline') || d.querySelector('main') || d.body;
-    const json = JSON.stringify({ v: 2, src: 'yahoo-transit', url: location.href, html: area.outerHTML.slice(0, 600000), text: d.body.innerText.slice(0, 120000), fetchedAt: new Date().toISOString() });
-    const n = (d.body.innerText.match(/\d{1,2}:\d{2}発→/g) || []).length;
-    const o = d.createElement('div');
-    o.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif';
-    o.innerHTML = '<div style="background:#fff;color:#1E2B33;padding:24px;border-radius:12px;max-width:420px;text-align:center;line-height:1.6"><div style="font-size:17px;font-weight:bold;margin-bottom:6px">' + (n ? '経路を ' + n + ' 件読み取りました' : '経路が見つかりません') + '</div><div style="font-size:13px;color:#555;margin-bottom:16px">' + (n ? '「コピーする」を押して、ツールの経路の貼り付け欄に貼ってください。<br>乗車時間がいちばん短い経路が入ります。' : '検索結果のページで押してください。') + '</div>' + (n ? '<button style="font-size:16px;padding:10px 22px;background:#0F7C7A;color:#fff;border:0;border-radius:8px;cursor:pointer">コピーする</button>' : '') + '<button style="font-size:14px;padding:10px 14px;margin-left:8px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">閉じる</button></div>';
-    d.body.appendChild(o);
-    const bs = o.querySelectorAll('button');
-    bs[bs.length - 1].onclick = () => o.remove();
-    if (n) bs[0].onclick = async () => {
-      try { await navigator.clipboard.writeText(json); }
-      catch (e) { const t = d.createElement('textarea'); t.value = json; d.body.appendChild(t); t.select(); d.execCommand('copy'); t.remove(); }
-      bs[0].textContent = 'コピーしました ✓';
-      setTimeout(() => o.remove(), 1200);
-    };
+    (async () => {
+      const d = document;
+      if (!/transit\.yahoo\.co\.jp$/.test(location.hostname) && !confirm('Yahoo!乗換案内のページではないようです。続けますか？')) return;
+      const n = (d.body.innerText.match(/\d{1,2}:\d{2}\s*発\s*→/g) || []).length;
+      const box = html => { const o = d.createElement('div'); o.innerHTML = html; d.body.appendChild(o.firstChild); return d.body.lastChild; };
+      const toast = (html, bg, ms) => { const o = box('<div style="position:fixed;right:20px;bottom:20px;z-index:2147483647;background:' + bg + ';color:#fff;padding:14px 18px;border-radius:10px;font:14px/1.6 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25)">' + html + '</div>'); setTimeout(() => o.remove(), ms); };
+      if (!n) { toast('<b>経路が見つかりません</b><br>検索結果のページで押してください', '#B45309', 3500); return; }
+      // 経路部分のHTMLも送る（画面の見た目に左右されずに読めるように）
+      const area = d.querySelector('#srline') || d.querySelector('main') || d.body;
+      const json = JSON.stringify({ v: 2, src: 'yahoo-transit', url: location.href, html: area.outerHTML.slice(0, 600000), text: d.body.innerText.slice(0, 120000), fetchedAt: new Date().toISOString() });
+      const copy = async () => {
+        try { await navigator.clipboard.writeText(json); return true; } catch (e) { /* 次の方法 */ }
+        try { const t = d.createElement('textarea'); t.value = json; t.style.cssText = 'position:fixed;left:-9999px'; d.body.appendChild(t); t.select(); const ok = d.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; }
+      };
+      if (await copy()) { toast('<b style="font-size:16px">✓ コピーしました</b><br>経路 ' + n + ' 件（乗車時間がいちばん短いものが入ります）<br>ツールに戻って Ctrl+V で貼り付けてください', '#0F7C7A', 3500); return; }
+      // コピーが許可されなかったときだけボタンを出す
+      const o = box('<div style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif"><div style="background:#fff;color:#1E2B33;padding:24px;border-radius:12px;max-width:420px;text-align:center;line-height:1.6"><div style="font-size:17px;font-weight:bold;margin-bottom:6px">経路を ' + n + ' 件読み取りました</div><div style="font-size:13px;color:#555;margin-bottom:16px">「コピーする」を押して、ツールの経路の貼り付け欄に貼ってください。</div><button style="font-size:16px;padding:10px 22px;background:#0F7C7A;color:#fff;border:0;border-radius:8px;cursor:pointer">コピーする</button><button style="font-size:14px;padding:10px 14px;margin-left:8px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">閉じる</button></div></div>');
+      const bs = o.querySelectorAll('button');
+      bs[1].onclick = () => o.remove();
+      bs[0].onclick = async () => { await copy(); bs[0].textContent = 'コピーしました ✓'; setTimeout(() => o.remove(), 1200); };
+    })().catch(e => alert('取得に失敗しました: ' + e));
   }
   const TRANSIT_BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + transitBookmarkletMain.toString() + ')()');
 
@@ -305,9 +314,9 @@
 <div class="card-b">
 <ol class="howto">
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
-<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）を開き、登録したブックマークをクリック →「コピーする」。</li>
+<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）を開き、登録したブックマーク「アットイン取込」をクリック（押すだけでコピーされます）。</li>
 <li>このツールの<b>貼り付け欄</b>に貼り付け（Ctrl+V）→「取り込む」。写真・料金・最寄駅・地図座標が入ります。</li>
-<li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内</b>」で検索 → 結果のページでブックマーク「<b>乗換取込</b>」→「コピーする」→ 枠の貼り付け欄に Ctrl+V。乗車時間・乗換・路線がまとめて入ります。</li>
+<li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内</b>」で検索 → 結果のページでブックマーク「<b>乗換取込</b>」をクリック（押すだけでコピー）→ 枠の貼り付け欄に Ctrl+V。乗車時間・乗換・路線がまとめて入ります。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
 <div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">アットイン取込</a>
@@ -341,7 +350,7 @@ ${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真�
 <div class="f"><span>① プランURL</span>
 <div class="row" style="flex-wrap:nowrap">${inp(`${path}.planUrl`, { type: 'url', ph: 'https://atinn.jp/plan/33705' })}
 ${planUrl ? `<a class="btn primary small" href="${esc(planUrl)}" target="_blank" rel="noopener">開く ↗</a>` : '<span class="btn small" aria-disabled="true" style="opacity:.5">開く ↗</span>'}</div></div>
-<p class="muted" style="margin:0">② 開いたプランページで、ブックマーク「<b>アットイン取込</b>」を押して「コピーする」<br>（ブックマークが無ければ、ページで Ctrl+A → Ctrl+C でも可）</p>
+<p class="muted" style="margin:0">② 開いたプランページで、ブックマーク「<b>アットイン取込</b>」を押す（押すだけでコピーされます）<br>（ブックマークが無ければ、ページで Ctrl+A → Ctrl+C でも可）</p>
 <div class="f"><span>③ ここに貼り付け（Ctrl+V で自動取り込み）</span>
 <textarea class="paste" data-paste="${path}" placeholder="ここに Ctrl+V で貼り付け"></textarea></div>
 <div class="row"><button type="button" class="btn small" data-action="import" data-path="${path}">取り込む</button>
@@ -428,7 +437,7 @@ ${field('乗車（分） <small>電車・バス</small>', inp(`${path}.ride`, { 
 <table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
 <div class="transit-box">
 <div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.fromCoord, o.missing)}</div>
-<div class="f"><span>② 検索結果で「乗換取込」→「コピーする」→ ここに Ctrl+V</span>
+<div class="f"><span>② 検索結果のページでブックマーク「乗換取込」を押す → ここに Ctrl+V</span>
 <div class="row" style="flex-wrap:nowrap"><input type="text" data-paste-route="${path}" data-to="${esc(o.searchTo || o.toName || '')}" placeholder="ここに貼り付けると、乗車時間・乗換・路線が入ります">
 <button type="button" class="btn small" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}">クリップボードから</button></div></div>
 ${route.note && /Yahoo/.test(route.note) ? `<div class="muted">✓ ${esc(route.note)}</div>` : ''}
