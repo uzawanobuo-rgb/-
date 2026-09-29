@@ -2695,13 +2695,23 @@ function mountain(x, y, w, h) {
     <path d="M${f(x)},${f(y - h)} Q${f(x + w * 0.2)},${f(y - h * 1.1)} ${f(x + w / 2)},${f(y)} L${f(x + w * 0.1)},${f(y)} Z" fill="#8cc280"/>`;
 }
 function trainIcon(x, y, color) {
-  return `<g transform="translate(${(x - 28).toFixed(1)},${(y - 17).toFixed(1)})">
-    <rect x="-3" y="-3" width="62" height="40" rx="12" fill="#fff" opacity=".9"/>
-    <rect x="0" y="0" width="56" height="30" rx="12" fill="${color}"/>
-    <rect x="6" y="6" width="19" height="11" rx="2" fill="#fff"/><rect x="31" y="6" width="19" height="11" rx="2" fill="#fff"/>
-    <rect x="4" y="21" width="48" height="3" fill="#fff" opacity=".6"/>
-    <circle cx="14" cy="33" r="3.5" fill="#333"/><circle cx="42" cy="33" r="3.5" fill="#333"/>
-    <path d="M-2,37 H58" stroke="#555" stroke-width="2"/></g>`;
+  // バスと見分けやすいよう、パンタグラフ・架線・斜めの運転台・線路つきの電車
+  return `<g transform="translate(${(x - 29).toFixed(1)},${(y - 12).toFixed(1)})">
+    <rect x="-5" y="-18" width="68" height="58" rx="10" fill="#fff" opacity=".9"/>
+    <path d="M-3,-14 H61" stroke="#8a9296" stroke-width="1.2"/>
+    <path d="M21,0 L30,-7 L23,-14" stroke="#3a4247" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
+    <path d="M17,-14 H30" stroke="#3a4247" stroke-width="2.6" stroke-linecap="round"/>
+    <rect x="19" y="-2" width="12" height="3" rx="1" fill="#3a4247"/>
+    <path d="M0,4 Q0,0 4,0 H45 Q51,0 55,7 L58,21 Q58,26 53,26 H4 Q0,26 0,22 Z" fill="${color}"/>
+    <rect x="5" y="5" width="8" height="9" rx="1.5" fill="#fff"/><rect x="16" y="5" width="8" height="9" rx="1.5" fill="#fff"/>
+    <rect x="28" y="5" width="8" height="18" rx="1.5" fill="#fff" opacity=".55"/>
+    <path d="M42,5 H50 L54,14 H42 Z" fill="#fff"/>
+    <rect x="0" y="17" width="58" height="3" fill="#fff" opacity=".6"/>
+    <circle cx="54.5" cy="22" r="1.8" fill="#ffe27a"/>
+    <circle cx="9" cy="29" r="3" fill="#333"/><circle cx="17" cy="29" r="3" fill="#333"/>
+    <circle cx="41" cy="29" r="3" fill="#333"/><circle cx="49" cy="29" r="3" fill="#333"/>
+    <path d="M-3,33 H61" stroke="#555" stroke-width="2"/>
+    <path d="M2,33 v3 M12,33 v3 M22,33 v3 M32,33 v3 M42,33 v3 M52,33 v3" stroke="#777" stroke-width="2"/></g>`;
 }
 function busIcon(x, y, color) {
   return `<g transform="translate(${(x - 28).toFixed(1)},${(y - 17).toFixed(1)})">
@@ -2932,7 +2942,7 @@ function render() {
     if (g.len < 150) continue;
     for (const t of [0.5, 0.4, 0.6, 0.32, 0.68]) {
       const bx = (1 - t) ** 2 * g.px + 2 * (1 - t) * t * g.cx + t * t * g.dx, by = (1 - t) ** 2 * g.py + 2 * (1 - t) * t * g.cy + t * t * g.dy;
-      const r = { x: bx - 31, y: by - 26, w: 62, h: 44 };
+      const r = g.mode === 'train' ? { x: bx - 35, y: by - 36, w: 70, h: 62 } : { x: bx - 31, y: by - 26, w: 62, h: 44 };
       if (occupied.some(o => overlaps(r, o, 2))) continue;
       busSvg.push(g.mode === 'train' ? trainIcon(bx, by - 4, g.color) : busIcon(bx, by - 4, g.color)); occupied.push(r); break;
     }
