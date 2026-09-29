@@ -68,12 +68,17 @@
     const found = new Map();
     function add(name, line, walk) {
       name = name.replace(/駅$/, '').trim();
-      if (!name || name.length > 12) return;
+      if (!name || name.length > 12 || /^[・･、。]/.test(name)) return;
       const w = Number(walk);
       const cur = found.get(name);
       if (!cur || w < cur.walk) found.set(name, { name, line: (line || '').trim(), walk: w });
     }
     let m;
+    // 実サイトの「交通」欄：「品川駅 ( JR山手線 ほか ) 徒歩 8分」
+    const re0 = /([^\s「」『』、,/／|｜:()（）]{1,12}?)駅\s*[(（]\s*([^)）\n]*?)\s*(?:ほか)?\s*[)）]\s*(?:から|より)?\s*(?:徒歩|歩)\s*(?:約)?\s*(\d{1,2})\s*分/g;
+    while ((m = re0.exec(t))) add(m[1], m[2], m[3]);
+    // 交通欄が読めたらそれを正とする（宣伝文の「駅徒歩◯分」は拾わない）
+    if (found.size) return Array.from(found.values()).sort((a, b) => a.walk - b.walk);
     const re1 = /([^\s「」『』、,/／|｜:]*?線)?\s*[「『]([^」』\n]{1,12})[」』]\s*駅?\s*(?:から|より)?\s*(?:徒歩|歩)\s*(?:約)?\s*(\d{1,2})\s*分/g;
     while ((m = re1.exec(t))) add(m[2], m[1], m[3]);
     const re2 = /(?:([^\s「」『』、,/／|｜:]{1,20}線)\s*)?([^\s「」『』、,/／|｜:()（）]{1,12}?)駅\s*(?:から|より)?\s*(?:徒歩|歩)\s*(?:約)?\s*(\d{1,2})\s*分/g;
@@ -95,6 +100,8 @@
 
   function parseAddress(text) {
     const t = toHalf(text);
+    const lab = /(?:^|\n)\s*(?:住所|所在地)\s*[\t:：]?\s*(?:〒?\s*\d{3}-?\d{4}\s*)?((?:東京都|北海道|(?:京都|大阪)府|[^\s\n]{2,3}県)[^\n\t]{2,60})/.exec(t);
+    if (lab) return lab[1].replace(/\s*(Google\s*マップ|地図|MAP|マップ).*$/i, '').trim();
     const m = /(東京都|北海道|(?:京都|大阪)府|[^\s\n]{2,3}県)[^\s\n,、。]{2,40}/.exec(t);
     return m ? m[0].replace(/(地図|MAP|マップ).*$/i, '').trim() : '';
   }
@@ -119,24 +126,26 @@
     if (m) out.built = m[1] + '年' + m[2] + '月';
     m = /構造\s*:?\s*([^\s\n]{2,20})/.exec(t);
     if (m) out.structure = m[1];
-    m = /地上\s*(\d{1,2})\s*階/.exec(t) || /(\d{1,2})\s*階建/.exec(t);
+    m = /総階数\s*:?\s*(\d{1,2})\s*階/.exec(t) || /地上\s*(\d{1,2})\s*階/.exec(t) || /(\d{1,2})\s*階建/.exec(t);
     if (m) out.floors = Number(m[1]);
     if (/全室禁煙|禁煙/.test(t)) out.smoking = '禁煙';
     else if (/喫煙可/.test(t)) out.smoking = '喫煙可';
     m = /設定人数\s*:?\s*(\d{1,2})/.exec(t);
     if (m) out.capacity = Number(m[1]);
-    m = /最大(?:人数|利用人数|定員)\s*:?\s*(\d{1,2})/.exec(t);
+    m = /最大(?:人数|利用人数|定員)?\s*:?\s*(\d{1,2})/.exec(t);
     if (m) out.maxCapacity = Number(m[1]);
-    m = /(?:主な)?設備[^\n]{0,4}\n?([^\n]{4,200})/.exec(t);
-    if (m) out.equipment = m[1].trim();
+    m = /主な設備[^\n]*\n((?:[ \t]*[^\t\n]{1,30}\n){1,40})/.exec(t + '\n');
+    if (m) out.equipment = m[1].split('\n').map(x => x.trim()).filter(Boolean).join('、');
     return out;
   }
 
   function parseNames(title, h1, text) {
+    const lab = /(?:^|\n)\s*プラン名\s*[\t:：]\s*([^\n]+)/.exec(toHalf(text || ''));
+    if (lab) { const pn = lab[1].trim(); return { planName: pn, name: stripBrackets(pn) }; }
     const cands = [h1, title].concat(String(text || '').split('\n').slice(0, 80)).filter(Boolean).map(s => toHalf(s).trim());
     let planName = '';
     for (const c of cands) {
-      if (/アットイン|@in|at\s?inn/i.test(c)) { planName = c.split(/\s*[|｜]\s*|\s+-\s+/)[0].trim(); break; }
+      if (/アットイン|@in|at\s?inn/i.test(c)) { planName = c.split(/\s*[|｜]\s*|\s+[-─―]\s+/)[0].replace(/のプラン詳細$/, '').trim(); break; }
     }
     if (!planName && cands.length) planName = cands[0].split(/\s*[|｜]\s*/)[0];
     const name = stripBrackets(planName);

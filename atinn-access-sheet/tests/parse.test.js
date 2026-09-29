@@ -81,3 +81,34 @@ test('ページ全体（ブックマークレットのJSON）', () => {
   assert.equal(r.smoking, '禁煙');
   assert.deepEqual(r.price, EXPECT);
 });
+
+// 実サイトのプランページ（2026-09-29 取得。testdata/plan_pages/）
+const fs = require('node:fs');
+const path = require('node:path');
+const priceCases = require('../testdata/price_cases.json').cases;
+const REAL = {
+  '33705': { name: 'アットイン品川9', address: '東京都港区高輪4-19-11', near: ['品川', 8, 'JR山手線'], stations: 5, floors: 4, built: '1976年10月' },
+  '33492': { name: 'アットインmini門前仲町5-1', address: '東京都江東区福住1-5-4', near: ['門前仲町', 11, '東京メトロ東西線'], stations: 5, floors: 5, built: '2017年07月' },
+  '27788': { name: 'アットイン飯田橋5-1', address: '東京都新宿区箪笥町18-3', near: ['牛込神楽坂', 3, '都営大江戸線'], stations: 4, floors: 9, built: '1987年05月' },
+  '34063': { name: 'アットイン田町2', address: '東京都港区芝浦2-8-9', near: ['芝浦ふ頭', 7, 'ゆりかもめ'], stations: 4, floors: 11, built: '2000年01月' },
+};
+for (const id of Object.keys(REAL)) {
+  test(`実ページ plan/${id}`, () => {
+    const page = JSON.parse(fs.readFileSync(path.join(__dirname, `../testdata/plan_pages/${id}.json`), 'utf8'));
+    const r = P.parsePlan(page);
+    const e = REAL[id];
+    assert.equal(r.name, e.name);
+    assert.equal(r.address, e.address);
+    assert.ok(r.lat > 35 && r.lat < 36 && r.lng > 139 && r.lng < 140, 'coords');
+    assert.deepEqual([r.stations[0].name, r.stations[0].walk, r.stations[0].line], e.near);
+    assert.equal(r.stations.length, e.stations);
+    assert.ok(r.stations.every(s => /^[^\s・]+$/.test(s.name) && s.line), '駅名・路線がきれい');
+    assert.equal(r.floors, e.floors);
+    assert.equal(r.built, e.built);
+    assert.equal(r.smoking, '禁煙');
+    // 料金は price_cases.json（ページから読み取った値）と一致
+    const pc = priceCases.find(c => c.plan_url.endsWith(id) && c.page_values.daily_list);
+    const pv = pc.page_values;
+    assert.deepEqual(r.price, { dailyList: pv.daily_list, rentList: pv.rent_list, utilities: pv.utilities, dailyCampaign: pv.daily_campaign, cleaningList: pv.cleaning_list, cleaningCampaign: pv.cleaning_campaign, insurancePerMonth: pv.insurance_per_month });
+  });
+}

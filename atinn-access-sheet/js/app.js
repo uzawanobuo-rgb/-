@@ -292,14 +292,20 @@ ${prop.photoCustom ? `<button type="button" class="on" style="background-image:u
 <div class="row"><label class="btn small">写真をアップロード<input type="file" accept="image/*" hidden data-action="upload-photo" data-path="${path}"></label>
 <label class="row muted"><input type="checkbox" data-bind="${path}.hidePhoto" ${prop.hidePhoto ? 'checked' : ''}> 写真を載せない</label>
 ${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真はありません</span>'}</div>` : '';
+    const planUrl = /^https?:\/\//.test(prop.planUrl || '') ? prop.planUrl : '';
     return `<div class="card-b" style="padding:0">
-<div class="f"><span>プランページの内容を貼り付け <small>（ブックマークレットでコピーした内容／ページ全文）</small></span>
+<div class="import-box">
+<div class="f"><span>① プランURL</span>
+<div class="row" style="flex-wrap:nowrap">${inp(`${path}.planUrl`, { type: 'url', ph: 'https://atinn.jp/plan/33705' })}
+${planUrl ? `<a class="btn primary small" href="${esc(planUrl)}" target="_blank" rel="noopener">開く ↗</a>` : '<span class="btn small" aria-disabled="true" style="opacity:.5">開く ↗</span>'}</div></div>
+<p class="muted" style="margin:0">② 開いたプランページで、ブックマーク「<b>アットイン取込</b>」を押して「コピーする」<br>（ブックマークが無ければ、ページで Ctrl+A → Ctrl+C でも可）</p>
+<div class="f"><span>③ ここに貼り付け（Ctrl+V で自動取り込み）</span>
 <textarea class="paste" data-paste="${path}" placeholder="ここに Ctrl+V で貼り付け"></textarea></div>
-<div class="row"><button type="button" class="btn primary small" data-action="import" data-path="${path}">取り込む</button>
-<button type="button" class="btn small" data-action="import-clip" data-path="${path}">クリップボードから取り込む</button>
-${prop.planUrl ? `<a class="btn small" href="${esc(prop.planUrl)}" target="_blank" rel="noopener">プランページを開く</a>` : ''}</div>
+<div class="row"><button type="button" class="btn small" data-action="import" data-path="${path}">取り込む</button>
+<button type="button" class="btn small" data-action="import-clip" data-path="${path}">クリップボードから取り込む</button></div>
+<p class="muted" style="margin:0">※URLを入れただけでは読み込めません（ブラウザの制限で、ほかのサイトのページを直接読めないため）。</p>
+</div>
 <div class="grid">
-${field('プランURL', inp(`${path}.planUrl`, { type: 'url', ph: 'https://atinn.jp/plan/33705' }), 'all')}
 ${field('物件名（シートに表示）', inp(`${path}.name`, { ph: 'アットイン六本木4' }), 'span2')}
 ${field('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }), 'span2')}
 ${field('緯度', inp(`${path}.lat`, { ph: '35.6598' }))}
