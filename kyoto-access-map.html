@@ -1,0 +1,3792 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>京都アクセスマップ作成ツール</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;
+    margin: 0;
+    padding: 10px 16px;
+    background: #f5f5f5;
+    color: #333;
+    font-size: 14px;
+  }
+  h1 { margin: 0 0 8px; font-size: 1.1em; color: #333; }
+  .app { display: flex; gap: 12px; align-items: flex-start; }
+  .left-panel { width: 420px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px; }
+  .right-panel { flex: 1; min-width: 0; position: sticky; top: 10px; }
+  .box { background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 10px 12px; }
+  .box h2 { margin: 0 0 8px; font-size: 13px; color: #13706b; }
+  label { display: block; font-size: 12px; color: #666; margin: 6px 0 2px; }
+  input[type=text], input[type=number], select {
+    width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; font-family: inherit;
+  }
+  .row { display: flex; gap: 6px; align-items: center; }
+  .row > * { flex: 1; }
+  .row > .fix { flex: 0 0 auto; }
+  button {
+    padding: 6px 12px; border: none; border-radius: 4px; background: #13928c; color: #fff;
+    cursor: pointer; font-size: 13px; font-family: inherit; white-space: nowrap;
+  }
+  button:hover { background: #0f7a75; }
+  button.sub { background: #e7e7e7; color: #333; }
+  button.sub:hover { background: #d8d8d8; }
+  button.del { background: none; color: #c44; padding: 2px 6px; }
+  .status { font-size: 12px; margin-top: 6px; min-height: 1em; color: #666; white-space: pre-wrap; }
+  .status.err { color: #c33; }
+  .status.ok { color: #13706b; }
+  .dest { border: 1px solid #e3e3e3; border-left: 6px solid #999; border-radius: 6px; padding: 6px 8px; margin-bottom: 8px; }
+  .dest .row { margin-top: 4px; }
+  .dest input[type=color] { width: 34px; height: 30px; padding: 0; border: none; background: none; flex: 0 0 34px; }
+  .hint { font-size: 11px; color: #888; line-height: 1.5; }
+  details summary { cursor: pointer; font-size: 12px; color: #666; margin-top: 4px; }
+  #preview { background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 8px; }
+  #previewWrap { position: relative; }
+  #mapBusy { position: absolute; inset: 0; border-radius: 8px; background: rgba(247,246,241,.82); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center; z-index: 5; }
+  #mapBusy[hidden] { display: none; }
+  #mapBusy .card { background: #12303a; color: #fff; border-radius: 14px; padding: 22px 30px; box-shadow: 0 6px 24px rgba(0,0,0,.25); min-width: 320px; }
+  #mapBusy .ttl { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 700; }
+  #mapBusy .spin { width: 26px; height: 26px; border: 4px solid rgba(255,255,255,.25); border-top-color: #5fd3c9; border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #mapBusy ul { list-style: none; margin: 14px 0 6px; padding: 0; font-size: 14px; line-height: 1.9; }
+  #mapBusy li span { display: inline-block; width: 1.6em; }
+  #mapBusy .sub { font-size: 12px; color: #bfe3e0; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  #preview svg { width: 100%; height: auto; display: block; cursor: crosshair; }
+  .dl { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+  @media (max-width: 900px) {
+    .app { flex-direction: column; }
+    .left-panel { width: 100%; }
+    .right-panel { position: static; width: 100%; }
+  }
+</style>
+</head>
+<body>
+<h1>京都アクセスマップ作成ツール</h1>
+<div class="app">
+  <div class="left-panel">
+
+    <div class="box">
+      <h2>① 物件</h2>
+      <label>物件ページURL（アットイン等・京都市内の物件）</label>
+      <div class="row">
+        <input type="text" id="url" placeholder="https://atinn.jp/building/3840">
+        <button class="fix" id="btnFetch">読み込み</button>
+      </div>
+      <label>物件名</label>
+      <input type="text" id="bname" placeholder="アットイン京都10">
+      <label>住所</label>
+      <div class="row">
+        <input type="text" id="addr" placeholder="京都府京都市下京区…">
+        <button class="fix" id="btnGeo">位置を検索</button>
+      </div>
+      <details>
+        <summary>緯度・経度を直接入力</summary>
+        <div class="row">
+          <input type="number" id="plat" step="0.0001" placeholder="緯度 35.00">
+          <input type="number" id="plng" step="0.0001" placeholder="経度 135.76">
+        </div>
+      </details>
+      <div class="status" id="status"></div>
+      <div class="hint">プレビューの地図をクリックすると、その場所に物件の位置を置き直せます。</div>
+    </div>
+
+    <div class="box">
+      <h2>② 行き先（京都河原町・四条烏丸・京都駅）</h2>
+      <div class="row" style="margin:0 0 8px;align-items:flex-start">
+        <div class="status" id="busStatus" style="margin:0"></div>
+        <button class="fix sub" id="btnBus" title="バス・電車の経路をもう一度調べる">経路を再検索</button>
+      </div>
+      <div id="dests"></div>
+      <div class="hint" style="margin-top:6px">
+        物件の位置が決まると、OpenStreetMapの路線データから次の順で経路を調べます：<br>
+        ① <b>バスで乗換なし</b>（バス停までの徒歩＋路線に沿った距離÷平均時速 約<span id="spdLabel"></span>km/h）<br>
+        ② ①がなければ<b>電車</b>（直通または乗換1回。駅までの徒歩・待ち・乗換時間を含む）<br>
+        ③ どちらもなければ、道路の経路距離から推定<br>
+        時間はいずれも<b>目安</b>です。数字を入れればその値を使います。<br>
+        QRは、京都市バスの路線が見つかればその系統の時刻表ページ、それ以外はGoogleマップの経路検索（公共交通）を開きます。URLを入れれば差し替えられます。<br>
+        OSMのデータは有志の登録なので、抜けや古い情報があることがあります。公開前に路線を確認してください。
+      </div>
+    </div>
+
+    <div class="box">
+      <h2>③ 見出し・表示</h2>
+      <label>タイトル</label>
+      <input type="text" id="title">
+      <label>サブタイトル</label>
+      <input type="text" id="subtitle">
+      <label>下段の見出し</label>
+      <input type="text" id="btitle">
+      <label>下段の補足</label>
+      <input type="text" id="bsub">
+      <label>最寄りバス停（空欄なら自動、物件名の下に表示）</label>
+      <input type="text" id="stop" placeholder="自動で表示されます（例: 四条大宮 徒歩3分）">
+      <label>地図の範囲 <span id="zoomLabel"></span></label>
+      <input type="range" id="zoom" min="0.5" max="2.5" step="0.05" value="1" style="width:100%">
+      <div class="row" style="margin-top:6px">
+        <label class="fix" style="margin:0"><input type="checkbox" id="rings" checked> 距離の同心円</label>
+        <label class="fix" style="margin:0"><input type="checkbox" id="marks" checked> 名所</label>
+        <label class="fix" style="margin:0"><input type="checkbox" id="streets" checked> 通り名</label>
+      </div>
+      <details>
+        <summary>所要時間の計算設定</summary>
+        <div class="row">
+          <div><label>バス平均時速(km/h)</label><input type="number" id="speed" value="12" step="0.5"></div>
+          <div><label>徒歩＋待ち(分)</label><input type="number" id="overhead" value="4" step="1"></div>
+        </div>
+      </details>
+    </div>
+
+  </div>
+
+  <div class="right-panel">
+    <div id="previewWrap">
+      <div id="preview"></div>
+      <div id="mapBusy" hidden>
+        <div class="card">
+          <div class="ttl"><div class="spin"></div>経路を調べています…</div>
+          <ul id="busySteps"></ul>
+          <div class="sub" id="busyTime"></div>
+        </div>
+      </div>
+    </div>
+    <div class="dl">
+      <button id="btnPng">PNG保存（1600×1000）</button>
+      <button class="sub" id="btnPng2">高解像度PNG（3200×2000）</button>
+      <button class="sub" id="btnSvg">SVG保存</button>
+    </div>
+    <div class="hint" style="margin-top:6px">
+      地図・イラストはこのツールが京都の通りや川の位置から描いた図で、外部の地図画像や素材は使っていません。そのまま公開の場で使えます。<br>
+      デフォルメ図ですが縮尺は正しく、同心円は物件からの直線距離（1km刻み）です。
+    </div>
+  </div>
+</div>
+
+<script>
+// qrcode-generator (MIT License, Copyright (c) 2009 Kazuhiko Arase)
+//---------------------------------------------------------------------
+//
+// QR Code Generator for JavaScript
+//
+// Copyright (c) 2009 Kazuhiko Arase
+//
+// URL: http://www.d-project.com/
+//
+// Licensed under the MIT license:
+//  http://www.opensource.org/licenses/mit-license.php
+//
+// The word 'QR Code' is registered trademark of
+// DENSO WAVE INCORPORATED
+//  http://www.denso-wave.com/qrcode/faqpatent-e.html
+//
+//---------------------------------------------------------------------
+
+var qrcode = function() {
+
+  //---------------------------------------------------------------------
+  // qrcode
+  //---------------------------------------------------------------------
+
+  /**
+   * qrcode
+   * @param typeNumber 1 to 40
+   * @param errorCorrectionLevel 'L','M','Q','H'
+   */
+  var qrcode = function(typeNumber, errorCorrectionLevel) {
+
+    var PAD0 = 0xEC;
+    var PAD1 = 0x11;
+
+    var _typeNumber = typeNumber;
+    var _errorCorrectionLevel = QRErrorCorrectionLevel[errorCorrectionLevel];
+    var _modules = null;
+    var _moduleCount = 0;
+    var _dataCache = null;
+    var _dataList = [];
+
+    var _this = {};
+
+    var makeImpl = function(test, maskPattern) {
+
+      _moduleCount = _typeNumber * 4 + 17;
+      _modules = function(moduleCount) {
+        var modules = new Array(moduleCount);
+        for (var row = 0; row < moduleCount; row += 1) {
+          modules[row] = new Array(moduleCount);
+          for (var col = 0; col < moduleCount; col += 1) {
+            modules[row][col] = null;
+          }
+        }
+        return modules;
+      }(_moduleCount);
+
+      setupPositionProbePattern(0, 0);
+      setupPositionProbePattern(_moduleCount - 7, 0);
+      setupPositionProbePattern(0, _moduleCount - 7);
+      setupPositionAdjustPattern();
+      setupTimingPattern();
+      setupTypeInfo(test, maskPattern);
+
+      if (_typeNumber >= 7) {
+        setupTypeNumber(test);
+      }
+
+      if (_dataCache == null) {
+        _dataCache = createData(_typeNumber, _errorCorrectionLevel, _dataList);
+      }
+
+      mapData(_dataCache, maskPattern);
+    };
+
+    var setupPositionProbePattern = function(row, col) {
+
+      for (var r = -1; r <= 7; r += 1) {
+
+        if (row + r <= -1 || _moduleCount <= row + r) continue;
+
+        for (var c = -1; c <= 7; c += 1) {
+
+          if (col + c <= -1 || _moduleCount <= col + c) continue;
+
+          if ( (0 <= r && r <= 6 && (c == 0 || c == 6) )
+              || (0 <= c && c <= 6 && (r == 0 || r == 6) )
+              || (2 <= r && r <= 4 && 2 <= c && c <= 4) ) {
+            _modules[row + r][col + c] = true;
+          } else {
+            _modules[row + r][col + c] = false;
+          }
+        }
+      }
+    };
+
+    var getBestMaskPattern = function() {
+
+      var minLostPoint = 0;
+      var pattern = 0;
+
+      for (var i = 0; i < 8; i += 1) {
+
+        makeImpl(true, i);
+
+        var lostPoint = QRUtil.getLostPoint(_this);
+
+        if (i == 0 || minLostPoint > lostPoint) {
+          minLostPoint = lostPoint;
+          pattern = i;
+        }
+      }
+
+      return pattern;
+    };
+
+    var setupTimingPattern = function() {
+
+      for (var r = 8; r < _moduleCount - 8; r += 1) {
+        if (_modules[r][6] != null) {
+          continue;
+        }
+        _modules[r][6] = (r % 2 == 0);
+      }
+
+      for (var c = 8; c < _moduleCount - 8; c += 1) {
+        if (_modules[6][c] != null) {
+          continue;
+        }
+        _modules[6][c] = (c % 2 == 0);
+      }
+    };
+
+    var setupPositionAdjustPattern = function() {
+
+      var pos = QRUtil.getPatternPosition(_typeNumber);
+
+      for (var i = 0; i < pos.length; i += 1) {
+
+        for (var j = 0; j < pos.length; j += 1) {
+
+          var row = pos[i];
+          var col = pos[j];
+
+          if (_modules[row][col] != null) {
+            continue;
+          }
+
+          for (var r = -2; r <= 2; r += 1) {
+
+            for (var c = -2; c <= 2; c += 1) {
+
+              if (r == -2 || r == 2 || c == -2 || c == 2
+                  || (r == 0 && c == 0) ) {
+                _modules[row + r][col + c] = true;
+              } else {
+                _modules[row + r][col + c] = false;
+              }
+            }
+          }
+        }
+      }
+    };
+
+    var setupTypeNumber = function(test) {
+
+      var bits = QRUtil.getBCHTypeNumber(_typeNumber);
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[Math.floor(i / 3)][i % 3 + _moduleCount - 8 - 3] = mod;
+      }
+
+      for (var i = 0; i < 18; i += 1) {
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+        _modules[i % 3 + _moduleCount - 8 - 3][Math.floor(i / 3)] = mod;
+      }
+    };
+
+    var setupTypeInfo = function(test, maskPattern) {
+
+      var data = (_errorCorrectionLevel << 3) | maskPattern;
+      var bits = QRUtil.getBCHTypeInfo(data);
+
+      // vertical
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 6) {
+          _modules[i][8] = mod;
+        } else if (i < 8) {
+          _modules[i + 1][8] = mod;
+        } else {
+          _modules[_moduleCount - 15 + i][8] = mod;
+        }
+      }
+
+      // horizontal
+      for (var i = 0; i < 15; i += 1) {
+
+        var mod = (!test && ( (bits >> i) & 1) == 1);
+
+        if (i < 8) {
+          _modules[8][_moduleCount - i - 1] = mod;
+        } else if (i < 9) {
+          _modules[8][15 - i - 1 + 1] = mod;
+        } else {
+          _modules[8][15 - i - 1] = mod;
+        }
+      }
+
+      // fixed module
+      _modules[_moduleCount - 8][8] = (!test);
+    };
+
+    var mapData = function(data, maskPattern) {
+
+      var inc = -1;
+      var row = _moduleCount - 1;
+      var bitIndex = 7;
+      var byteIndex = 0;
+      var maskFunc = QRUtil.getMaskFunction(maskPattern);
+
+      for (var col = _moduleCount - 1; col > 0; col -= 2) {
+
+        if (col == 6) col -= 1;
+
+        while (true) {
+
+          for (var c = 0; c < 2; c += 1) {
+
+            if (_modules[row][col - c] == null) {
+
+              var dark = false;
+
+              if (byteIndex < data.length) {
+                dark = ( ( (data[byteIndex] >>> bitIndex) & 1) == 1);
+              }
+
+              var mask = maskFunc(row, col - c);
+
+              if (mask) {
+                dark = !dark;
+              }
+
+              _modules[row][col - c] = dark;
+              bitIndex -= 1;
+
+              if (bitIndex == -1) {
+                byteIndex += 1;
+                bitIndex = 7;
+              }
+            }
+          }
+
+          row += inc;
+
+          if (row < 0 || _moduleCount <= row) {
+            row -= inc;
+            inc = -inc;
+            break;
+          }
+        }
+      }
+    };
+
+    var createBytes = function(buffer, rsBlocks) {
+
+      var offset = 0;
+
+      var maxDcCount = 0;
+      var maxEcCount = 0;
+
+      var dcdata = new Array(rsBlocks.length);
+      var ecdata = new Array(rsBlocks.length);
+
+      for (var r = 0; r < rsBlocks.length; r += 1) {
+
+        var dcCount = rsBlocks[r].dataCount;
+        var ecCount = rsBlocks[r].totalCount - dcCount;
+
+        maxDcCount = Math.max(maxDcCount, dcCount);
+        maxEcCount = Math.max(maxEcCount, ecCount);
+
+        dcdata[r] = new Array(dcCount);
+
+        for (var i = 0; i < dcdata[r].length; i += 1) {
+          dcdata[r][i] = 0xff & buffer.getBuffer()[i + offset];
+        }
+        offset += dcCount;
+
+        var rsPoly = QRUtil.getErrorCorrectPolynomial(ecCount);
+        var rawPoly = qrPolynomial(dcdata[r], rsPoly.getLength() - 1);
+
+        var modPoly = rawPoly.mod(rsPoly);
+        ecdata[r] = new Array(rsPoly.getLength() - 1);
+        for (var i = 0; i < ecdata[r].length; i += 1) {
+          var modIndex = i + modPoly.getLength() - ecdata[r].length;
+          ecdata[r][i] = (modIndex >= 0)? modPoly.getAt(modIndex) : 0;
+        }
+      }
+
+      var totalCodeCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalCodeCount += rsBlocks[i].totalCount;
+      }
+
+      var data = new Array(totalCodeCount);
+      var index = 0;
+
+      for (var i = 0; i < maxDcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < dcdata[r].length) {
+            data[index] = dcdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      for (var i = 0; i < maxEcCount; i += 1) {
+        for (var r = 0; r < rsBlocks.length; r += 1) {
+          if (i < ecdata[r].length) {
+            data[index] = ecdata[r][i];
+            index += 1;
+          }
+        }
+      }
+
+      return data;
+    };
+
+    var createData = function(typeNumber, errorCorrectionLevel, dataList) {
+
+      var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, errorCorrectionLevel);
+
+      var buffer = qrBitBuffer();
+
+      for (var i = 0; i < dataList.length; i += 1) {
+        var data = dataList[i];
+        buffer.put(data.getMode(), 4);
+        buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+        data.write(buffer);
+      }
+
+      // calc num max data.
+      var totalDataCount = 0;
+      for (var i = 0; i < rsBlocks.length; i += 1) {
+        totalDataCount += rsBlocks[i].dataCount;
+      }
+
+      if (buffer.getLengthInBits() > totalDataCount * 8) {
+        throw 'code length overflow. ('
+          + buffer.getLengthInBits()
+          + '>'
+          + totalDataCount * 8
+          + ')';
+      }
+
+      // end code
+      if (buffer.getLengthInBits() + 4 <= totalDataCount * 8) {
+        buffer.put(0, 4);
+      }
+
+      // padding
+      while (buffer.getLengthInBits() % 8 != 0) {
+        buffer.putBit(false);
+      }
+
+      // padding
+      while (true) {
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD0, 8);
+
+        if (buffer.getLengthInBits() >= totalDataCount * 8) {
+          break;
+        }
+        buffer.put(PAD1, 8);
+      }
+
+      return createBytes(buffer, rsBlocks);
+    };
+
+    _this.addData = function(data, mode) {
+
+      mode = mode || 'Byte';
+
+      var newData = null;
+
+      switch(mode) {
+      case 'Numeric' :
+        newData = qrNumber(data);
+        break;
+      case 'Alphanumeric' :
+        newData = qrAlphaNum(data);
+        break;
+      case 'Byte' :
+        newData = qr8BitByte(data);
+        break;
+      case 'Kanji' :
+        newData = qrKanji(data);
+        break;
+      default :
+        throw 'mode:' + mode;
+      }
+
+      _dataList.push(newData);
+      _dataCache = null;
+    };
+
+    _this.isDark = function(row, col) {
+      if (row < 0 || _moduleCount <= row || col < 0 || _moduleCount <= col) {
+        throw row + ',' + col;
+      }
+      return _modules[row][col];
+    };
+
+    _this.getModuleCount = function() {
+      return _moduleCount;
+    };
+
+    _this.make = function() {
+      if (_typeNumber < 1) {
+        var typeNumber = 1;
+
+        for (; typeNumber < 40; typeNumber++) {
+          var rsBlocks = QRRSBlock.getRSBlocks(typeNumber, _errorCorrectionLevel);
+          var buffer = qrBitBuffer();
+
+          for (var i = 0; i < _dataList.length; i++) {
+            var data = _dataList[i];
+            buffer.put(data.getMode(), 4);
+            buffer.put(data.getLength(), QRUtil.getLengthInBits(data.getMode(), typeNumber) );
+            data.write(buffer);
+          }
+
+          var totalDataCount = 0;
+          for (var i = 0; i < rsBlocks.length; i++) {
+            totalDataCount += rsBlocks[i].dataCount;
+          }
+
+          if (buffer.getLengthInBits() <= totalDataCount * 8) {
+            break;
+          }
+        }
+
+        _typeNumber = typeNumber;
+      }
+
+      makeImpl(false, getBestMaskPattern() );
+    };
+
+    _this.createTableTag = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var qrHtml = '';
+
+      qrHtml += '<table style="';
+      qrHtml += ' border-width: 0px; border-style: none;';
+      qrHtml += ' border-collapse: collapse;';
+      qrHtml += ' padding: 0px; margin: ' + margin + 'px;';
+      qrHtml += '">';
+      qrHtml += '<tbody>';
+
+      for (var r = 0; r < _this.getModuleCount(); r += 1) {
+
+        qrHtml += '<tr>';
+
+        for (var c = 0; c < _this.getModuleCount(); c += 1) {
+          qrHtml += '<td style="';
+          qrHtml += ' border-width: 0px; border-style: none;';
+          qrHtml += ' border-collapse: collapse;';
+          qrHtml += ' padding: 0px; margin: 0px;';
+          qrHtml += ' width: ' + cellSize + 'px;';
+          qrHtml += ' height: ' + cellSize + 'px;';
+          qrHtml += ' background-color: ';
+          qrHtml += _this.isDark(r, c)? '#000000' : '#ffffff';
+          qrHtml += ';';
+          qrHtml += '"/>';
+        }
+
+        qrHtml += '</tr>';
+      }
+
+      qrHtml += '</tbody>';
+      qrHtml += '</table>';
+
+      return qrHtml;
+    };
+
+    _this.createSvgTag = function(cellSize, margin, alt, title) {
+
+      var opts = {};
+      if (typeof arguments[0] == 'object') {
+        // Called by options.
+        opts = arguments[0];
+        // overwrite cellSize and margin.
+        cellSize = opts.cellSize;
+        margin = opts.margin;
+        alt = opts.alt;
+        title = opts.title;
+      }
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      // Compose alt property surrogate
+      alt = (typeof alt === 'string') ? {text: alt} : alt || {};
+      alt.text = alt.text || null;
+      alt.id = (alt.text) ? alt.id || 'qrcode-description' : null;
+
+      // Compose title property surrogate
+      title = (typeof title === 'string') ? {text: title} : title || {};
+      title.text = title.text || null;
+      title.id = (title.text) ? title.id || 'qrcode-title' : null;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var c, mc, r, mr, qrSvg='', rect;
+
+      rect = 'l' + cellSize + ',0 0,' + cellSize +
+        ' -' + cellSize + ',0 0,-' + cellSize + 'z ';
+
+      qrSvg += '<svg version="1.1" xmlns="http://www.w3.org/2000/svg"';
+      qrSvg += !opts.scalable ? ' width="' + size + 'px" height="' + size + 'px"' : '';
+      qrSvg += ' viewBox="0 0 ' + size + ' ' + size + '" ';
+      qrSvg += ' preserveAspectRatio="xMinYMin meet"';
+      qrSvg += (title.text || alt.text) ? ' role="img" aria-labelledby="' +
+          escapeXml([title.id, alt.id].join(' ').trim() ) + '"' : '';
+      qrSvg += '>';
+      qrSvg += (title.text) ? '<title id="' + escapeXml(title.id) + '">' +
+          escapeXml(title.text) + '</title>' : '';
+      qrSvg += (alt.text) ? '<description id="' + escapeXml(alt.id) + '">' +
+          escapeXml(alt.text) + '</description>' : '';
+      qrSvg += '<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>';
+      qrSvg += '<path d="';
+
+      for (r = 0; r < _this.getModuleCount(); r += 1) {
+        mr = r * cellSize + margin;
+        for (c = 0; c < _this.getModuleCount(); c += 1) {
+          if (_this.isDark(r, c) ) {
+            mc = c*cellSize+margin;
+            qrSvg += 'M' + mc + ',' + mr + rect;
+          }
+        }
+      }
+
+      qrSvg += '" stroke="transparent" fill="black"/>';
+      qrSvg += '</svg>';
+
+      return qrSvg;
+    };
+
+    _this.createDataURL = function(cellSize, margin) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      return createDataURL(size, size, function(x, y) {
+        if (min <= x && x < max && min <= y && y < max) {
+          var c = Math.floor( (x - min) / cellSize);
+          var r = Math.floor( (y - min) / cellSize);
+          return _this.isDark(r, c)? 0 : 1;
+        } else {
+          return 1;
+        }
+      } );
+    };
+
+    _this.createImgTag = function(cellSize, margin, alt) {
+
+      cellSize = cellSize || 2;
+      margin = (typeof margin == 'undefined')? cellSize * 4 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+
+      var img = '';
+      img += '<img';
+      img += '\u0020src="';
+      img += _this.createDataURL(cellSize, margin);
+      img += '"';
+      img += '\u0020width="';
+      img += size;
+      img += '"';
+      img += '\u0020height="';
+      img += size;
+      img += '"';
+      if (alt) {
+        img += '\u0020alt="';
+        img += escapeXml(alt);
+        img += '"';
+      }
+      img += '/>';
+
+      return img;
+    };
+
+    var escapeXml = function(s) {
+      var escaped = '';
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charAt(i);
+        switch(c) {
+        case '<': escaped += '&lt;'; break;
+        case '>': escaped += '&gt;'; break;
+        case '&': escaped += '&amp;'; break;
+        case '"': escaped += '&quot;'; break;
+        default : escaped += c; break;
+        }
+      }
+      return escaped;
+    };
+
+    var _createHalfASCII = function(margin) {
+      var cellSize = 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r1, r2, p;
+
+      var blocks = {
+        '██': '█',
+        '█ ': '▀',
+        ' █': '▄',
+        '  ': ' '
+      };
+
+      var blocksLastLineNoMargin = {
+        '██': '▀',
+        '█ ': '▀',
+        ' █': ' ',
+        '  ': ' '
+      };
+
+      var ascii = '';
+      for (y = 0; y < size; y += 2) {
+        r1 = Math.floor((y - min) / cellSize);
+        r2 = Math.floor((y + 1 - min) / cellSize);
+        for (x = 0; x < size; x += 1) {
+          p = '█';
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r1, Math.floor((x - min) / cellSize))) {
+            p = ' ';
+          }
+
+          if (min <= x && x < max && min <= y+1 && y+1 < max && _this.isDark(r2, Math.floor((x - min) / cellSize))) {
+            p += ' ';
+          }
+          else {
+            p += '█';
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          ascii += (margin < 1 && y+1 >= max) ? blocksLastLineNoMargin[p] : blocks[p];
+        }
+
+        ascii += '\n';
+      }
+
+      if (size % 2 && margin > 0) {
+        return ascii.substring(0, ascii.length - size - 1) + Array(size+1).join('▀');
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.createASCII = function(cellSize, margin) {
+      cellSize = cellSize || 1;
+
+      if (cellSize < 2) {
+        return _createHalfASCII(margin);
+      }
+
+      cellSize -= 1;
+      margin = (typeof margin == 'undefined')? cellSize * 2 : margin;
+
+      var size = _this.getModuleCount() * cellSize + margin * 2;
+      var min = margin;
+      var max = size - margin;
+
+      var y, x, r, p;
+
+      var white = Array(cellSize+1).join('██');
+      var black = Array(cellSize+1).join('  ');
+
+      var ascii = '';
+      var line = '';
+      for (y = 0; y < size; y += 1) {
+        r = Math.floor( (y - min) / cellSize);
+        line = '';
+        for (x = 0; x < size; x += 1) {
+          p = 1;
+
+          if (min <= x && x < max && min <= y && y < max && _this.isDark(r, Math.floor((x - min) / cellSize))) {
+            p = 0;
+          }
+
+          // Output 2 characters per pixel, to create full square. 1 character per pixels gives only half width of square.
+          line += p ? white : black;
+        }
+
+        for (r = 0; r < cellSize; r += 1) {
+          ascii += line + '\n';
+        }
+      }
+
+      return ascii.substring(0, ascii.length-1);
+    };
+
+    _this.renderTo2dContext = function(context, cellSize) {
+      cellSize = cellSize || 2;
+      var length = _this.getModuleCount();
+      for (var row = 0; row < length; row++) {
+        for (var col = 0; col < length; col++) {
+          context.fillStyle = _this.isDark(row, col) ? 'black' : 'white';
+          context.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+        }
+      }
+    }
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrcode.stringToBytes
+  //---------------------------------------------------------------------
+
+  qrcode.stringToBytesFuncs = {
+    'default' : function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        bytes.push(c & 0xff);
+      }
+      return bytes;
+    }
+  };
+
+  qrcode.stringToBytes = qrcode.stringToBytesFuncs['default'];
+
+  //---------------------------------------------------------------------
+  // qrcode.createStringToBytes
+  //---------------------------------------------------------------------
+
+  /**
+   * @param unicodeData base64 string of byte array.
+   * [16bit Unicode],[16bit Bytes], ...
+   * @param numChars
+   */
+  qrcode.createStringToBytes = function(unicodeData, numChars) {
+
+    // create conversion map.
+
+    var unicodeMap = function() {
+
+      var bin = base64DecodeInputStream(unicodeData);
+      var read = function() {
+        var b = bin.read();
+        if (b == -1) throw 'eof';
+        return b;
+      };
+
+      var count = 0;
+      var unicodeMap = {};
+      while (true) {
+        var b0 = bin.read();
+        if (b0 == -1) break;
+        var b1 = read();
+        var b2 = read();
+        var b3 = read();
+        var k = String.fromCharCode( (b0 << 8) | b1);
+        var v = (b2 << 8) | b3;
+        unicodeMap[k] = v;
+        count += 1;
+      }
+      if (count != numChars) {
+        throw count + ' != ' + numChars;
+      }
+
+      return unicodeMap;
+    }();
+
+    var unknownChar = '?'.charCodeAt(0);
+
+    return function(s) {
+      var bytes = [];
+      for (var i = 0; i < s.length; i += 1) {
+        var c = s.charCodeAt(i);
+        if (c < 128) {
+          bytes.push(c);
+        } else {
+          var b = unicodeMap[s.charAt(i)];
+          if (typeof b == 'number') {
+            if ( (b & 0xff) == b) {
+              // 1byte
+              bytes.push(b);
+            } else {
+              // 2bytes
+              bytes.push(b >>> 8);
+              bytes.push(b & 0xff);
+            }
+          } else {
+            bytes.push(unknownChar);
+          }
+        }
+      }
+      return bytes;
+    };
+  };
+
+  //---------------------------------------------------------------------
+  // QRMode
+  //---------------------------------------------------------------------
+
+  var QRMode = {
+    MODE_NUMBER :    1 << 0,
+    MODE_ALPHA_NUM : 1 << 1,
+    MODE_8BIT_BYTE : 1 << 2,
+    MODE_KANJI :     1 << 3
+  };
+
+  //---------------------------------------------------------------------
+  // QRErrorCorrectionLevel
+  //---------------------------------------------------------------------
+
+  var QRErrorCorrectionLevel = {
+    L : 1,
+    M : 0,
+    Q : 3,
+    H : 2
+  };
+
+  //---------------------------------------------------------------------
+  // QRMaskPattern
+  //---------------------------------------------------------------------
+
+  var QRMaskPattern = {
+    PATTERN000 : 0,
+    PATTERN001 : 1,
+    PATTERN010 : 2,
+    PATTERN011 : 3,
+    PATTERN100 : 4,
+    PATTERN101 : 5,
+    PATTERN110 : 6,
+    PATTERN111 : 7
+  };
+
+  //---------------------------------------------------------------------
+  // QRUtil
+  //---------------------------------------------------------------------
+
+  var QRUtil = function() {
+
+    var PATTERN_POSITION_TABLE = [
+      [],
+      [6, 18],
+      [6, 22],
+      [6, 26],
+      [6, 30],
+      [6, 34],
+      [6, 22, 38],
+      [6, 24, 42],
+      [6, 26, 46],
+      [6, 28, 50],
+      [6, 30, 54],
+      [6, 32, 58],
+      [6, 34, 62],
+      [6, 26, 46, 66],
+      [6, 26, 48, 70],
+      [6, 26, 50, 74],
+      [6, 30, 54, 78],
+      [6, 30, 56, 82],
+      [6, 30, 58, 86],
+      [6, 34, 62, 90],
+      [6, 28, 50, 72, 94],
+      [6, 26, 50, 74, 98],
+      [6, 30, 54, 78, 102],
+      [6, 28, 54, 80, 106],
+      [6, 32, 58, 84, 110],
+      [6, 30, 58, 86, 114],
+      [6, 34, 62, 90, 118],
+      [6, 26, 50, 74, 98, 122],
+      [6, 30, 54, 78, 102, 126],
+      [6, 26, 52, 78, 104, 130],
+      [6, 30, 56, 82, 108, 134],
+      [6, 34, 60, 86, 112, 138],
+      [6, 30, 58, 86, 114, 142],
+      [6, 34, 62, 90, 118, 146],
+      [6, 30, 54, 78, 102, 126, 150],
+      [6, 24, 50, 76, 102, 128, 154],
+      [6, 28, 54, 80, 106, 132, 158],
+      [6, 32, 58, 84, 110, 136, 162],
+      [6, 26, 54, 82, 110, 138, 166],
+      [6, 30, 58, 86, 114, 142, 170]
+    ];
+    var G15 = (1 << 10) | (1 << 8) | (1 << 5) | (1 << 4) | (1 << 2) | (1 << 1) | (1 << 0);
+    var G18 = (1 << 12) | (1 << 11) | (1 << 10) | (1 << 9) | (1 << 8) | (1 << 5) | (1 << 2) | (1 << 0);
+    var G15_MASK = (1 << 14) | (1 << 12) | (1 << 10) | (1 << 4) | (1 << 1);
+
+    var _this = {};
+
+    var getBCHDigit = function(data) {
+      var digit = 0;
+      while (data != 0) {
+        digit += 1;
+        data >>>= 1;
+      }
+      return digit;
+    };
+
+    _this.getBCHTypeInfo = function(data) {
+      var d = data << 10;
+      while (getBCHDigit(d) - getBCHDigit(G15) >= 0) {
+        d ^= (G15 << (getBCHDigit(d) - getBCHDigit(G15) ) );
+      }
+      return ( (data << 10) | d) ^ G15_MASK;
+    };
+
+    _this.getBCHTypeNumber = function(data) {
+      var d = data << 12;
+      while (getBCHDigit(d) - getBCHDigit(G18) >= 0) {
+        d ^= (G18 << (getBCHDigit(d) - getBCHDigit(G18) ) );
+      }
+      return (data << 12) | d;
+    };
+
+    _this.getPatternPosition = function(typeNumber) {
+      return PATTERN_POSITION_TABLE[typeNumber - 1];
+    };
+
+    _this.getMaskFunction = function(maskPattern) {
+
+      switch (maskPattern) {
+
+      case QRMaskPattern.PATTERN000 :
+        return function(i, j) { return (i + j) % 2 == 0; };
+      case QRMaskPattern.PATTERN001 :
+        return function(i, j) { return i % 2 == 0; };
+      case QRMaskPattern.PATTERN010 :
+        return function(i, j) { return j % 3 == 0; };
+      case QRMaskPattern.PATTERN011 :
+        return function(i, j) { return (i + j) % 3 == 0; };
+      case QRMaskPattern.PATTERN100 :
+        return function(i, j) { return (Math.floor(i / 2) + Math.floor(j / 3) ) % 2 == 0; };
+      case QRMaskPattern.PATTERN101 :
+        return function(i, j) { return (i * j) % 2 + (i * j) % 3 == 0; };
+      case QRMaskPattern.PATTERN110 :
+        return function(i, j) { return ( (i * j) % 2 + (i * j) % 3) % 2 == 0; };
+      case QRMaskPattern.PATTERN111 :
+        return function(i, j) { return ( (i * j) % 3 + (i + j) % 2) % 2 == 0; };
+
+      default :
+        throw 'bad maskPattern:' + maskPattern;
+      }
+    };
+
+    _this.getErrorCorrectPolynomial = function(errorCorrectLength) {
+      var a = qrPolynomial([1], 0);
+      for (var i = 0; i < errorCorrectLength; i += 1) {
+        a = a.multiply(qrPolynomial([1, QRMath.gexp(i)], 0) );
+      }
+      return a;
+    };
+
+    _this.getLengthInBits = function(mode, type) {
+
+      if (1 <= type && type < 10) {
+
+        // 1 - 9
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 10;
+        case QRMode.MODE_ALPHA_NUM : return 9;
+        case QRMode.MODE_8BIT_BYTE : return 8;
+        case QRMode.MODE_KANJI     : return 8;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 27) {
+
+        // 10 - 26
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 12;
+        case QRMode.MODE_ALPHA_NUM : return 11;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 10;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else if (type < 41) {
+
+        // 27 - 40
+
+        switch(mode) {
+        case QRMode.MODE_NUMBER    : return 14;
+        case QRMode.MODE_ALPHA_NUM : return 13;
+        case QRMode.MODE_8BIT_BYTE : return 16;
+        case QRMode.MODE_KANJI     : return 12;
+        default :
+          throw 'mode:' + mode;
+        }
+
+      } else {
+        throw 'type:' + type;
+      }
+    };
+
+    _this.getLostPoint = function(qrcode) {
+
+      var moduleCount = qrcode.getModuleCount();
+
+      var lostPoint = 0;
+
+      // LEVEL1
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount; col += 1) {
+
+          var sameCount = 0;
+          var dark = qrcode.isDark(row, col);
+
+          for (var r = -1; r <= 1; r += 1) {
+
+            if (row + r < 0 || moduleCount <= row + r) {
+              continue;
+            }
+
+            for (var c = -1; c <= 1; c += 1) {
+
+              if (col + c < 0 || moduleCount <= col + c) {
+                continue;
+              }
+
+              if (r == 0 && c == 0) {
+                continue;
+              }
+
+              if (dark == qrcode.isDark(row + r, col + c) ) {
+                sameCount += 1;
+              }
+            }
+          }
+
+          if (sameCount > 5) {
+            lostPoint += (3 + sameCount - 5);
+          }
+        }
+      };
+
+      // LEVEL2
+
+      for (var row = 0; row < moduleCount - 1; row += 1) {
+        for (var col = 0; col < moduleCount - 1; col += 1) {
+          var count = 0;
+          if (qrcode.isDark(row, col) ) count += 1;
+          if (qrcode.isDark(row + 1, col) ) count += 1;
+          if (qrcode.isDark(row, col + 1) ) count += 1;
+          if (qrcode.isDark(row + 1, col + 1) ) count += 1;
+          if (count == 0 || count == 4) {
+            lostPoint += 3;
+          }
+        }
+      }
+
+      // LEVEL3
+
+      for (var row = 0; row < moduleCount; row += 1) {
+        for (var col = 0; col < moduleCount - 6; col += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row, col + 1)
+              &&  qrcode.isDark(row, col + 2)
+              &&  qrcode.isDark(row, col + 3)
+              &&  qrcode.isDark(row, col + 4)
+              && !qrcode.isDark(row, col + 5)
+              &&  qrcode.isDark(row, col + 6) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount - 6; row += 1) {
+          if (qrcode.isDark(row, col)
+              && !qrcode.isDark(row + 1, col)
+              &&  qrcode.isDark(row + 2, col)
+              &&  qrcode.isDark(row + 3, col)
+              &&  qrcode.isDark(row + 4, col)
+              && !qrcode.isDark(row + 5, col)
+              &&  qrcode.isDark(row + 6, col) ) {
+            lostPoint += 40;
+          }
+        }
+      }
+
+      // LEVEL4
+
+      var darkCount = 0;
+
+      for (var col = 0; col < moduleCount; col += 1) {
+        for (var row = 0; row < moduleCount; row += 1) {
+          if (qrcode.isDark(row, col) ) {
+            darkCount += 1;
+          }
+        }
+      }
+
+      var ratio = Math.abs(100 * darkCount / moduleCount / moduleCount - 50) / 5;
+      lostPoint += ratio * 10;
+
+      return lostPoint;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // QRMath
+  //---------------------------------------------------------------------
+
+  var QRMath = function() {
+
+    var EXP_TABLE = new Array(256);
+    var LOG_TABLE = new Array(256);
+
+    // initialize tables
+    for (var i = 0; i < 8; i += 1) {
+      EXP_TABLE[i] = 1 << i;
+    }
+    for (var i = 8; i < 256; i += 1) {
+      EXP_TABLE[i] = EXP_TABLE[i - 4]
+        ^ EXP_TABLE[i - 5]
+        ^ EXP_TABLE[i - 6]
+        ^ EXP_TABLE[i - 8];
+    }
+    for (var i = 0; i < 255; i += 1) {
+      LOG_TABLE[EXP_TABLE[i] ] = i;
+    }
+
+    var _this = {};
+
+    _this.glog = function(n) {
+
+      if (n < 1) {
+        throw 'glog(' + n + ')';
+      }
+
+      return LOG_TABLE[n];
+    };
+
+    _this.gexp = function(n) {
+
+      while (n < 0) {
+        n += 255;
+      }
+
+      while (n >= 256) {
+        n -= 255;
+      }
+
+      return EXP_TABLE[n];
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrPolynomial
+  //---------------------------------------------------------------------
+
+  function qrPolynomial(num, shift) {
+
+    if (typeof num.length == 'undefined') {
+      throw num.length + '/' + shift;
+    }
+
+    var _num = function() {
+      var offset = 0;
+      while (offset < num.length && num[offset] == 0) {
+        offset += 1;
+      }
+      var _num = new Array(num.length - offset + shift);
+      for (var i = 0; i < num.length - offset; i += 1) {
+        _num[i] = num[i + offset];
+      }
+      return _num;
+    }();
+
+    var _this = {};
+
+    _this.getAt = function(index) {
+      return _num[index];
+    };
+
+    _this.getLength = function() {
+      return _num.length;
+    };
+
+    _this.multiply = function(e) {
+
+      var num = new Array(_this.getLength() + e.getLength() - 1);
+
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        for (var j = 0; j < e.getLength(); j += 1) {
+          num[i + j] ^= QRMath.gexp(QRMath.glog(_this.getAt(i) ) + QRMath.glog(e.getAt(j) ) );
+        }
+      }
+
+      return qrPolynomial(num, 0);
+    };
+
+    _this.mod = function(e) {
+
+      if (_this.getLength() - e.getLength() < 0) {
+        return _this;
+      }
+
+      var ratio = QRMath.glog(_this.getAt(0) ) - QRMath.glog(e.getAt(0) );
+
+      var num = new Array(_this.getLength() );
+      for (var i = 0; i < _this.getLength(); i += 1) {
+        num[i] = _this.getAt(i);
+      }
+
+      for (var i = 0; i < e.getLength(); i += 1) {
+        num[i] ^= QRMath.gexp(QRMath.glog(e.getAt(i) ) + ratio);
+      }
+
+      // recursive call
+      return qrPolynomial(num, 0).mod(e);
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // QRRSBlock
+  //---------------------------------------------------------------------
+
+  var QRRSBlock = function() {
+
+    var RS_BLOCK_TABLE = [
+
+      // L
+      // M
+      // Q
+      // H
+
+      // 1
+      [1, 26, 19],
+      [1, 26, 16],
+      [1, 26, 13],
+      [1, 26, 9],
+
+      // 2
+      [1, 44, 34],
+      [1, 44, 28],
+      [1, 44, 22],
+      [1, 44, 16],
+
+      // 3
+      [1, 70, 55],
+      [1, 70, 44],
+      [2, 35, 17],
+      [2, 35, 13],
+
+      // 4
+      [1, 100, 80],
+      [2, 50, 32],
+      [2, 50, 24],
+      [4, 25, 9],
+
+      // 5
+      [1, 134, 108],
+      [2, 67, 43],
+      [2, 33, 15, 2, 34, 16],
+      [2, 33, 11, 2, 34, 12],
+
+      // 6
+      [2, 86, 68],
+      [4, 43, 27],
+      [4, 43, 19],
+      [4, 43, 15],
+
+      // 7
+      [2, 98, 78],
+      [4, 49, 31],
+      [2, 32, 14, 4, 33, 15],
+      [4, 39, 13, 1, 40, 14],
+
+      // 8
+      [2, 121, 97],
+      [2, 60, 38, 2, 61, 39],
+      [4, 40, 18, 2, 41, 19],
+      [4, 40, 14, 2, 41, 15],
+
+      // 9
+      [2, 146, 116],
+      [3, 58, 36, 2, 59, 37],
+      [4, 36, 16, 4, 37, 17],
+      [4, 36, 12, 4, 37, 13],
+
+      // 10
+      [2, 86, 68, 2, 87, 69],
+      [4, 69, 43, 1, 70, 44],
+      [6, 43, 19, 2, 44, 20],
+      [6, 43, 15, 2, 44, 16],
+
+      // 11
+      [4, 101, 81],
+      [1, 80, 50, 4, 81, 51],
+      [4, 50, 22, 4, 51, 23],
+      [3, 36, 12, 8, 37, 13],
+
+      // 12
+      [2, 116, 92, 2, 117, 93],
+      [6, 58, 36, 2, 59, 37],
+      [4, 46, 20, 6, 47, 21],
+      [7, 42, 14, 4, 43, 15],
+
+      // 13
+      [4, 133, 107],
+      [8, 59, 37, 1, 60, 38],
+      [8, 44, 20, 4, 45, 21],
+      [12, 33, 11, 4, 34, 12],
+
+      // 14
+      [3, 145, 115, 1, 146, 116],
+      [4, 64, 40, 5, 65, 41],
+      [11, 36, 16, 5, 37, 17],
+      [11, 36, 12, 5, 37, 13],
+
+      // 15
+      [5, 109, 87, 1, 110, 88],
+      [5, 65, 41, 5, 66, 42],
+      [5, 54, 24, 7, 55, 25],
+      [11, 36, 12, 7, 37, 13],
+
+      // 16
+      [5, 122, 98, 1, 123, 99],
+      [7, 73, 45, 3, 74, 46],
+      [15, 43, 19, 2, 44, 20],
+      [3, 45, 15, 13, 46, 16],
+
+      // 17
+      [1, 135, 107, 5, 136, 108],
+      [10, 74, 46, 1, 75, 47],
+      [1, 50, 22, 15, 51, 23],
+      [2, 42, 14, 17, 43, 15],
+
+      // 18
+      [5, 150, 120, 1, 151, 121],
+      [9, 69, 43, 4, 70, 44],
+      [17, 50, 22, 1, 51, 23],
+      [2, 42, 14, 19, 43, 15],
+
+      // 19
+      [3, 141, 113, 4, 142, 114],
+      [3, 70, 44, 11, 71, 45],
+      [17, 47, 21, 4, 48, 22],
+      [9, 39, 13, 16, 40, 14],
+
+      // 20
+      [3, 135, 107, 5, 136, 108],
+      [3, 67, 41, 13, 68, 42],
+      [15, 54, 24, 5, 55, 25],
+      [15, 43, 15, 10, 44, 16],
+
+      // 21
+      [4, 144, 116, 4, 145, 117],
+      [17, 68, 42],
+      [17, 50, 22, 6, 51, 23],
+      [19, 46, 16, 6, 47, 17],
+
+      // 22
+      [2, 139, 111, 7, 140, 112],
+      [17, 74, 46],
+      [7, 54, 24, 16, 55, 25],
+      [34, 37, 13],
+
+      // 23
+      [4, 151, 121, 5, 152, 122],
+      [4, 75, 47, 14, 76, 48],
+      [11, 54, 24, 14, 55, 25],
+      [16, 45, 15, 14, 46, 16],
+
+      // 24
+      [6, 147, 117, 4, 148, 118],
+      [6, 73, 45, 14, 74, 46],
+      [11, 54, 24, 16, 55, 25],
+      [30, 46, 16, 2, 47, 17],
+
+      // 25
+      [8, 132, 106, 4, 133, 107],
+      [8, 75, 47, 13, 76, 48],
+      [7, 54, 24, 22, 55, 25],
+      [22, 45, 15, 13, 46, 16],
+
+      // 26
+      [10, 142, 114, 2, 143, 115],
+      [19, 74, 46, 4, 75, 47],
+      [28, 50, 22, 6, 51, 23],
+      [33, 46, 16, 4, 47, 17],
+
+      // 27
+      [8, 152, 122, 4, 153, 123],
+      [22, 73, 45, 3, 74, 46],
+      [8, 53, 23, 26, 54, 24],
+      [12, 45, 15, 28, 46, 16],
+
+      // 28
+      [3, 147, 117, 10, 148, 118],
+      [3, 73, 45, 23, 74, 46],
+      [4, 54, 24, 31, 55, 25],
+      [11, 45, 15, 31, 46, 16],
+
+      // 29
+      [7, 146, 116, 7, 147, 117],
+      [21, 73, 45, 7, 74, 46],
+      [1, 53, 23, 37, 54, 24],
+      [19, 45, 15, 26, 46, 16],
+
+      // 30
+      [5, 145, 115, 10, 146, 116],
+      [19, 75, 47, 10, 76, 48],
+      [15, 54, 24, 25, 55, 25],
+      [23, 45, 15, 25, 46, 16],
+
+      // 31
+      [13, 145, 115, 3, 146, 116],
+      [2, 74, 46, 29, 75, 47],
+      [42, 54, 24, 1, 55, 25],
+      [23, 45, 15, 28, 46, 16],
+
+      // 32
+      [17, 145, 115],
+      [10, 74, 46, 23, 75, 47],
+      [10, 54, 24, 35, 55, 25],
+      [19, 45, 15, 35, 46, 16],
+
+      // 33
+      [17, 145, 115, 1, 146, 116],
+      [14, 74, 46, 21, 75, 47],
+      [29, 54, 24, 19, 55, 25],
+      [11, 45, 15, 46, 46, 16],
+
+      // 34
+      [13, 145, 115, 6, 146, 116],
+      [14, 74, 46, 23, 75, 47],
+      [44, 54, 24, 7, 55, 25],
+      [59, 46, 16, 1, 47, 17],
+
+      // 35
+      [12, 151, 121, 7, 152, 122],
+      [12, 75, 47, 26, 76, 48],
+      [39, 54, 24, 14, 55, 25],
+      [22, 45, 15, 41, 46, 16],
+
+      // 36
+      [6, 151, 121, 14, 152, 122],
+      [6, 75, 47, 34, 76, 48],
+      [46, 54, 24, 10, 55, 25],
+      [2, 45, 15, 64, 46, 16],
+
+      // 37
+      [17, 152, 122, 4, 153, 123],
+      [29, 74, 46, 14, 75, 47],
+      [49, 54, 24, 10, 55, 25],
+      [24, 45, 15, 46, 46, 16],
+
+      // 38
+      [4, 152, 122, 18, 153, 123],
+      [13, 74, 46, 32, 75, 47],
+      [48, 54, 24, 14, 55, 25],
+      [42, 45, 15, 32, 46, 16],
+
+      // 39
+      [20, 147, 117, 4, 148, 118],
+      [40, 75, 47, 7, 76, 48],
+      [43, 54, 24, 22, 55, 25],
+      [10, 45, 15, 67, 46, 16],
+
+      // 40
+      [19, 148, 118, 6, 149, 119],
+      [18, 75, 47, 31, 76, 48],
+      [34, 54, 24, 34, 55, 25],
+      [20, 45, 15, 61, 46, 16]
+    ];
+
+    var qrRSBlock = function(totalCount, dataCount) {
+      var _this = {};
+      _this.totalCount = totalCount;
+      _this.dataCount = dataCount;
+      return _this;
+    };
+
+    var _this = {};
+
+    var getRsBlockTable = function(typeNumber, errorCorrectionLevel) {
+
+      switch(errorCorrectionLevel) {
+      case QRErrorCorrectionLevel.L :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 0];
+      case QRErrorCorrectionLevel.M :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 1];
+      case QRErrorCorrectionLevel.Q :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 2];
+      case QRErrorCorrectionLevel.H :
+        return RS_BLOCK_TABLE[(typeNumber - 1) * 4 + 3];
+      default :
+        return undefined;
+      }
+    };
+
+    _this.getRSBlocks = function(typeNumber, errorCorrectionLevel) {
+
+      var rsBlock = getRsBlockTable(typeNumber, errorCorrectionLevel);
+
+      if (typeof rsBlock == 'undefined') {
+        throw 'bad rs block @ typeNumber:' + typeNumber +
+            '/errorCorrectionLevel:' + errorCorrectionLevel;
+      }
+
+      var length = rsBlock.length / 3;
+
+      var list = [];
+
+      for (var i = 0; i < length; i += 1) {
+
+        var count = rsBlock[i * 3 + 0];
+        var totalCount = rsBlock[i * 3 + 1];
+        var dataCount = rsBlock[i * 3 + 2];
+
+        for (var j = 0; j < count; j += 1) {
+          list.push(qrRSBlock(totalCount, dataCount) );
+        }
+      }
+
+      return list;
+    };
+
+    return _this;
+  }();
+
+  //---------------------------------------------------------------------
+  // qrBitBuffer
+  //---------------------------------------------------------------------
+
+  var qrBitBuffer = function() {
+
+    var _buffer = [];
+    var _length = 0;
+
+    var _this = {};
+
+    _this.getBuffer = function() {
+      return _buffer;
+    };
+
+    _this.getAt = function(index) {
+      var bufIndex = Math.floor(index / 8);
+      return ( (_buffer[bufIndex] >>> (7 - index % 8) ) & 1) == 1;
+    };
+
+    _this.put = function(num, length) {
+      for (var i = 0; i < length; i += 1) {
+        _this.putBit( ( (num >>> (length - i - 1) ) & 1) == 1);
+      }
+    };
+
+    _this.getLengthInBits = function() {
+      return _length;
+    };
+
+    _this.putBit = function(bit) {
+
+      var bufIndex = Math.floor(_length / 8);
+      if (_buffer.length <= bufIndex) {
+        _buffer.push(0);
+      }
+
+      if (bit) {
+        _buffer[bufIndex] |= (0x80 >>> (_length % 8) );
+      }
+
+      _length += 1;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrNumber
+  //---------------------------------------------------------------------
+
+  var qrNumber = function(data) {
+
+    var _mode = QRMode.MODE_NUMBER;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _data;
+
+      var i = 0;
+
+      while (i + 2 < data.length) {
+        buffer.put(strToNum(data.substring(i, i + 3) ), 10);
+        i += 3;
+      }
+
+      if (i < data.length) {
+        if (data.length - i == 1) {
+          buffer.put(strToNum(data.substring(i, i + 1) ), 4);
+        } else if (data.length - i == 2) {
+          buffer.put(strToNum(data.substring(i, i + 2) ), 7);
+        }
+      }
+    };
+
+    var strToNum = function(s) {
+      var num = 0;
+      for (var i = 0; i < s.length; i += 1) {
+        num = num * 10 + chatToNum(s.charAt(i) );
+      }
+      return num;
+    };
+
+    var chatToNum = function(c) {
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      }
+      throw 'illegal char :' + c;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrAlphaNum
+  //---------------------------------------------------------------------
+
+  var qrAlphaNum = function(data) {
+
+    var _mode = QRMode.MODE_ALPHA_NUM;
+    var _data = data;
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _data.length;
+    };
+
+    _this.write = function(buffer) {
+
+      var s = _data;
+
+      var i = 0;
+
+      while (i + 1 < s.length) {
+        buffer.put(
+          getCode(s.charAt(i) ) * 45 +
+          getCode(s.charAt(i + 1) ), 11);
+        i += 2;
+      }
+
+      if (i < s.length) {
+        buffer.put(getCode(s.charAt(i) ), 6);
+      }
+    };
+
+    var getCode = function(c) {
+
+      if ('0' <= c && c <= '9') {
+        return c.charCodeAt(0) - '0'.charCodeAt(0);
+      } else if ('A' <= c && c <= 'Z') {
+        return c.charCodeAt(0) - 'A'.charCodeAt(0) + 10;
+      } else {
+        switch (c) {
+        case ' ' : return 36;
+        case '$' : return 37;
+        case '%' : return 38;
+        case '*' : return 39;
+        case '+' : return 40;
+        case '-' : return 41;
+        case '.' : return 42;
+        case '/' : return 43;
+        case ':' : return 44;
+        default :
+          throw 'illegal char :' + c;
+        }
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qr8BitByte
+  //---------------------------------------------------------------------
+
+  var qr8BitByte = function(data) {
+
+    var _mode = QRMode.MODE_8BIT_BYTE;
+    var _data = data;
+    var _bytes = qrcode.stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return _bytes.length;
+    };
+
+    _this.write = function(buffer) {
+      for (var i = 0; i < _bytes.length; i += 1) {
+        buffer.put(_bytes[i], 8);
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // qrKanji
+  //---------------------------------------------------------------------
+
+  var qrKanji = function(data) {
+
+    var _mode = QRMode.MODE_KANJI;
+    var _data = data;
+
+    var stringToBytes = qrcode.stringToBytesFuncs['SJIS'];
+    if (!stringToBytes) {
+      throw 'sjis not supported.';
+    }
+    !function(c, code) {
+      // self test for sjis support.
+      var test = stringToBytes(c);
+      if (test.length != 2 || ( (test[0] << 8) | test[1]) != code) {
+        throw 'sjis not supported.';
+      }
+    }('\u53cb', 0x9746);
+
+    var _bytes = stringToBytes(data);
+
+    var _this = {};
+
+    _this.getMode = function() {
+      return _mode;
+    };
+
+    _this.getLength = function(buffer) {
+      return ~~(_bytes.length / 2);
+    };
+
+    _this.write = function(buffer) {
+
+      var data = _bytes;
+
+      var i = 0;
+
+      while (i + 1 < data.length) {
+
+        var c = ( (0xff & data[i]) << 8) | (0xff & data[i + 1]);
+
+        if (0x8140 <= c && c <= 0x9FFC) {
+          c -= 0x8140;
+        } else if (0xE040 <= c && c <= 0xEBBF) {
+          c -= 0xC140;
+        } else {
+          throw 'illegal char at ' + (i + 1) + '/' + c;
+        }
+
+        c = ( (c >>> 8) & 0xff) * 0xC0 + (c & 0xff);
+
+        buffer.put(c, 13);
+
+        i += 2;
+      }
+
+      if (i < data.length) {
+        throw 'illegal char at ' + (i + 1);
+      }
+    };
+
+    return _this;
+  };
+
+  //=====================================================================
+  // GIF Support etc.
+  //
+
+  //---------------------------------------------------------------------
+  // byteArrayOutputStream
+  //---------------------------------------------------------------------
+
+  var byteArrayOutputStream = function() {
+
+    var _bytes = [];
+
+    var _this = {};
+
+    _this.writeByte = function(b) {
+      _bytes.push(b & 0xff);
+    };
+
+    _this.writeShort = function(i) {
+      _this.writeByte(i);
+      _this.writeByte(i >>> 8);
+    };
+
+    _this.writeBytes = function(b, off, len) {
+      off = off || 0;
+      len = len || b.length;
+      for (var i = 0; i < len; i += 1) {
+        _this.writeByte(b[i + off]);
+      }
+    };
+
+    _this.writeString = function(s) {
+      for (var i = 0; i < s.length; i += 1) {
+        _this.writeByte(s.charCodeAt(i) );
+      }
+    };
+
+    _this.toByteArray = function() {
+      return _bytes;
+    };
+
+    _this.toString = function() {
+      var s = '';
+      s += '[';
+      for (var i = 0; i < _bytes.length; i += 1) {
+        if (i > 0) {
+          s += ',';
+        }
+        s += _bytes[i];
+      }
+      s += ']';
+      return s;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64EncodeOutputStream
+  //---------------------------------------------------------------------
+
+  var base64EncodeOutputStream = function() {
+
+    var _buffer = 0;
+    var _buflen = 0;
+    var _length = 0;
+    var _base64 = '';
+
+    var _this = {};
+
+    var writeEncoded = function(b) {
+      _base64 += String.fromCharCode(encode(b & 0x3f) );
+    };
+
+    var encode = function(n) {
+      if (n < 0) {
+        // error.
+      } else if (n < 26) {
+        return 0x41 + n;
+      } else if (n < 52) {
+        return 0x61 + (n - 26);
+      } else if (n < 62) {
+        return 0x30 + (n - 52);
+      } else if (n == 62) {
+        return 0x2b;
+      } else if (n == 63) {
+        return 0x2f;
+      }
+      throw 'n:' + n;
+    };
+
+    _this.writeByte = function(n) {
+
+      _buffer = (_buffer << 8) | (n & 0xff);
+      _buflen += 8;
+      _length += 1;
+
+      while (_buflen >= 6) {
+        writeEncoded(_buffer >>> (_buflen - 6) );
+        _buflen -= 6;
+      }
+    };
+
+    _this.flush = function() {
+
+      if (_buflen > 0) {
+        writeEncoded(_buffer << (6 - _buflen) );
+        _buffer = 0;
+        _buflen = 0;
+      }
+
+      if (_length % 3 != 0) {
+        // padding
+        var padlen = 3 - _length % 3;
+        for (var i = 0; i < padlen; i += 1) {
+          _base64 += '=';
+        }
+      }
+    };
+
+    _this.toString = function() {
+      return _base64;
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // base64DecodeInputStream
+  //---------------------------------------------------------------------
+
+  var base64DecodeInputStream = function(str) {
+
+    var _str = str;
+    var _pos = 0;
+    var _buffer = 0;
+    var _buflen = 0;
+
+    var _this = {};
+
+    _this.read = function() {
+
+      while (_buflen < 8) {
+
+        if (_pos >= _str.length) {
+          if (_buflen == 0) {
+            return -1;
+          }
+          throw 'unexpected end of file./' + _buflen;
+        }
+
+        var c = _str.charAt(_pos);
+        _pos += 1;
+
+        if (c == '=') {
+          _buflen = 0;
+          return -1;
+        } else if (c.match(/^\s$/) ) {
+          // ignore if whitespace.
+          continue;
+        }
+
+        _buffer = (_buffer << 6) | decode(c.charCodeAt(0) );
+        _buflen += 6;
+      }
+
+      var n = (_buffer >>> (_buflen - 8) ) & 0xff;
+      _buflen -= 8;
+      return n;
+    };
+
+    var decode = function(c) {
+      if (0x41 <= c && c <= 0x5a) {
+        return c - 0x41;
+      } else if (0x61 <= c && c <= 0x7a) {
+        return c - 0x61 + 26;
+      } else if (0x30 <= c && c <= 0x39) {
+        return c - 0x30 + 52;
+      } else if (c == 0x2b) {
+        return 62;
+      } else if (c == 0x2f) {
+        return 63;
+      } else {
+        throw 'c:' + c;
+      }
+    };
+
+    return _this;
+  };
+
+  //---------------------------------------------------------------------
+  // gifImage (B/W)
+  //---------------------------------------------------------------------
+
+  var gifImage = function(width, height) {
+
+    var _width = width;
+    var _height = height;
+    var _data = new Array(width * height);
+
+    var _this = {};
+
+    _this.setPixel = function(x, y, pixel) {
+      _data[y * _width + x] = pixel;
+    };
+
+    _this.write = function(out) {
+
+      //---------------------------------
+      // GIF Signature
+
+      out.writeString('GIF87a');
+
+      //---------------------------------
+      // Screen Descriptor
+
+      out.writeShort(_width);
+      out.writeShort(_height);
+
+      out.writeByte(0x80); // 2bit
+      out.writeByte(0);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Global Color Map
+
+      // black
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+      out.writeByte(0x00);
+
+      // white
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+      out.writeByte(0xff);
+
+      //---------------------------------
+      // Image Descriptor
+
+      out.writeString(',');
+      out.writeShort(0);
+      out.writeShort(0);
+      out.writeShort(_width);
+      out.writeShort(_height);
+      out.writeByte(0);
+
+      //---------------------------------
+      // Local Color Map
+
+      //---------------------------------
+      // Raster Data
+
+      var lzwMinCodeSize = 2;
+      var raster = getLZWRaster(lzwMinCodeSize);
+
+      out.writeByte(lzwMinCodeSize);
+
+      var offset = 0;
+
+      while (raster.length - offset > 255) {
+        out.writeByte(255);
+        out.writeBytes(raster, offset, 255);
+        offset += 255;
+      }
+
+      out.writeByte(raster.length - offset);
+      out.writeBytes(raster, offset, raster.length - offset);
+      out.writeByte(0x00);
+
+      //---------------------------------
+      // GIF Terminator
+      out.writeString(';');
+    };
+
+    var bitOutputStream = function(out) {
+
+      var _out = out;
+      var _bitLength = 0;
+      var _bitBuffer = 0;
+
+      var _this = {};
+
+      _this.write = function(data, length) {
+
+        if ( (data >>> length) != 0) {
+          throw 'length over';
+        }
+
+        while (_bitLength + length >= 8) {
+          _out.writeByte(0xff & ( (data << _bitLength) | _bitBuffer) );
+          length -= (8 - _bitLength);
+          data >>>= (8 - _bitLength);
+          _bitBuffer = 0;
+          _bitLength = 0;
+        }
+
+        _bitBuffer = (data << _bitLength) | _bitBuffer;
+        _bitLength = _bitLength + length;
+      };
+
+      _this.flush = function() {
+        if (_bitLength > 0) {
+          _out.writeByte(_bitBuffer);
+        }
+      };
+
+      return _this;
+    };
+
+    var getLZWRaster = function(lzwMinCodeSize) {
+
+      var clearCode = 1 << lzwMinCodeSize;
+      var endCode = (1 << lzwMinCodeSize) + 1;
+      var bitLength = lzwMinCodeSize + 1;
+
+      // Setup LZWTable
+      var table = lzwTable();
+
+      for (var i = 0; i < clearCode; i += 1) {
+        table.add(String.fromCharCode(i) );
+      }
+      table.add(String.fromCharCode(clearCode) );
+      table.add(String.fromCharCode(endCode) );
+
+      var byteOut = byteArrayOutputStream();
+      var bitOut = bitOutputStream(byteOut);
+
+      // clear code
+      bitOut.write(clearCode, bitLength);
+
+      var dataIndex = 0;
+
+      var s = String.fromCharCode(_data[dataIndex]);
+      dataIndex += 1;
+
+      while (dataIndex < _data.length) {
+
+        var c = String.fromCharCode(_data[dataIndex]);
+        dataIndex += 1;
+
+        if (table.contains(s + c) ) {
+
+          s = s + c;
+
+        } else {
+
+          bitOut.write(table.indexOf(s), bitLength);
+
+          if (table.size() < 0xfff) {
+
+            if (table.size() == (1 << bitLength) ) {
+              bitLength += 1;
+            }
+
+            table.add(s + c);
+          }
+
+          s = c;
+        }
+      }
+
+      bitOut.write(table.indexOf(s), bitLength);
+
+      // end code
+      bitOut.write(endCode, bitLength);
+
+      bitOut.flush();
+
+      return byteOut.toByteArray();
+    };
+
+    var lzwTable = function() {
+
+      var _map = {};
+      var _size = 0;
+
+      var _this = {};
+
+      _this.add = function(key) {
+        if (_this.contains(key) ) {
+          throw 'dup key:' + key;
+        }
+        _map[key] = _size;
+        _size += 1;
+      };
+
+      _this.size = function() {
+        return _size;
+      };
+
+      _this.indexOf = function(key) {
+        return _map[key];
+      };
+
+      _this.contains = function(key) {
+        return typeof _map[key] != 'undefined';
+      };
+
+      return _this;
+    };
+
+    return _this;
+  };
+
+  var createDataURL = function(width, height, getPixel) {
+    var gif = gifImage(width, height);
+    for (var y = 0; y < height; y += 1) {
+      for (var x = 0; x < width; x += 1) {
+        gif.setPixel(x, y, getPixel(x, y) );
+      }
+    }
+
+    var b = byteArrayOutputStream();
+    gif.write(b);
+
+    var base64 = base64EncodeOutputStream();
+    var bytes = b.toByteArray();
+    for (var i = 0; i < bytes.length; i += 1) {
+      base64.writeByte(bytes[i]);
+    }
+    base64.flush();
+
+    return 'data:image/gif;base64,' + base64;
+  };
+
+  //---------------------------------------------------------------------
+  // returns qrcode function.
+
+  return qrcode;
+}();
+
+// multibyte support
+!function() {
+
+  qrcode.stringToBytesFuncs['UTF-8'] = function(s) {
+    // http://stackoverflow.com/questions/18729405/how-to-convert-utf8-string-to-byte-array
+    function toUTF8Array(str) {
+      var utf8 = [];
+      for (var i=0; i < str.length; i++) {
+        var charcode = str.charCodeAt(i);
+        if (charcode < 0x80) utf8.push(charcode);
+        else if (charcode < 0x800) {
+          utf8.push(0xc0 | (charcode >> 6),
+              0x80 | (charcode & 0x3f));
+        }
+        else if (charcode < 0xd800 || charcode >= 0xe000) {
+          utf8.push(0xe0 | (charcode >> 12),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+        // surrogate pair
+        else {
+          i++;
+          // UTF-16 encodes 0x10000-0x10FFFF by
+          // subtracting 0x10000 and splitting the
+          // 20 bits of 0x0-0xFFFFF into two halves
+          charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+            | (str.charCodeAt(i) & 0x3ff));
+          utf8.push(0xf0 | (charcode >>18),
+              0x80 | ((charcode>>12) & 0x3f),
+              0x80 | ((charcode>>6) & 0x3f),
+              0x80 | (charcode & 0x3f));
+        }
+      }
+      return utf8;
+    }
+    return toUTF8Array(s);
+  };
+
+}();
+</script>
+<script>
+// ===================================================================
+// 地理データ（京都市中心部）: 手入力の概略座標
+// ===================================================================
+const STREETS_EW = [ // [名前, 緯度, 西端経度, 東端経度, 主要?]
+  ['北大路通', 35.0437, 135.725, 135.785, 1],
+  ['今出川通', 35.0293, 135.725, 135.800, 1],
+  ['丸太町通', 35.0168, 135.715, 135.790, 1],
+  ['御池通',   35.0105, 135.720, 135.773, 1],
+  ['三条通',   35.0088, 135.700, 135.790, 0],
+  ['四条通',   35.0037, 135.690, 135.779, 1],
+  ['五条通',   34.9960, 135.700, 135.790, 1],
+  ['七条通',   34.9892, 135.715, 135.775, 0],
+  ['塩小路通', 34.9866, 135.735, 135.772, 0],
+  ['九条通',   34.9800, 135.715, 135.790, 1],
+];
+const STREETS_NS = [ // [名前, 経度, 南端緯度, 北端緯度, 主要?]
+  ['西大路通', 135.7320, 34.965, 35.050, 1],
+  ['千本通',   135.7428, 34.960, 35.050, 0],
+  ['堀川通',   135.7508, 34.970, 35.055, 1],
+  ['烏丸通',   135.7597, 34.965, 35.055, 1],
+  ['河原町通', 135.7691, 34.975, 35.032, 1],
+  ['川端通',   135.7728, 34.978, 35.032, 0],
+  ['東大路通', 135.7792, 34.965, 35.045, 1],
+  ['白川通',   135.7940, 35.010, 35.055, 0],
+];
+const RIVERS = [
+  { name: '鴨川', w: 14, pts: [[35.060,135.7555],[35.050,135.7600],[35.0420,135.7650],[35.0350,135.7700],[35.0300,135.7718],
+      [35.0230,135.7716],[35.0168,135.7713],[35.0088,135.7722],[35.0037,135.7717],[34.9960,135.7706],[34.9892,135.7694],
+      [34.9820,135.7672],[34.9740,135.7630],[34.9650,135.7570],[34.9550,135.7500]] },
+  { name: '', w: 9, pts: [[35.0300,135.7718],[35.0360,135.7760],[35.0440,135.7800],[35.0550,135.7850]] }, // 高野川
+  { name: '桂川', w: 16, pts: [[35.030,135.6720],[35.0130,135.6800],[34.9990,135.6960],[34.9850,135.7080],[34.9700,135.7160],[34.9500,135.7250]] },
+];
+const RAILS = [
+  { name: 'JR', pts: [[34.9750,135.7050],[34.9820,135.7250],[34.9855,135.7400],[34.9858,135.7588],[34.9868,135.7700],[34.9860,135.7800],[34.9830,135.7950]] },
+  { name: 'JR嵯峨野線', pts: [[34.9858,135.7560],[34.9868,135.7470],[34.9900,135.7425],[34.9960,135.7415],[35.0108,135.7414],[35.0183,135.7326],[35.0200,135.7200],[35.0180,135.7000]] },
+];
+const PARKS = [ // [名前, 南, 西, 北, 東]
+  ['京都御苑', 35.0170, 135.7600, 35.0335, 135.7660],
+  ['二条城',   35.0120, 135.7455, 35.0160, 135.7512],
+  ['梅小路公園', 34.9855, 135.7440, 34.9895, 135.7495],
+  ['岡崎公園', 35.0130, 135.7800, 35.0170, 135.7850],
+];
+const LANDMARKS = [ // [名前, 緯度, 経度, 種類]
+  ['二条城', 35.0142, 135.7482, 'castle'],
+  ['京都御所', 35.0254, 135.7621, 'palace'],
+  ['京都タワー', 34.9875, 135.7593, 'tower'],
+  ['東寺', 34.9806, 135.7478, 'pagoda'],
+  ['西本願寺', 34.9917, 135.7514, 'temple'],
+  ['東本願寺', 34.9912, 135.7580, 'temple'],
+  ['八坂神社', 35.0037, 135.7785, 'torii'],
+  ['清水寺', 34.9949, 135.7850, 'pagoda'],
+  ['平安神宮', 35.0160, 135.7824, 'torii'],
+  ['金閣寺', 35.0394, 135.7292, 'gold'],
+  ['銀閣寺', 35.0270, 135.7982, 'temple'],
+  ['下鴨神社', 35.0390, 135.7727, 'torii'],
+  ['伏見稲荷', 34.9671, 135.7727, 'torii'],
+  ['北野天満宮', 35.0312, 135.7350, 'torii'],
+  ['三十三間堂', 34.9880, 135.7717, 'temple'],
+];
+const COLORS = ['#13928c', '#e8692e', '#3b82c4', '#8a5cc2'];
+
+// ===================================================================
+// 状態
+// ===================================================================
+const DEFAULTS = {
+  title: '京都の主要エリアへのアクセス',
+  subtitle: '物件から主要エリアへのアクセス概要図',
+  btitle: '行き先別の所要時間と時刻表',
+  bsub: 'QRを読み取ると、物件からの経路とバスの発車時刻を確認できます',
+};
+let state = {
+  name: '', addr: '', lat: null, lng: null, url: '', stop: '',
+  title: DEFAULTS.title, subtitle: DEFAULTS.subtitle, btitle: DEFAULTS.btitle, bsub: DEFAULTS.bsub,
+  zoom: 1, rings: true, marks: true, streets: true, speed: 12, overhead: 4,
+  dests: [
+    { name: '京都河原町駅周辺', short: '京都河原町', lat: 35.0036, lng: 135.7690, radius: 350, color: COLORS[0], min: '', qr: '' },
+    { name: '四条烏丸', short: '四条烏丸', lat: 35.0036, lng: 135.7597, radius: 350, color: COLORS[1], min: '', qr: '' },
+    { name: '京都駅', short: '京都駅', lat: 34.9858, lng: 135.7588, radius: 450, color: COLORS[2], min: '', qr: '' },
+  ],
+};
+// 保存の仕組み：
+//  ・物件ごとの内容（物件名・住所・位置・経路の結果・所要分やQRの上書き など）はタブごとに保存（sessionStorage）
+//    → 別のタブで別の物件を作っても上書きし合わない。そのタブを再読み込みしても残る
+//  ・表示の設定（同心円・名所・通り名、所要時間の計算設定、サブタイトル・下段の見出し、手で入れたタイトル）は
+//    このブラウザの全タブで共有（localStorage）→ 新しいタブはこの設定から始まる
+const TAB_KEY = 'kyotoAccessMap.tab.v1', SHARED_KEY = 'kyotoAccessMap.shared.v1', OLD_KEY = 'kyotoAccessMap.v1';
+const SHARED_FIELDS = ['rings', 'marks', 'streets', 'speed', 'overhead', 'subtitle', 'btitle', 'bsub'];
+function readJSON(store, key) { try { const v = JSON.parse(store.getItem(key) || 'null'); return v && typeof v === 'object' ? v : null; } catch (e) { return null; } }
+{
+  let shared = readJSON(localStorage, SHARED_KEY);
+  if (!shared) { // 以前の版（全タブ共通で保存）からは、表示の設定だけ引き継ぐ
+    const old = readJSON(localStorage, OLD_KEY);
+    shared = {};
+    if (old) SHARED_FIELDS.forEach(k => { if (k in old) shared[k] = old[k]; });
+  }
+  SHARED_FIELDS.forEach(k => { if (k in shared) state[k] = shared[k]; });
+  if (shared.title && shared.title !== '京都の主要エリアへ、バスでアクセス') state.title = shared.title;
+  const tab = readJSON(sessionStorage, TAB_KEY);
+  if (tab) {
+    const fixed = state.dests;
+    state = Object.assign(state, tab);
+    // 行き先は3か所固定。保存済みの入力（所要分・QR）だけ引き継ぐ
+    state.dests = fixed.map((d, i) => {
+      const o = (tab.dests || [])[i] || {};
+      return Object.assign(d, { min: o.min || '', qr: o.qr || '' });
+    });
+  }
+}
+function save() { try { sessionStorage.setItem(TAB_KEY, JSON.stringify(state)); } catch (e) {} }
+// 共有の設定は、その項目を変えたときだけ書き込む（ほかのタブの変更を上書きしないように）
+// 手で入れたタイトルも新しいタブで使う（自動で切り替わる「バスで乗換なし」は共有しない）
+function saveShared(key, value) {
+  try { const shared = readJSON(localStorage, SHARED_KEY) || {}; shared[key] = value; localStorage.setItem(SHARED_KEY, JSON.stringify(shared)); } catch (e) {}
+}
+
+const $ = id => document.getElementById(id);
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function setStatus(msg, cls) { const el = $('status'); el.textContent = msg; el.className = 'status' + (cls ? ' ' + cls : ''); }
+
+// ===================================================================
+// 距離・所要時間
+// ===================================================================
+function kmBetween(a, b) {
+  const R = 6371, toR = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * toR, dLng = (b.lng - a.lng) * toR;
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+// 京都は碁盤の目なので、道のりは南北＋東西の距離（マンハッタン距離）の9割程度で近似
+function roadKm(a, b) {
+  const ns = Math.abs(b.lat - a.lat) * 110.95;
+  const ew = Math.abs(b.lng - a.lng) * 111.32 * Math.cos(a.lat * Math.PI / 180);
+  return (ns + ew) * 0.9;
+}
+function estMinutes(d) {
+  if (!hasProp()) return null;
+  const km = roadKm(state, d);
+  return Math.max(3, Math.round(km / (Number(state.speed) || 12) * 60 + (Number(state.overhead) || 0)));
+}
+function autoMinutes(d) {
+  const b = busOf(state.dests.indexOf(d));
+  return b && b.mode ? b.minutes : estMinutes(d);
+}
+function minutesOf(d) {
+  const m = String(d.min || '').trim();
+  return m !== '' ? m : (autoMinutes(d) ?? '–');
+}
+function hasProp() { return Number.isFinite(state.lat) && Number.isFinite(state.lng); }
+function qrUrlOf(d) {
+  if (d.qr && d.qr.trim()) return d.qr.trim();
+  const b = busOf(state.dests.indexOf(d));
+  if (b && b.qrUrl) return b.qrUrl;
+  const dest = `${d.lat},${d.lng}`;
+  if (!hasProp()) return `https://www.google.com/maps/search/?api=1&query=${dest}`;
+  return `https://www.google.com/maps/dir/?api=1&origin=${state.lat.toFixed(6)},${state.lng.toFixed(6)}&destination=${dest}&travelmode=transit`;
+}
+
+// ===================================================================
+// 描画
+// ===================================================================
+const W = 1600, H = 1000;
+const MAP = { x: 50, y: 206, w: 1500, h: 534 };
+const FONT = `"Hiragino Kaku Gothic ProN","Hiragino Sans","Noto Sans JP","Yu Gothic","Meiryo",sans-serif`;
+const measureCtx = document.createElement('canvas').getContext('2d');
+function textW(str, size, weight) {
+  measureCtx.font = `${weight || 400} ${size}px ${FONT}`;
+  return measureCtx.measureText(str).width;
+}
+// 山並み（東山・北山・西山）の概略
+const HILLS = [
+  [[35.080, 135.782], [35.058, 135.786], [35.045, 135.790], [35.032, 135.793], [35.022, 135.788], [35.010, 135.787], [34.998, 135.789],
+    [34.986, 135.783], [34.972, 135.780], [34.955, 135.778], [34.930, 135.782], [34.930, 135.900], [35.080, 135.900]],
+  [[35.052, 135.640], [35.054, 135.700], [35.050, 135.722], [35.054, 135.745], [35.052, 135.765], [35.058, 135.782], [35.100, 135.782], [35.100, 135.640]],
+  [[35.060, 135.600], [35.030, 135.668], [35.000, 135.675], [34.970, 135.690], [34.930, 135.700], [34.930, 135.600]],
+];
+const DAIMONJI = [35.0255, 135.8005];
+
+// 物件と3つの行き先がちょうど収まる縮尺にする（余白を最小に）
+let proj = null;
+const PAD = { l: 150, r: 150, t: 100, b: 100 }; // 初期値。実際はラベル込みの大きさを測って自動で合わせる
+function makeProjection(fit = { k: 1, dx: 0, dy: 0, z: 1 }) {
+  const pts = state.dests.map(d => ({ lat: d.lat, lng: d.lng }));
+  if (hasProp()) {
+    pts.push({ lat: state.lat, lng: state.lng });
+    state.dests.forEach((d, i) => { const b = busOf(i); if (b && b.path) b.path.forEach(([lat, lng]) => pts.push({ lat, lng })); });
+  }
+  const minLat = Math.min(...pts.map(p => p.lat)), maxLat = Math.max(...pts.map(p => p.lat));
+  const minLng = Math.min(...pts.map(p => p.lng)), maxLng = Math.max(...pts.map(p => p.lng));
+  const lat0 = (minLat + maxLat) / 2, lng0 = (minLng + maxLng) / 2;
+  const kx = 111.32 * Math.cos(lat0 * Math.PI / 180), ky = 110.95;
+  const spanX = Math.max((maxLng - minLng) * kx, 0.4), spanY = Math.max((maxLat - minLat) * ky, 0.4);
+  const s0 = Math.min((MAP.w - PAD.l - PAD.r) / spanX, (MAP.h - PAD.t - PAD.b) / spanY, 520);
+  // fit: 自動調整の倍率(k)とずらし(dx,dy)、z: 「地図の範囲」スライダー（地図の中心を基準に拡大縮小）
+  const s = Math.min(s0 * fit.k, 900) / fit.z; // px/km
+  const mcx = MAP.x + MAP.w / 2, mcy = MAP.y + MAP.h / 2;
+  const cx = mcx + fit.dx / fit.z, cy = mcy + fit.dy / fit.z;
+  const P = (lat, lng) => [cx + (lng - lng0) * kx * s, cy - (lat - lat0) * ky * s];
+  const inv = (x, y) => ({ lng: lng0 + (x - cx) / (kx * s), lat: lat0 - (y - cy) / (ky * s) });
+  return { P, inv, s, s0 };
+}
+
+function polyline(pts, P) { return pts.map((p, i) => (i ? 'L' : 'M') + P(p[0], p[1]).map(v => v.toFixed(1)).join(',')).join(''); }
+function smoothPath(pts, P, close) {
+  const q = pts.map(p => P(p[0], p[1]));
+  let d = `M${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}`;
+  for (let i = 1; i < q.length - 1; i++) {
+    const mx = (q[i][0] + q[i + 1][0]) / 2, my = (q[i][1] + q[i + 1][1]) / 2;
+    d += `Q${q[i][0].toFixed(1)},${q[i][1].toFixed(1)} ${mx.toFixed(1)},${my.toFixed(1)}`;
+  }
+  const l = q[q.length - 1];
+  return d + `L${l[0].toFixed(1)},${l[1].toFixed(1)}` + (close ? 'Z' : '');
+}
+function polyLen(q) { let L = 0; for (let k = 1; k < q.length; k++) L += Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]); return L; }
+function polyAt(q, t) {
+  let want = polyLen(q) * t;
+  for (let k = 1; k < q.length; k++) {
+    const seg = Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]);
+    if (want <= seg || k === q.length - 1) { const u = seg ? Math.min(1, want / seg) : 0; return [q[k - 1][0] + (q[k][0] - q[k - 1][0]) * u, q[k - 1][1] + (q[k][1] - q[k - 1][1]) * u]; }
+    want -= seg;
+  }
+  return q[0];
+}
+function samplePts(q, step) { const L = polyLen(q), n = Math.max(2, Math.ceil(L / step)); const out = []; for (let k = 0; k <= n; k++) out.push(polyAt(q, k / n)); return out; }
+function smoothPx(q) {
+  if (q.length < 3) return 'M' + q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L');
+  let s = `M${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}`;
+  for (let k = 1; k < q.length - 1; k++) s += `Q${q[k][0].toFixed(1)},${q[k][1].toFixed(1)} ${((q[k][0] + q[k + 1][0]) / 2).toFixed(1)},${((q[k][1] + q[k + 1][1]) / 2).toFixed(1)}`;
+  const l = q[q.length - 1];
+  return s + `L${l[0].toFixed(1)},${l[1].toFixed(1)}`;
+}
+// 線を進行方向の左右に off px ずらす（同じ道を通るルートが重ならないように）
+function offsetLine(q, off) {
+  if (!off) return q;
+  return q.map((p, k) => {
+    const a = q[Math.max(0, k - 1)], b = q[Math.min(q.length - 1, k + 1)];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [p[0] - (b[1] - a[1]) / L * off, p[1] + (b[0] - a[0]) / L * off];
+  });
+}
+function distToPolyline(x, y, q) {
+  let best = Infinity;
+  for (let i = 0; i < q.length - 1; i++) {
+    const [ax, ay] = q[i], [bx, by] = q[i + 1];
+    const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / L));
+    best = Math.min(best, Math.hypot(x - ax - t * dx, y - ay - t * dy));
+  }
+  return best;
+}
+function inPoly(x, y, q) {
+  let c = false;
+  for (let i = 0, j = q.length - 1; i < q.length; j = i++) {
+    if ((q[i][1] > y) !== (q[j][1] > y) && x < (q[j][0] - q[i][0]) * (y - q[i][1]) / (q[j][1] - q[i][1]) + q[i][0]) c = !c;
+  }
+  return c;
+}
+function rng(seed) { // mulberry32
+  return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+
+// ---- イラスト（すべてこのツールのオリジナル図形） ----
+const ROOF = '#3d4a56', WOOD = '#8a4b2f', WALL = '#f4ecd9', VERM = '#e0502f', GOLD = '#e9b949';
+function icon(type, x, y, k = 1) {
+  const g = inner => `<g transform="translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k})">${inner}</g>`;
+  switch (type) {
+    case 'castle': return g(`<path d="M-30,14 L-26,0 L26,0 L30,14 Z" fill="#a9a59a"/>
+      <rect x="-22" y="-12" width="44" height="12" fill="${WALL}"/><path d="M-28,-10 L0,-22 L28,-10 Z" fill="${ROOF}"/>
+      <rect x="-13" y="-30" width="26" height="10" fill="${WALL}"/><path d="M-18,-28 L0,-40 L18,-28 Z" fill="${ROOF}"/>
+      <circle cx="-15" cy="-26" r="1.8" fill="${GOLD}"/><circle cx="15" cy="-26" r="1.8" fill="${GOLD}"/>
+      <rect x="-4" y="-8" width="8" height="8" fill="${WOOD}"/>`);
+    case 'palace': return g(`<rect x="-30" y="-6" width="60" height="16" fill="${WALL}" stroke="#b99f73"/>
+      <path d="M-36,-5 Q-18,-10 0,-22 Q18,-10 36,-5 Z" fill="#6b5846"/>
+      ${[-22, -11, 0, 11, 22].map(px => `<rect x="${px - 1.5}" y="-4" width="3" height="14" fill="${VERM}"/>`).join('')}
+      <rect x="-34" y="10" width="68" height="4" fill="#d8c8a2"/>`);
+    case 'tower': return g(`<rect x="-10" y="-6" width="20" height="18" fill="#dfe3e6" stroke="#9aa"/>
+      <path d="M-4,-6 L-2.5,-40 L2.5,-40 L4,-6 Z" fill="#fff" stroke="#9aa"/>
+      <ellipse cx="0" cy="-40" rx="9" ry="4.5" fill="#e8692e"/><rect x="-1" y="-54" width="2" height="12" fill="#e8692e"/>`);
+    case 'pagoda': { let s = ''; for (let i = 0; i < 5; i++) { const yy = 12 - i * 10, w = 20 - i * 2.6;
+        s += `<rect x="${-w * 0.5}" y="${yy - 6}" width="${w}" height="6" fill="${WOOD}"/><path d="M${-w - 3},${yy - 5} L${w + 3},${yy - 5} L${w * 0.55},${yy - 10} L${-w * 0.55},${yy - 10} Z" fill="${ROOF}"/>`; }
+      return g(s + `<rect x="-1" y="-56" width="2" height="18" fill="${ROOF}"/>`); }
+    case 'temple': return g(`<rect x="-24" y="-4" width="48" height="16" fill="${WALL}" stroke="#b58f5f"/>
+      ${[-18, -6, 6, 18].map(px => `<rect x="${px - 1.5}" y="-3" width="3" height="15" fill="${WOOD}"/>`).join('')}
+      <path d="M-34,-2 Q-18,-6 -8,-20 L8,-20 Q18,-6 34,-2 Z" fill="${ROOF}"/><rect x="-10" y="-24" width="20" height="4" fill="${ROOF}"/>`);
+    case 'kiyomizu': return g(`<path d="M-30,16 L-30,2 L30,2 L30,16" fill="none" stroke="${WOOD}" stroke-width="2"/>
+      ${[-24, -12, 0, 12, 24].map(px => `<line x1="${px}" y1="2" x2="${px}" y2="16" stroke="${WOOD}" stroke-width="2"/>`).join('')}
+      <rect x="-24" y="-10" width="48" height="12" fill="${VERM}"/><path d="M-32,-8 Q-16,-12 0,-24 Q16,-12 32,-8 Z" fill="#7a5a3a"/>`);
+    case 'gold': return g(`<ellipse cx="0" cy="12" rx="36" ry="8" fill="#8ccbe8"/><ellipse cx="-4" cy="12" rx="20" ry="3" fill="#bfe4f4"/>
+      <rect x="-16" y="-4" width="32" height="12" fill="${GOLD}"/><path d="M-21,-4 L21,-4 L13,-11 L-13,-11 Z" fill="#4a3f2c"/>
+      <rect x="-11" y="-19" width="22" height="8" fill="${GOLD}"/><path d="M-15,-19 L15,-19 L8,-25 L-8,-25 Z" fill="#4a3f2c"/>
+      <rect x="-6" y="-31" width="12" height="6" fill="${GOLD}"/><path d="M-9,-31 L9,-31 L0,-38 Z" fill="#4a3f2c"/>
+      <circle cx="-30" cy="0" r="7" fill="#5f9e5c"/><circle cx="30" cy="2" r="6" fill="#5f9e5c"/>`);
+    case 'torii': return g(`<rect x="-16" y="-20" width="32" height="10" fill="${WALL}"/><path d="M-22,-19 L0,-28 L22,-19 Z" fill="#6b5846"/>
+      <path d="M-26,-12 Q0,-16 26,-12 L26,-8 Q0,-12 -26,-8 Z" fill="${VERM}"/>
+      <rect x="-19" y="-4" width="38" height="3" fill="${VERM}"/><rect x="-16" y="-8" width="4.5" height="24" fill="${VERM}"/>
+      <rect x="11.5" y="-8" width="4.5" height="24" fill="${VERM}"/>`);
+  }
+  return '';
+}
+function tree(x, y, r, tone) {
+  const c = tone ? ['#6fb36d', '#8fca87', '#b5dfa9'] : ['#7fbf72', '#9fd28f', '#c3e6b2'];
+  const f = v => v.toFixed(1);
+  return `<g transform="translate(${f(x)},${f(y)})"><rect x="-2" y="${f(-r * 0.2)}" width="4" height="${f(r * 1.1)}" rx="1" fill="#8a6a4a"/>
+    <ellipse cx="0" cy="${f(-r * 0.7)}" rx="${f(r * 0.95)}" ry="${f(r * 1.05)}" fill="${c[0]}"/>
+    <ellipse cx="${f(-r * 0.15)}" cy="${f(-r * 0.95)}" rx="${f(r * 0.7)}" ry="${f(r * 0.75)}" fill="${c[1]}"/>
+    <ellipse cx="${f(-r * 0.35)}" cy="${f(-r * 1.2)}" rx="${f(r * 0.32)}" ry="${f(r * 0.3)}" fill="${c[2]}"/></g>`;
+}
+function mountain(x, y, w, h) {
+  const f = v => v.toFixed(1);
+  return `<path d="M${f(x - w / 2)},${f(y)} Q${f(x - w * 0.18)},${f(y - h * 1.15)} ${f(x)},${f(y - h)} Q${f(x + w * 0.2)},${f(y - h * 1.1)} ${f(x + w / 2)},${f(y)} Z" fill="#9fcf93"/>
+    <path d="M${f(x)},${f(y - h)} Q${f(x + w * 0.2)},${f(y - h * 1.1)} ${f(x + w / 2)},${f(y)} L${f(x + w * 0.1)},${f(y)} Z" fill="#8cc280"/>`;
+}
+function trainIcon(x, y, color) {
+  // バスと見分けやすいよう、パンタグラフ・架線・斜めの運転台・線路つきの電車
+  return `<g transform="translate(${(x - 29).toFixed(1)},${(y - 12).toFixed(1)})">
+    <g stroke="#fff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" fill="#fff" opacity=".95">
+      <path d="M21,0 L30,-7 L23,-14 M17,-14 H30"/>
+      <path d="M0,4 Q0,0 4,0 H45 Q51,0 55,7 L58,21 Q58,26 53,26 H4 Q0,26 0,22 Z"/>
+      <path d="M4,28 H54 V33 H4 Z M-3,33 H61"/>
+    </g>
+    <path d="M21,0 L30,-7 L23,-14" stroke="#3a4247" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
+    <path d="M17,-14 H30" stroke="#3a4247" stroke-width="2.6" stroke-linecap="round"/>
+    <rect x="19" y="-2" width="12" height="3" rx="1" fill="#3a4247"/>
+    <path d="M0,4 Q0,0 4,0 H45 Q51,0 55,7 L58,21 Q58,26 53,26 H4 Q0,26 0,22 Z" fill="${color}"/>
+    <rect x="5" y="5" width="8" height="9" rx="1.5" fill="#fff"/><rect x="16" y="5" width="8" height="9" rx="1.5" fill="#fff"/>
+    <rect x="28" y="5" width="8" height="18" rx="1.5" fill="#fff" opacity=".55"/>
+    <path d="M42,5 H50 L54,14 H42 Z" fill="#fff"/>
+    <rect x="0" y="17" width="58" height="3" fill="#fff" opacity=".6"/>
+    <circle cx="54.5" cy="22" r="1.8" fill="#ffe27a"/>
+    <circle cx="9" cy="29" r="3" fill="#333"/><circle cx="17" cy="29" r="3" fill="#333"/>
+    <circle cx="41" cy="29" r="3" fill="#333"/><circle cx="49" cy="29" r="3" fill="#333"/>
+    <path d="M-3,33 H61" stroke="#555" stroke-width="2"/>
+    <path d="M2,33 v3 M12,33 v3 M22,33 v3 M32,33 v3 M42,33 v3 M52,33 v3" stroke="#777" stroke-width="2"/></g>`;
+}
+function busIcon(x, y, color) {
+  return `<g transform="translate(${(x - 28).toFixed(1)},${(y - 17).toFixed(1)})">
+    <rect x="-3" y="-3" width="62" height="38" rx="10" fill="#fff" opacity=".9"/>
+    <rect x="0" y="0" width="56" height="32" rx="8" fill="${color}"/>
+    <rect x="5" y="5" width="10" height="10" rx="2" fill="#fff"/><rect x="18" y="5" width="10" height="10" rx="2" fill="#fff"/>
+    <rect x="31" y="5" width="10" height="10" rx="2" fill="#fff"/><rect x="44" y="5" width="8" height="14" rx="2" fill="#fff"/>
+    <rect x="3" y="21" width="38" height="3" fill="#fff" opacity=".6"/>
+    <circle cx="13" cy="32" r="5" fill="#333"/><circle cx="43" cy="32" r="5" fill="#333"/></g>`;
+}
+function qrSvg(text, x, y, size) {
+  let qr;
+  for (const lvl of ['M', 'L']) {
+    try { qr = qrcode(0, lvl); qr.addData(text); qr.make(); break; } catch (e) { qr = null; }
+  }
+  if (!qr) return `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="#eee"/><text x="${x + size / 2}" y="${y + size / 2}" font-size="12" text-anchor="middle">URLが長すぎます</text>`;
+  const n = qr.getModuleCount(), quiet = 2, cell = size / (n + quiet * 2);
+  let d = '';
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    if (qr.isDark(r, c)) d += `M${(x + (c + quiet) * cell).toFixed(2)},${(y + (r + quiet) * cell).toFixed(2)}h${cell.toFixed(2)}v${cell.toFixed(2)}h-${cell.toFixed(2)}z`;
+  }
+  return `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#111" shape-rendering="crispEdges"/>`;
+}
+function bottomLine(i) {
+  const m = modeOf(i), b = busOf(i);
+  if (m === 'bus') return 'バス乗換なし ｜ QRで時刻表 ▶';
+  if (m === 'train') return `電車：${trainSummary(b.train)} ▶`;
+  return 'QRで経路・時刻表 ▶';
+}
+function overlaps(a, b, pad = 0) {
+  return a.x < b.x + b.w + pad && b.x < a.x + a.w + pad && a.y < b.y + b.h + pad && b.y < a.y + a.h + pad;
+}
+function inMap(r, pad = 8) {
+  return r.x >= MAP.x + pad && r.y >= MAP.y + pad && r.x + r.w <= MAP.x + MAP.w - pad && r.y + r.h <= MAP.y + MAP.h - pad;
+}
+
+function headerArt() {
+  let t = '';
+  [[1120, 186, 11], [1150, 190, 13], [1182, 186, 10], [1250, 190, 12], [1282, 186, 10], [1395, 190, 12], [1425, 186, 10],
+    [1520, 188, 13], [1548, 190, 11], [1225, 176, 9], [1500, 170, 9]].forEach(([x, y, r], i) => { t += tree(x, y, r, i % 2); });
+  return `<g>
+    <circle cx="1330" cy="68" r="42" fill="#f7c873"/><circle cx="1330" cy="68" r="56" fill="#f7c873" opacity=".2"/>
+    <path d="M1150,62 q14,-20 34,-8 q16,-14 34,2 q20,0 18,14 h-96 q-8,-8 10,-8 z" fill="#dde9ef"/>
+    <path d="M1440,44 q14,-16 30,-4 q14,-8 26,6 h-66 z" fill="#dde9ef"/>
+    <path d="M1030,200 Q1120,120 1210,138 Q1280,86 1370,124 Q1440,92 1500,120 Q1540,112 1560,124 L1560,200 Z" fill="#b8ddb0"/>
+    <path d="M1060,200 Q1150,150 1240,164 Q1320,140 1400,160 Q1480,138 1560,156 L1560,200 Z" fill="#96cb91"/>
+    <g transform="translate(1340,178) scale(2)">${icon('temple', 0, 0)}</g>
+    <g transform="translate(1470,176) scale(2)">${icon('pagoda', 0, 0)}</g>
+    <path d="M1150,196 Q1190,176 1230,196" stroke="${VERM}" stroke-width="5" fill="none"/>
+    <path d="M1160,190 V198 M1175,184 V198 M1190,182 V198 M1205,184 V198 M1220,190 V198" stroke="${VERM}" stroke-width="2.5"/>
+    ${t}
+  </g>`;
+}
+
+// 物件名・行き先カード・ルートを置いた結果の大きさを測り、地図枠いっぱいに収まるよう
+// 拡大率と中心を数回調整してから描く（物件名が長くても、ルートのない余白が広がらないように）
+let lastBox = null;
+function render() {
+  const z = Number(state.zoom) || 1;
+  let fit = { k: 1, dx: 0, dy: 0, z: 1 }, best = null;
+  if (hasProp()) {
+    // 少しずつ拡大し、ラベル・カードがはみ出す／重なる直前の倍率を採用（ルートをできるだけ大きく見せる）
+    const M = 24, mcx = MAP.x + MAP.w / 2, mcy = MAP.y + MAP.h / 2;
+    const scaled = (f, r) => ({ k: f.k * r, dx: f.dx * r, dy: f.dy * r, z: 1 });
+    for (let it = 0, passes = 0; it < 40; it++) {
+      renderOnce(fit);
+      const b = lastBox;
+      if (!b) break;
+      const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
+      // 全体（物件名・カード込み）が地図の中央に来るよう、同じ倍率で一度ずらして描き直す
+      // ただしルートと点は枠からはみ出さない範囲で
+      const shiftIn = (want, lo, hi, a1, a2) => {
+        let v = want;
+        if (a1 + v < lo) v = lo - a1;
+        if (a2 + v > hi) v = (a2 - a1 > hi - lo) ? (lo + hi) / 2 - (a1 + a2) / 2 : hi - a2;
+        return v;
+      };
+      const sx = shiftIn(mcx - bcx, MAP.x + M, MAP.x + MAP.w - M, b.core.x, b.core.x + b.core.w);
+      const sy = shiftIn(mcy - bcy, MAP.y + M, MAP.y + MAP.h - M, b.core.y, b.core.y + b.core.h);
+      // ルートと点が枠内に収まっているか（カード・物件名のはみ出しや重なりは b.bad で判定済み）
+      const c = b.core;
+      const inside = c.x >= MAP.x + M - 1 && c.y >= MAP.y + M - 1 && c.x + c.w <= MAP.x + MAP.w - M + 1 && c.y + c.h <= MAP.y + MAP.h - M + 1;
+      if (passes < 2 && (Math.abs(sx) > 8 || Math.abs(sy) > 8 || (!inside && (Math.abs(sx) > 0.5 || Math.abs(sy) > 0.5)))) {
+        fit = { ...fit, dx: fit.dx + sx, dy: fit.dy + sy };
+        passes++;
+        continue;
+      }
+      passes = 0;
+      if (inside && !b.bad) { best = { ...fit }; fit = scaled(fit, 1.08); }
+      else if (best) break;
+      else fit = scaled(fit, 0.9);
+      if (fit.k > 8 || fit.k < 0.2) break;
+    }
+  }
+  return renderOnce({ ...(best || fit), z });
+}
+function renderOnce(fit) {
+  proj = makeProjection(fit);
+  const { P, s } = proj;
+  const R = rng(Math.round((state.lat || 35) * 1e4) ^ Math.round((state.lng || 135) * 1e4));
+  const out = [];
+  out.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}">
+  <style>text{font-family:${FONT};}</style>
+  <defs>
+    <clipPath id="mapclip"><rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="24"/></clipPath>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="160%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#000" flood-opacity=".15"/></filter>
+  </defs>
+  <rect width="${W}" height="${H}" fill="#f7f6f1"/>
+  <rect width="${W}" height="12" fill="#13928c"/>`);
+
+  // ヘッダー
+  out.push(headerArt());
+  out.push(`<text x="90" y="100" font-size="56" font-weight="700" fill="#16323a">${esc(state.title)}</text>`);
+  out.push(`<text x="92" y="152" font-size="26" fill="#5c6b70">${esc(state.subtitle)}</text>`);
+
+  // ---- 地図：まずラベル類の配置を決め、その後で下から順に描く ----
+  const tl = proj.inv(MAP.x, MAP.y), br = proj.inv(MAP.x + MAP.w, MAP.y + MAP.h);
+  const occupied = [], fitRects = [];
+  let fitBad = false;
+  const propPt = hasProp() ? P(state.lat, state.lng) : null;
+  const destPts = state.dests.map(d => P(d.lat, d.lng));
+  destPts.forEach(([x, y]) => occupied.push({ x: x - 16, y: y - 16, w: 32, h: 32 }));
+
+  // ルート
+  const routeSvg = [], routePts = [], busSvg = [], routeGeo = [], walkSvg = [];
+  // 縮尺バーは、物件・行き先から離れている方の下隅に置く
+  const sbKm = s > 280 ? 0.5 : 1, sbw = sbKm * s, sbBoxW = sbw + 84;
+  const corner = side => ({ x: side === 'left' ? MAP.x + 18 : MAP.x + MAP.w - sbBoxW - 18, y: MAP.y + MAP.h - 64, w: sbBoxW, h: 48 });
+  const crowd = r => destPts.concat(propPt ? [propPt] : []).filter(([x, y]) => x > r.x - 200 && x < r.x + r.w + 200 && y > r.y - 160).length;
+  const sbSide = crowd(corner('left')) <= crowd(corner('right')) ? 'left' : 'right';
+  const scaleBox = corner(sbSide);
+  const fixedBoxes = [scaleBox, { x: MAP.x + MAP.w - 96, y: MAP.y + 12, w: 80, h: 100 }]; // 縮尺・方位（何も重ねない）
+  occupied.push(...fixedBoxes);
+  const [sx1, sy1] = P(34.9878, 135.7552), [sx2, sy2] = P(34.9861, 135.7628);
+  const stationBox = { x: sx1 - 6, y: sy1 - 8, w: sx2 - sx1 + 12, h: Math.max(22, sy2 - sy1) + 16 }; // 京都駅ビル
+  const railPts = [];
+  for (const r of RAILS) for (let k = 0; k < r.pts.length - 1; k++) {
+    const [ax, ay] = P(r.pts[k][0], r.pts[k][1]), [bx, by] = P(r.pts[k + 1][0], r.pts[k + 1][1]);
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 12));
+    for (let t = 0; t <= n; t++) railPts.push([ax + (bx - ax) * t / n, ay + (by - ay) * t / n]);
+  }
+  if (propPt) {
+    const [px, py] = propPt;
+    // 物件から見た方向順に並べ、外側のルートほど外へ膨らませて重なりを防ぐ
+    const ang = destPts.map(([x, y]) => Math.atan2(y - py, x - px));
+    const order = ang.map((a, i) => i).sort((a, b) => ang[a] - ang[b]);
+    const rank = []; order.forEach((idx, r) => { rank[idx] = r; });
+    state.dests.forEach((d, i) => {
+      const [dx, dy] = destPts[i];
+      const b = busOf(i), mode = modeOf(i);
+      let q;
+      if (b && b.path && b.path.length >= 2) {
+        // 実際の経路（停留所・駅の並び、または道路）に沿って描く。同じ道を通る線は少しずらす
+        q = offsetLine(b.path.map(p => P(p[0], p[1])), (rank[i] - (state.dests.length - 1) / 2) * 7);
+        const last = q[q.length - 1];
+        if (Math.hypot(last[0] - dx, last[1] - dy) > 4) q.push([dx, dy]);
+        if (Math.hypot(q[0][0] - px, q[0][1] - py) > 10) {
+          walkSvg.push(`<path d="M${px.toFixed(1)},${py.toFixed(1)} L${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".85"/>
+            <path d="M${px.toFixed(1)},${py.toFixed(1)} L${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}" stroke="${d.color}" stroke-width="3.5" stroke-dasharray="1 7" stroke-linecap="round"/>`);
+          routePts.push(...samplePts([[px, py], q[0]], 8));
+        }
+      } else {
+        // 経路が分からないときは、物件から行き先へのカーブで示す
+        const mx = (px + dx) / 2, my = (py + dy) / 2;
+        const len = Math.hypot(dx - px, dy - py) || 1;
+        const nx = -(dy - py) / len, ny = (dx - px) / len;
+        const bend = (rank[i] - (state.dests.length - 1) / 2) * Math.min(90, len * 0.22);
+        const cx = mx + nx * bend, cy = my + ny * bend;
+        q = [];
+        for (let t = 0; t <= 1.0001; t += 0.025) q.push([(1 - t) ** 2 * px + 2 * (1 - t) * t * cx + t * t * dx, (1 - t) ** 2 * py + 2 * (1 - t) * t * cy + t * t * dy]);
+      }
+      const d0 = smoothPx(q);
+      routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>`);
+      if (mode === 'train') {
+        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+        routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="2.5" fill="none" stroke-dasharray="8 8"/>`);
+      } else {
+        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="6" fill="none" stroke-dasharray="14 10" stroke-linecap="round" stroke-linejoin="round"/>`);
+      }
+      routeGeo.push({ q, len: polyLen(q), color: d.color, mode });
+      routePts.push(...samplePts(q, 8).slice(1, -1));
+    });
+  }
+  const countIn = (r, pts, pad) => pts.filter(([x, y]) => x > r.x - pad && x < r.x + r.w + pad && y > r.y - pad && y < r.y + r.h + pad).length;
+
+  // 物件ラベル（ルートや行き先と重ならない向きへ）
+  let propSvg = '';
+  if (propPt) {
+    const [px, py] = propPt;
+    const name = state.name || '物件';
+    const stop = stopLabel();
+    const nameW = textW(name, 32, 700), stopW = stop ? textW(stop, 19) + 26 : 0;
+    const bw = Math.max(nameW, stopW) + 124, bh = stop ? 100 : 80;
+    const meanX = destPts.reduce((a, p) => a + p[0], 0) / (destPts.length || 1);
+    const side = meanX >= px ? ['left', 'right'] : ['right', 'left'];
+    const pos = { up: [px - bw / 2, py - bh - 28], down: [px - bw / 2, py + 28], left: [px - bw - 32, py - bh / 2], right: [px + 32, py - bh / 2] };
+    let pick = null, best = Infinity;
+    [side[0], 'up', 'down', side[1]].forEach((dir, order) => {
+      const [ox, oy] = pos[dir];
+      const r = { x: Math.min(Math.max(ox, MAP.x + 12), MAP.x + MAP.w - bw - 12), y: Math.min(Math.max(oy, MAP.y + 12), MAP.y + MAP.h - bh - 12), w: bw, h: bh };
+      let sc = countIn(r, routePts, 10) * 40 + countIn(r, destPts, 24) * 500 + order * 0.5;
+      if (Math.abs(r.x - ox) + Math.abs(r.y - oy) > 1) sc += 30;
+      if (sc < best) { best = sc; pick = { dir, ...r, raw: { x: ox, y: oy, w: bw, h: bh } }; }
+    });
+    const bx = pick.x, by = pick.y;
+    fitRects.push(pick.raw);
+    if (best >= 30) fitBad = true; // ルートや行き先にかぶる／枠からはみ出す
+    occupied.push({ x: bx, y: by, w: bw, h: bh }, { x: px - 16, y: py - 16, w: 32, h: 32 });
+    let tip;
+    if (pick.dir === 'up' || pick.dir === 'down') {
+      const tipX = Math.min(Math.max(px, bx + 24), bx + bw - 24), edge = pick.dir === 'up' ? by + bh - 1 : by + 1;
+      tip = `M${tipX - 14},${edge} L${px},${pick.dir === 'up' ? py - 12 : py + 12} L${tipX + 14},${edge} Z`;
+    } else {
+      const tipY = Math.min(Math.max(py, by + 20), by + bh - 20), edge = pick.dir === 'left' ? bx + bw - 1 : bx + 1;
+      tip = `M${edge},${tipY - 14} L${pick.dir === 'left' ? px - 12 : px + 12},${py} L${edge},${tipY + 14} Z`;
+    }
+    propSvg = `<g filter="url(#sh)"><rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${bw.toFixed(1)}" height="${bh}" rx="14" fill="#12303a"/><path d="${tip}" fill="#12303a"/></g>
+      <g transform="translate(${(bx + 22).toFixed(1)},${(by + 16).toFixed(1)})">
+        <rect x="0" y="0" width="46" height="50" rx="3" fill="#eef3f6"/>
+        ${[0, 1, 2].map(r => [0, 1].map(c => `<rect x="${8 + c * 18}" y="${7 + r * 12}" width="12" height="8" fill="#6aa9cf"/>`).join('')).join('')}
+        <rect x="18" y="40" width="10" height="10" fill="#8aa"/>
+        <circle cx="-2" cy="46" r="7" fill="#8cc58a"/><circle cx="48" cy="46" r="6" fill="#8cc58a"/></g>
+      <text x="${(bx + 86).toFixed(1)}" y="${(by + 50).toFixed(1)}" font-size="32" font-weight="700" fill="#fff">${esc(name)}</text>
+      ${stop ? `<text x="${(bx + 86).toFixed(1)}" y="${(by + 84).toFixed(1)}" font-size="19" fill="#bfe3e0">🚏 ${esc(stop)}</text>` : ''}
+      <circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="14" fill="#12303a" stroke="#fff" stroke-width="4"/>`;
+  }
+
+  // 行き先カード
+  const cardSvg = [], destCards = [];
+  state.dests.forEach((d, i) => {
+    const [dx, dy] = destPts[i];
+    const mins = minutesOf(d);
+    const mode = modeOf(i), b = busOf(i);
+    const pill = mode === 'bus' ? 'バス乗換なし' : mode === 'train' ? (b.train.legs.length > 1 ? '電車・乗換1回' : '電車') : '';
+    const direct = !!pill;
+    const badgeW = direct ? textW(pill, 15, 700) + 20 : 0;
+    const nameW = textW(d.name, 28, 700) + (direct ? badgeW + 12 : 0);
+    const lineW = textW('約 ', 22) + textW(String(mins), 42, 700) + textW(' 分', 22);
+    const cw = Math.max(nameW, lineW) + 46, ch = 106;
+    // 点のまわり一周（15°刻み×距離2段階）を候補にし、点線・他のカード・ラベルと重ならない位置を選ぶ
+    let best = null, bestScore = Infinity;
+    for (const gapPx of [24, 60, 110, 170])  {
+      for (let deg = 0; deg < 360; deg += 15) {
+        const t = deg * Math.PI / 180, c = Math.cos(t), sn = Math.sin(t);
+        const f = Math.min((cw / 2 + gapPx) / Math.max(Math.abs(c), 1e-6), (ch / 2 + gapPx) / Math.max(Math.abs(sn), 1e-6));
+        const r = { x: dx + c * f - cw / 2, y: dy + sn * f - ch / 2, w: cw, h: ch };
+        let score = inMap(r) ? 0 : 5000;
+        for (const o of fixedBoxes) if (overlaps(r, o, 6)) score += 5000;
+        if (overlaps(r, stationBox, 6)) score += 600; // 京都駅ビルにかぶせない
+        score += countIn(r, railPts, 2) * 8;          // 線路にもなるべくかぶせない
+        score += countIn(r, routePts, 10) * 400; // 点線にかぶるのは最優先で避ける
+        for (const o of occupied) if (overlaps(r, o, 6)) score += 300;
+        for (const o of destCards) if (overlaps(r, o, 6)) score += 8000; // カード同士は重ねない
+        score += Math.abs(sn) * 6 + gapPx * 0.4;
+        // 引き出し線が点線を横切る場合も減点
+        const lx = Math.min(Math.max(dx, r.x + 16), r.x + r.w - 16), ly = Math.min(Math.max(dy, r.y + 16), r.y + r.h - 16);
+        const L = Math.hypot(lx - dx, ly - dy);
+        if (L > 40) {
+          score += 30;
+          const seg = [[dx, dy], [lx, ly]];
+          score += routePts.filter(([qx, qy]) => Math.hypot(qx - dx, qy - dy) > 24 && distToPolyline(qx, qy, seg) < 7).length * 150;
+        } // 同点なら左右・点の近くを優先
+        if (score < bestScore) { bestScore = score; best = r; }
+      }
+    }
+    fitRects.push({ ...best });
+    if (bestScore >= 300) fitBad = true; // 枠外・他のカードや縮尺にかぶる
+    best.x = Math.min(Math.max(best.x, MAP.x + 10), MAP.x + MAP.w - cw - 10);
+    best.y = Math.min(Math.max(best.y, MAP.y + 10), MAP.y + MAP.h - ch - 10);
+    destCards.push(best);
+    const lx = best.x + 23;
+    const numX = lx + textW('約 ', 22);
+    const unitX = numX + textW(String(mins), 42, 700) + 4;
+    // カードが点から離れた場合は、行き先の色の引き出し線でつなぐ
+    const nx = Math.min(Math.max(dx, best.x + 16), best.x + cw - 16), ny = Math.min(Math.max(dy, best.y + 16), best.y + ch - 16);
+    if (Math.hypot(nx - dx, ny - dy) > 40) cardSvg.push(`<line x1="${dx.toFixed(1)}" y1="${dy.toFixed(1)}" x2="${nx.toFixed(1)}" y2="${ny.toFixed(1)}" stroke="${d.color}" stroke-width="3" stroke-linecap="round" opacity=".8"/>`);
+    cardSvg.push(`<g filter="url(#sh)"><rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="#fff"/></g>
+      <rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="${d.color}" fill-opacity=".13" stroke="${d.color}" stroke-opacity=".4" stroke-width="2"/>
+      <text x="${lx.toFixed(1)}" y="${(best.y + 41).toFixed(1)}" font-size="28" font-weight="700" fill="#16323a">${esc(d.name)}</text>
+      ${direct ? `<rect x="${(lx + textW(d.name, 28, 700) + 12).toFixed(1)}" y="${(best.y + 19).toFixed(1)}" width="${badgeW.toFixed(1)}" height="26" rx="13" fill="${d.color}"/><text x="${(lx + textW(d.name, 28, 700) + 12 + badgeW / 2).toFixed(1)}" y="${(best.y + 37).toFixed(1)}" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">${pill}</text>` : ''}
+      <text x="${lx.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">約</text>
+      <text x="${numX.toFixed(1)}" y="${(best.y + 90).toFixed(1)}" font-size="42" font-weight="700" fill="${d.color}">${esc(mins)}</text>
+      <text x="${unitX.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">分</text>
+      <circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="15" fill="${d.color}" stroke="#fff" stroke-width="4"/>`);
+  });
+  occupied.push(...destCards);
+  // 自動調整用：ラベル（はみ出し前の位置）・点・ルートを含む全体の範囲
+  if (propPt) {
+    const all = fitRects.concat(destPts.concat([propPt], routePts).map(([x, y]) => ({ x: x - 16, y: y - 16, w: 32, h: 32 })));
+    const x1 = Math.min(...all.map(r => r.x)), y1 = Math.min(...all.map(r => r.y));
+    const x2 = Math.max(...all.map(r => r.x + r.w)), y2 = Math.max(...all.map(r => r.y + r.h));
+    const core = destPts.concat([propPt], routePts); // ルートと点（ラベルを除く）
+    const cx1 = Math.min(...core.map(p => p[0])), cy1 = Math.min(...core.map(p => p[1])), cx2 = Math.max(...core.map(p => p[0])), cy2 = Math.max(...core.map(p => p[1]));
+    lastBox = { x: x1, y: y1, w: x2 - x1, h: y2 - y1, bad: fitBad, core: { x: cx1, y: cy1, w: cx2 - cx1, h: cy2 - cy1 } };
+  } else lastBox = null;
+  // バスのアイコン：カードや物件ラベルに隠れない位置に置く
+  for (const g of routeGeo) {
+    if (g.len < 150) continue;
+    for (const t of [0.5, 0.4, 0.6, 0.32, 0.68]) {
+      const [bx, by] = polyAt(g.q, t);
+      const r = g.mode === 'train' ? { x: bx - 35, y: by - 36, w: 70, h: 62 } : { x: bx - 31, y: by - 26, w: 62, h: 44 };
+      if (occupied.some(o => overlaps(r, o, 2))) continue;
+      busSvg.push(g.mode === 'train' ? trainIcon(bx, by - 4, g.color) : busIcon(bx, by - 4, g.color)); occupied.push(r); break;
+    }
+  }
+
+  // 名所
+  const markSvg = [];
+  const k = Math.max(1.2, Math.min(1.9, s / 150));
+  if (state.marks) {
+    for (const [nm, lat, lng, type0] of LANDMARKS) {
+      if (state.dests.some(d => d.name.includes(nm))) continue;
+      const type = nm === '清水寺' ? 'kiyomizu' : type0;
+      const [x, y] = P(lat, lng);
+      const tw = textW(nm, 17, 700);
+      const r = { x: x - Math.max(36 * k, tw / 2 + 4), y: y - 56 * k, w: Math.max(72 * k, tw + 8), h: 56 * k + 34 };
+      if (!inMap(r) || occupied.some(o => overlaps(r, o, 4)) || countIn(r, routePts, 4)) continue;
+      occupied.push(r);
+      markSvg.push(icon(type, x, y, k) + `<text x="${x.toFixed(1)}" y="${(y + 18 * k + 16).toFixed(1)}" font-size="17" font-weight="700" text-anchor="middle" fill="#4b4f47" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(nm)}</text>`);
+    }
+  }
+
+  // ---- 下地 ----
+  out.push(`<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="24" fill="#eef1e3"/>`);
+  out.push(`<g clip-path="url(#mapclip)">`);
+  const minor = [];
+  const stepKm = 0.2;
+  const dLat = stepKm / 110.95, dLng = stepKm / (111.32 * Math.cos(35 * Math.PI / 180));
+  for (let la = Math.floor(br.lat / dLat) * dLat; la < tl.lat; la += dLat) { const y = P(la, 0)[1]; minor.push(`M${MAP.x},${y.toFixed(1)}H${MAP.x + MAP.w}`); }
+  for (let ln = Math.floor(tl.lng / dLng) * dLng; ln < br.lng; ln += dLng) { const x = P(35, ln)[0]; minor.push(`M${x.toFixed(1)},${MAP.y}V${MAP.y + MAP.h}`); }
+  out.push(`<path d="${minor.join('')}" stroke="#fbfbf5" stroke-width="${Math.max(2, s / 90).toFixed(1)}" fill="none"/>`);
+  // 山
+  const hillPx = HILLS.map(h => h.map(p => P(p[0], p[1])));
+  HILLS.forEach(h => {
+    out.push(`<path d="${smoothPath(h, P, true)}" fill="#bfe0b4"/>`);
+  });
+  // 公園
+  const parkPx = [];
+  for (const [nm, s0, w0, n0, e0] of PARKS) {
+    const [x1, y1] = P(n0, w0), [x2, y2] = P(s0, e0);
+    parkPx.push({ x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+    out.push(`<rect x="${x1.toFixed(1)}" y="${y1.toFixed(1)}" width="${(x2 - x1).toFixed(1)}" height="${(y2 - y1).toFixed(1)}" rx="10" fill="#cde6c2"/>`);
+  }
+  // 川
+  const riverPx = RIVERS.map(r => ({ w: r.w, q: r.pts.map(p => P(p[0], p[1])) }));
+  for (const r of RIVERS) {
+    const d = smoothPath(r.pts, P);
+    out.push(`<path d="${d}" stroke="#cbe7f3" stroke-width="${r.w + 8}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+    out.push(`<path d="${d}" stroke="#8ecbe8" stroke-width="${r.w}" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
+    out.push(`<path d="${d}" stroke="#c4e6f6" stroke-width="${Math.max(2, r.w * 0.2)}" stroke-dasharray="18 26" fill="none" stroke-linecap="round"/>`);
+  }
+  // 主要道路
+  const roadPaths = [];
+  for (const [, lat, w0, e0, major] of STREETS_EW) { const [x1, y] = P(lat, w0), [x2] = P(lat, e0); roadPaths.push([`M${x1.toFixed(1)},${y.toFixed(1)}H${x2.toFixed(1)}`, major, { x: x1, y: y - 10, w: x2 - x1, h: 20 }]); }
+  for (const [, lng, s0, n0, major] of STREETS_NS) { const [x, y1] = P(s0, lng), [, y2] = P(n0, lng); roadPaths.push([`M${x.toFixed(1)},${y1.toFixed(1)}V${y2.toFixed(1)}`, major, { x: x - 10, y: y2, w: 20, h: y1 - y2 }]); }
+  for (const [d, major] of roadPaths) out.push(`<path d="${d}" stroke="#dedccd" stroke-width="${major ? 16 : 11}" stroke-linecap="round" fill="none"/>`);
+  for (const [d, major] of roadPaths) out.push(`<path d="${d}" stroke="#ffffff" stroke-width="${major ? 12 : 7}" stroke-linecap="round" fill="none"/>`);
+  // 鉄道
+  const railPx = RAILS.map(r => r.pts.map(p => P(p[0], p[1])));
+  for (const r of RAILS) {
+    const d = polyline(r.pts, P);
+    out.push(`<path d="${d}" stroke="#6d7479" stroke-width="9" fill="none" stroke-linejoin="round"/>`);
+    out.push(`<path d="${d}" stroke="#ffffff" stroke-width="4.5" stroke-dasharray="15 15" fill="none" stroke-linejoin="round"/>`);
+  }
+  // 京都駅ビル
+  {
+    const [x1, y1] = P(34.9878, 135.7552), [x2, y2] = P(34.9861, 135.7628);
+    const w = x2 - x1, h = Math.max(22, y2 - y1);
+    let win = '';
+    for (let xx = x1 + 6; xx < x2 - 8; xx += 12) win += `<rect x="${xx.toFixed(1)}" y="${(y1 + 5).toFixed(1)}" width="7" height="${(h - 10).toFixed(1)}" fill="#cfe2ee"/>`;
+    out.push(`<rect x="${x1.toFixed(1)}" y="${y1.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" rx="4" fill="#9fb3c2"/>${win}`);
+  }
+
+  // 木々（空いている場所に散らす）
+  const treeSvg = [], mtnSvg = [];
+  const freeAt = (x, y, rad) => {
+    const tr = { x: x - rad, y: y - rad * 2.2, w: rad * 2, h: rad * 2.6 };
+    if (occupied.some(o => overlaps(tr, o, 2))) return false;
+    if (roadPaths.some(([, , b]) => overlaps(tr, b, 0))) return false;
+    if (riverPx.some(r => distToPolyline(x, y, r.q) < r.w / 2 + rad + 4)) return false;
+    if (railPx.some(q => distToPolyline(x, y, q) < rad + 8)) return false;
+    if (routePts.some(([rx, ry]) => Math.hypot(rx - x, ry - y) < rad + 12)) return false;
+    if (propPt && Math.hypot(propPt[0] - x, propPt[1] - y) < 34) return false;
+    return true;
+  };
+  const step = 64;
+  for (let gy = MAP.y + 30; gy < MAP.y + MAP.h + 20; gy += step) {
+    for (let gx = MAP.x + 20; gx < MAP.x + MAP.w + 20; gx += step) {
+      const x = gx + (R() - 0.5) * step * 0.7, y = gy + (R() - 0.5) * step * 0.7;
+      const onHill = hillPx.some(q => inPoly(x, y, q));
+      const onPark = parkPx.some(p => x > p.x && x < p.x + p.w && y > p.y && y < p.y + p.h);
+      if (onHill && R() < 0.35) {
+        const w = 90 + R() * 60, h = 38 + R() * 26;
+        const r = { x: x - w / 2, y: y - h, w, h };
+        if (!occupied.some(o => overlaps(r, o, 2)) && !roadPaths.some(([, , b]) => overlaps(r, b, 0)) && !railPx.some(q => distToPolyline(x, y - h / 2, q) < w / 2 + 6) && !routePts.some(([rx, ry]) => rx > r.x && rx < r.x + w && ry > r.y && ry < y)) { mtnSvg.push(mountain(x, y, w, h)); continue; }
+      }
+      const pr = onHill ? 0.8 : onPark ? 0.95 : 0.22;
+      if (R() > pr) continue;
+      const nTrees = 1 + Math.floor(R() * (onHill || onPark ? 3 : 3));
+      for (let t = 0; t < nTrees; t++) {
+        const tx = x + (t ? (R() - 0.5) * 30 : 0), ty = y + (t ? (R() - 0.3) * 16 : 0), rad = 8 + R() * 5;
+        if (freeAt(tx, ty, rad)) treeSvg.push([ty, tree(tx, ty, rad, R() > 0.5)]);
+      }
+    }
+  }
+  treeSvg.sort((a, b) => a[0] - b[0]);
+  out.push(mtnSvg.join(''));
+  out.push(treeSvg.map(t => t[1]).join(''));
+
+  // 大文字
+  { const [x, y] = P(DAIMONJI[0], DAIMONJI[1]); const r = { x: x - 22, y: y - 22, w: 44, h: 44 };
+    if (inMap(r) && !occupied.some(o => overlaps(r, o))) out.push(`<text x="${x.toFixed(1)}" y="${(y + 15).toFixed(1)}" font-size="44" font-weight="900" text-anchor="middle" fill="#fff" opacity=".9">大</text>`); }
+
+  // 距離の同心円
+  const labels = [];
+  if (state.rings && propPt) {
+    const [px, py] = propPt;
+    const maxKm = Math.hypot(MAP.w, MAP.h) / s;
+    const stepR = maxKm > 12 ? 2 : 1;
+    for (let kk = stepR; kk < maxKm; kk += stepR) {
+      const Rr = kk * s;
+      out.push(`<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${Rr.toFixed(1)}" fill="none" stroke="#5f8784" stroke-width="2" stroke-dasharray="3 9" stroke-linecap="round" opacity=".6"/>`);
+      for (const ang of [-Math.PI / 4, -3 * Math.PI / 4, Math.PI / 4, 3 * Math.PI / 4]) {
+        const lx = px + Rr * Math.cos(ang), ly = py + Rr * Math.sin(ang);
+        const r = { x: lx - 24, y: ly - 13, w: 48, h: 26 };
+        if (inMap(r) && !occupied.some(o => overlaps(r, o, 2))) {
+          labels.push(`<rect x="${r.x.toFixed(1)}" y="${r.y.toFixed(1)}" width="48" height="26" rx="13" fill="#fff" stroke="#9ab3b0"/><text x="${lx.toFixed(1)}" y="${(ly + 6).toFixed(1)}" font-size="15" text-anchor="middle" fill="#4f6f6c" font-weight="700">${kk}km</text>`);
+          occupied.push(r);
+          break;
+        }
+      }
+    }
+  }
+  // 通り名
+  if (state.streets) {
+    for (const [nm, lat, w0, e0, major] of STREETS_EW) {
+      if (!major) continue;
+      const [x, y] = P(lat, Math.max(w0, tl.lng)); const xx = Math.max(x, MAP.x) + 24;
+      const r = { x: xx, y: y - 10, w: textW(nm, 15) + 6, h: 20 };
+      if (inMap(r) && !occupied.some(o => overlaps(r, o, 2))) labels.push(`<text x="${(xx + 3).toFixed(1)}" y="${(y + 5).toFixed(1)}" font-size="15" fill="#8b9086" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(nm)}</text>`);
+    }
+    for (const [nm, lng, s0, n0, major] of STREETS_NS) {
+      if (!major) continue;
+      const [x, y] = P(Math.min(n0, tl.lat), lng); const yy = Math.max(y, MAP.y) + 22;
+      const r = { x: x - 10, y: yy, w: 20, h: nm.length * 16 };
+      const chars = [...nm].map((c, i) => `<tspan x="${x.toFixed(1)}" dy="${i ? 16 : 0}">${esc(c)}</tspan>`).join('');
+      if (inMap(r) && !occupied.some(o => overlaps(r, o, 2))) labels.push(`<text y="${(yy + 13).toFixed(1)}" font-size="15" text-anchor="middle" fill="#8b9086" stroke="#fff" stroke-width="4" paint-order="stroke">${chars}</text>`);
+    }
+    const kp = riverPx[0].q.find(([x, y]) => y > MAP.y + MAP.h * 0.55 && x > MAP.x + 20 && x < MAP.x + MAP.w - 80);
+    if (kp) { const r = { x: kp[0] + 12, y: kp[1] - 13, w: 44, h: 24 };
+      if (!occupied.some(o => overlaps(r, o))) labels.push(`<text x="${(kp[0] + 14).toFixed(1)}" y="${(kp[1] + 6).toFixed(1)}" font-size="18" font-weight="700" fill="#3f86ad" stroke="#fff" stroke-width="4" paint-order="stroke">鴨川</text>`); }
+  }
+
+  out.push(labels.join(''));
+  out.push(markSvg.join(''));
+  out.push(walkSvg.join(''));
+  out.push(routeSvg.join(''));
+  out.push(busSvg.join(''));
+  out.push(propSvg);
+  out.push(cardSvg.join(''));
+
+  // 方位・縮尺
+  const nx = MAP.x + MAP.w - 56, ny = MAP.y + 50;
+  out.push(`<circle cx="${nx}" cy="${ny}" r="28" fill="#fff" stroke="#dde3d6" stroke-width="2"/><path d="M${nx},${ny - 18} L${nx + 10},${ny + 14} L${nx},${ny + 7} L${nx - 10},${ny + 14} Z" fill="#16323a"/>`);
+  out.push(`<text x="${nx}" y="${ny + 48}" font-size="16" font-weight="700" text-anchor="middle" fill="#16323a">N</text>`);
+  const sx = scaleBox.x + 10, sy = MAP.y + MAP.h - 28;
+  out.push(`<rect x="${sx - 10}" y="${sy - 36}" width="${(sbw + 84).toFixed(1)}" height="48" rx="10" fill="#fff" opacity=".9"/>
+    <path d="M${sx},${sy - 12} V${sy} H${(sx + sbw).toFixed(1)} V${sy - 12}" stroke="#16323a" stroke-width="3" fill="none"/>
+    <text x="${(sx + sbw + 10).toFixed(1)}" y="${sy + 1}" font-size="17" fill="#16323a" font-weight="700">${sbKm === 0.5 ? '500m' : '1km'}</text>
+    <text x="${sx}" y="${sy - 18}" font-size="13" fill="#6b7a7e">徒歩 約${Math.round(sbKm * 1000 / 80)}分</text>`);
+  if (!hasProp()) {
+    out.push(`<rect x="${MAP.x + MAP.w / 2 - 330}" y="${MAP.y + MAP.h / 2 - 34}" width="660" height="68" rx="34" fill="#12303a" opacity=".85"/>
+      <text x="${MAP.x + MAP.w / 2}" y="${MAP.y + MAP.h / 2 + 9}" font-size="24" fill="#fff" text-anchor="middle">住所を検索するか、地図をクリックして物件の位置を指定</text>`);
+  }
+  out.push(`</g>`);
+  out.push(`<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="24" fill="none" stroke="#dde3d6" stroke-width="2"/>`);
+
+  // ---- 下段 ----
+  const B = { x: 50, y: 758, w: 1500, h: 222 };
+  out.push(`<rect x="${B.x}" y="${B.y}" width="${B.w}" height="${B.h}" rx="20" fill="#eaf0ef"/>`);
+  out.push(`<text x="${B.x + 28}" y="${B.y + 42}" font-size="30" font-weight="700" fill="#16323a">${esc(state.btitle)}</text>`);
+  out.push(`<text x="${B.x + 30}" y="${B.y + 72}" font-size="19" fill="#5c6b70">${esc(state.bsub)}</text>`);
+  const n = state.dests.length;
+  const gap = 22, cw = (B.w - 56 - gap * (n - 1)) / n, cy = B.y + 88, ch = 118;
+  state.dests.forEach((d, i) => {
+    const cx = B.x + 28 + i * (cw + gap);
+    const qs = 104;
+    const mins = minutesOf(d);
+    out.push(`<rect x="${cx.toFixed(1)}" y="${cy}" width="${cw.toFixed(1)}" height="${ch}" rx="12" fill="#fff"/>
+      <rect x="${(cx + 12).toFixed(1)}" y="${cy + 12}" width="7" height="${ch - 24}" rx="3.5" fill="${d.color}"/>
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 36}" font-size="24" fill="#16323a">${esc(d.short)}方面</text>
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 76}" font-size="22" fill="#16323a">約 <tspan font-size="34" font-weight="700">${esc(mins)}</tspan> 分</text>
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 104}" font-size="16" fill="${d.color}">${esc(bottomLine(i))}</text>`);
+    out.push(qrSvg(qrUrlOf(d), cx + cw - qs - 8, cy + (ch - qs) / 2, qs));
+  });
+  out.push(`<text x="${W - 50}" y="${H - 6}" font-size="12" text-anchor="end" fill="#9aa">所要時間は目安です。道路状況・ダイヤにより変わります。</text>`);
+  out.push(`</svg>`);
+  return out.join('\n');
+}
+
+// ===================================================================
+// UI
+// ===================================================================
+let renderTimer = null;
+function refresh() {
+  save();
+  clearTimeout(renderTimer);
+  renderTimer = setTimeout(() => { $('preview').innerHTML = render(); }, 60);
+}
+
+function renderDests() {
+  const wrap = $('dests');
+  wrap.innerHTML = '';
+  state.dests.forEach((d, i) => {
+    const el = document.createElement('div');
+    el.className = 'dest';
+    el.style.borderLeftColor = d.color;
+    const est = autoMinutes(d);
+    const b = busOf(i);
+    const info = !b ? '' : b.mode === 'bus'
+      ? `✓ バス乗換なし：${esc(b.best.from)} → ${esc(b.best.to)}（${b.best.stops}停留所）<br>路線：${esc(b.refs.map(r => r + '系統').join('・') || b.best.name)}<br>QR：${b.qrUrl ? '市バス' + esc(b.qrRef) + '系統の時刻表' : 'Googleマップの経路検索'}`
+      : b.mode === 'train'
+      ? `🚃 バスの乗換なし路線がないため電車：<br>${b.train.legs.map(l => `${esc(l.line)}　${esc(stationName(l.from))} → ${esc(stationName(l.to))}`).join('<br>乗換 → ')}<br>（駅まで徒歩約${b.train.walk}分を含む）　QR：Googleマップの経路検索`
+      : b.mode === 'road'
+      ? `${b.dataOk ? 'バス・電車の路線が見つからないため' : '路線データを取得できなかったため'}、道路の経路距離（${b.roadKm.toFixed(1)}km）から推定`
+      : '路線データを取得できなかったため、距離からの目安';
+    el.innerHTML = `
+      <div style="font-weight:700;color:${esc(d.color)}">${esc(d.name)}</div>
+      ${info ? `<div class="hint" style="margin:2px 0 4px;color:${b.mode === 'bus' || b.mode === 'train' ? '#13706b' : '#b25a1f'}">${info}</div>` : ''}
+      <div class="row">
+        <input type="text" data-k="min" value="${esc(d.min)}" placeholder="所要分（自動: ${est ?? '–'}分）">
+      </div>
+      <div class="row">
+        <input type="text" data-k="qr" value="${esc(d.qr)}" placeholder="QRのURL（空欄＝自動）">
+      </div>
+`;
+    el.querySelectorAll('input').forEach(inp => {
+      inp.addEventListener('input', () => {
+        const k = inp.dataset.k;
+        d[k] = inp.value;
+        refresh();
+      });
+    });
+    wrap.appendChild(el);
+  });
+}
+function updateEstimatePlaceholders() {
+  document.querySelectorAll('#dests .dest').forEach((el, i) => {
+    const d = state.dests[i]; if (!d) return;
+    el.querySelector('[data-k=min]').placeholder = `所要分（自動: ${autoMinutes(d) ?? '–'}分）`;
+  });
+}
+
+function bindText(id, key, num) {
+  const el = $(id);
+  if (el.type === 'checkbox') el.checked = !!state[key]; else el.value = state[key] ?? '';
+  el.addEventListener('input', () => {
+    if (el.type === 'checkbox') state[key] = el.checked;
+    else state[key] = num ? parseFloat(el.value) : el.value;
+    if (key === 'title' || SHARED_FIELDS.includes(key)) saveShared(key, state[key]);
+    if (key === 'zoom') $('zoomLabel').textContent = `×${(1 / state.zoom).toFixed(2)}`;
+    if (key === 'speed' || key === 'overhead') { $('spdLabel').textContent = state.speed; updateEstimatePlaceholders(); }
+    refresh();
+  });
+}
+function setProp(lat, lng, msg) {
+  state.lat = lat; state.lng = lng;
+  $('plat').value = lat.toFixed(6); $('plng').value = lng.toFixed(6);
+  updateEstimatePlaceholders();
+  if (msg) setStatus(msg, 'ok');
+  refresh();
+  scheduleBus();
+}
+
+// ---- 住所 → 緯度経度（国土地理院 住所検索API） ----
+async function gsiSearch(q) {
+  const res = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const js = await res.json();
+  return js.length ? { lat: js[0].geometry.coordinates[1], lng: js[0].geometry.coordinates[0], title: js[0].properties.title } : null;
+}
+// 京都の「通り名＋上る/下る/東入る/西入る」を外した候補も試す
+function addressCandidates(a) {
+  a = a.replace(/[\s　]+/g, '').replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).replace(/[－ー−‐]/g, '-');
+  const c = [a];
+  // 例: 下京区油小路通塩小路下る南不動堂町1-1 → 下京区南不動堂町1-1（通り名の中の「町」にも対応）
+  const noStreet = a.replace(/(区)(?:[^区]*?(?:通|筋|小路)[^区]*?(?:上る|下る|上ル|下ル|上がる|下がる|東入る?|西入る?|東入ル|西入ル)(?:[0-9一二三四五六七八九十]+丁目)?)+/, '$1');
+  if (noStreet !== a) c.push(noStreet);
+  const noNum = noStreet.replace(/[0-9\-]+(番地?|号)?$/, '');
+  if (noNum !== noStreet) c.push(noNum);
+  const m = noStreet.match(/^(.*?区)(?:.*?)([^0-9\-丁目]+町)/);
+  if (m) c.push(m[1] + m[2]);
+  return [...new Set(c)];
+}
+async function geocode() {
+  const a = $('addr').value.trim();
+  if (!a) { setStatus('住所を入力してください', 'err'); return; }
+  setStatus('位置を検索中…');
+  try {
+    for (const q of addressCandidates(a)) {
+      const r = await gsiSearch(q);
+      if (r) { setProp(r.lat, r.lng, `見つかりました: ${r.title}\n位置がずれていたら、地図をクリックして直せます。`); return; }
+    }
+    setStatus('住所から位置が見つかりませんでした。町名までに短くするか、地図をクリックして指定してください。', 'err');
+  } catch (e) {
+    setStatus('位置検索に失敗しました（' + e.message + '）。地図をクリックして指定してください。', 'err');
+  }
+}
+
+// ---- 経路の自動判定（OpenStreetMap の路線データ / Overpass API、道路経路 / OSRM） ----
+// 優先順：① バス乗換なし → ② 電車（直通 or 乗換1回） → ③ 道路の経路距離から推定
+const OVERPASS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
+const ORIGIN_RADIUS = 550;     // 物件から歩けるバス停(m)
+const STATION_RADIUS = 1500;   // 物件から歩ける駅(m)
+const DEST_STATION_RADIUS = 650;
+const WALK_M_PER_MIN = 80;
+const TRAIN_WAIT = 4, TRANSFER_MIN = 6;
+const RAIL_SPEED = { train: 42, subway: 32, light_rail: 25, monorail: 30, tram: 15 };
+const RAIL_MODES = 'train|subway|light_rail|monorail|tram';
+const STOP_ROLE = /^(stop|platform)?(_entry_only|_exit_only)?$/;
+function propKey() { return hasProp() ? state.lat.toFixed(5) + ',' + state.lng.toFixed(5) : ''; }
+function busOf(i) { return state.bus && state.bus.key === propKey() ? state.bus.dests[i] : null; }
+function nearestStop() { return state.bus && state.bus.key === propKey() ? state.bus.nearest : null; }
+function stopLabel() {
+  if (String(state.stop || '').trim()) return state.stop.trim();
+  const n = nearestStop();
+  return n ? `${n.name} 徒歩${n.walk}分` : '';
+}
+function modeOf(i) { const b = busOf(i); return b ? b.mode : null; }
+function isDirect(i) { return modeOf(i) === 'bus'; }
+function stationName(n) { const s = String(n || '').replace(/[（(].*?[）)]/g, '').trim(); return s ? (/駅$/.test(s) ? s : s + '駅') : ''; }
+function stationKey(n) { return String(n || '').replace(/[（(].*?[）)]/g, '').replace(/駅$/, '').replace(/\s/g, ''); }
+function lineName(t) { return String(t['name:ja'] || t.name || t.ref || '').replace(/[（(].*?[）)]/g, '').replace(/[:：].*$/, '').replace(/\s*[-–→].*$/, '').trim(); }
+function trainSummary(tr) { return tr.legs.map((l, k) => (k ? '' : stationName(l.from).replace(/駅$/, '')) + '→' + stationName(l.to).replace(/駅$/, '')).join(''); }
+
+async function overpass(q) {
+  let lastErr;
+  for (const url of OVERPASS) {
+    try {
+      // 応答がないサーバーは見切って次へ（混雑時に何分も待たないように）
+      const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 35000);
+      const res = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal })
+        .finally(() => clearTimeout(timer));
+      if (res.ok) return await res.json();
+      lastErr = new Error('HTTP ' + res.status);
+    } catch (e) { lastErr = e.name === 'AbortError' ? new Error('応答なし') : e; }
+  }
+  throw lastErr || new Error('取得できませんでした');
+}
+function busQuery(lat, lng) {
+  const a = `around:${ORIGIN_RADIUS},${lat},${lng}`;
+  return `[out:json][timeout:40];
+(node(${a})[highway=bus_stop];node(${a})[public_transport=platform][bus=yes];node(${a})[public_transport=stop_position][bus=yes];)->.near;
+.near out body;
+rel(bn.near)[type=route][route=bus]->.r;
+.r out body;
+node(r.r)->.s;
+.s out body;`;
+}
+function railStops(a) {
+  return `node(${a})[railway~"^(stop|station|halt|tram_stop)$"];node(${a})[public_transport~"^(stop_position|platform|station)$"][~"^(${RAIL_MODES})$"~"yes"];`;
+}
+function trainQuery(lat, lng) {
+  const dests = state.dests.map(d => railStops(`around:${DEST_STATION_RADIUS},${d.lat},${d.lng}`)).join('');
+  return `[out:json][timeout:60];
+(${railStops(`around:${STATION_RADIUS},${lat},${lng}`)})->.o;
+(${dests})->.d;
+(rel(bn.o)[type=route][route~"^(${RAIL_MODES})$"];rel(bn.d)[type=route][route~"^(${RAIL_MODES})$"];)->.r;
+.r out body;
+node(r.r)->.s;
+.s out body;`;
+}
+// 京都市バスの系統番号 → 系統別時刻表ページ（例: 204号系統 → 20400.htm、23号系統 → 02300.htm）
+function timetableUrl(route) {
+  if (!route) return null;
+  const who = `${route.operator} ${route.network} ${route.name}`;
+  const m = String(route.ref || '').trim().match(/^(\d{1,3})$/);
+  if (m && /京都市|市バス|市営/.test(who)) return `https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/kto/${m[1].padStart(3, '0')}00.htm`;
+  return null;
+}
+const ll = n => ({ lat: n.lat, lng: n.lon });
+// 停留所列の i→j の区間を、乗る順の [緯度, 経度] 配列にする（地図に実際の経路として描く）
+function segPath(stops, i, j) { return (i <= j ? stops.slice(i, j + 1) : stops.slice(j, i + 1).reverse()).map(p => [+p.lat.toFixed(5), +p.lng.toFixed(5)]); }
+// 路線(relation)の停留所を順番どおりに並べ、路線に沿った累積距離を付ける
+function routeStops(r, nodes, dedupe) {
+  const seq = (r.members || []).filter(m => m.type === 'node' && STOP_ROLE.test(m.role || '') && nodes.has(m.ref)).map(m => nodes.get(m.ref));
+  const out = [];
+  for (const n of seq) {
+    const name = (n.tags || {}).name || '';
+    if (dedupe && out.length && name && stationKey(out[out.length - 1].name) === stationKey(name)) continue;
+    out.push({ name, key: stationKey(name), lat: n.lat, lng: n.lon });
+  }
+  for (let k = 0; k < out.length; k++) out[k].cum = k ? out[k - 1].cum + kmBetween(out[k - 1], out[k]) * 1000 : 0;
+  return out;
+}
+function analyzeBus(js, lat, lng) {
+  const here = { lat, lng };
+  const nodes = new Map();
+  for (const e of js.elements || []) if (e.type === 'node') nodes.set(e.id, e);
+  const rels = (js.elements || []).filter(e => e.type === 'relation');
+  let nearest = null;
+  for (const n of nodes.values()) {
+    const t = n.tags || {};
+    if (!t.name || !(t.highway === 'bus_stop' || t.public_transport === 'platform')) continue;
+    const m = kmBetween(here, ll(n)) * 1000;
+    if (m <= ORIGIN_RADIUS && (!nearest || m < nearest.m)) nearest = { name: t.name.replace(/[（(].*?[）)]$/, ''), m };
+  }
+  if (nearest) nearest.walk = Math.max(1, Math.round(nearest.m * 1.25 / WALK_M_PER_MIN));
+  const speed = Number(state.speed) || 12;
+  const dests = state.dests.map(d => {
+    const cands = [];
+    for (const r of rels) {
+      const t = r.tags || {};
+      const seq = routeStops(r, nodes, false);
+      if (seq.length < 2) continue;
+      const oneWay = t['public_transport:version'] === '2';
+      let best = null;
+      for (let i = 0; i < seq.length; i++) {
+        const walkM = kmBetween(here, seq[i]) * 1000;
+        if (walkM > ORIGIN_RADIUS) continue;
+        for (let j = 0; j < seq.length; j++) {
+          if (j === i || (oneWay && j < i)) continue;
+          if (kmBetween(d, seq[j]) * 1000 > d.radius) continue;
+          const along = Math.abs(seq[j].cum - seq[i].cum) * 1.15;
+          if (along < 200) continue;
+          const walk = walkM * 1.25 / WALK_M_PER_MIN, ride = along / 1000 / speed * 60;
+          const total = walk + ride;
+          if (!best || total < best.total) {
+            const names = seq.slice(Math.min(i, j), Math.max(i, j) + 1).map(n => n.name).filter((nm, k, a) => nm && nm !== a[k - 1]);
+            best = { total, walk, ride, from: seq[i].name, to: seq[j].name, stops: Math.max(1, names.length - 1), path: segPath(seq, i, j) };
+          }
+        }
+      }
+      if (best) cands.push(Object.assign(best, { ref: t.ref || '', name: t.name || '', operator: t.operator || '', network: t.network || '' }));
+    }
+    cands.sort((a, b) => a.total - b.total);
+    const best = cands[0] || null;
+    if (!best) return null;
+    const qrRoute = cands.find(c => timetableUrl(c) && c.total <= best.total + 4) || null;
+    return {
+      mode: 'bus', minutes: Math.max(3, Math.round(best.total)), path: best.path,
+      best: { ref: best.ref, name: best.name, from: best.from, to: best.to, stops: best.stops },
+      refs: [...new Set(cands.filter(c => c.total <= best.total + 8).map(c => c.ref).filter(Boolean))].slice(0, 5),
+      qrUrl: qrRoute ? timetableUrl(qrRoute) : null, qrRef: qrRoute ? qrRoute.ref : '',
+    };
+  });
+  return { nearest, dests };
+}
+function analyzeTrain(js, lat, lng) {
+  const here = { lat, lng };
+  const nodes = new Map();
+  for (const e of js.elements || []) if (e.type === 'node') nodes.set(e.id, e);
+  const routes = (js.elements || []).filter(e => e.type === 'relation').map(r => {
+    const t = r.tags || {};
+    const stops = routeStops(r, nodes, true);
+    return { line: lineName(t), speed: RAIL_SPEED[t.route] || 40, oneWay: t['public_transport:version'] === '2', stops };
+  }).filter(r => r.stops.length >= 2);
+  const ride = (r, i, j) => Math.abs(r.stops[j].cum - r.stops[i].cum) * 1.1 / 1000 / r.speed * 60;
+  const ok = (r, i, j) => j !== i && (!r.oneWay || j > i) && Math.abs(r.stops[j].cum - r.stops[i].cum) > 300;
+  // 乗換駅の索引：駅名 → [路線, 位置]
+  const byKey = new Map();
+  routes.forEach(r => r.stops.forEach((s, k) => { if (s.key) { if (!byKey.has(s.key)) byKey.set(s.key, []); byKey.get(s.key).push([r, k]); } }));
+  return state.dests.map(d => {
+    let best = null;
+    const consider = (total, legs, walkMin) => { if (!best || total < best.total) best = { total, legs, walk: walkMin }; };
+    for (const a of routes) {
+      a.stops.forEach((o, i) => {
+        const walkM = kmBetween(here, o) * 1000;
+        if (walkM > STATION_RADIUS) return;
+        const walk = walkM * 1.25 / WALK_M_PER_MIN;
+        a.stops.forEach((s, j) => {
+          if (!ok(a, i, j)) return;
+          const leg1 = { line: a.line, from: o.name, to: s.name, path: segPath(a.stops, i, j) };
+          // 直通
+          if (kmBetween(d, s) * 1000 <= DEST_STATION_RADIUS) consider(walk + TRAIN_WAIT + ride(a, i, j), [leg1], walk);
+          // 乗換1回
+          for (const [b, k] of byKey.get(s.key) || []) {
+            if (b === a || b.line === a.line) continue;
+            b.stops.forEach((e, m) => {
+              if (!ok(b, k, m) || kmBetween(d, e) * 1000 > DEST_STATION_RADIUS) return;
+              consider(walk + TRAIN_WAIT + ride(a, i, j) + TRANSFER_MIN + ride(b, k, m), [leg1, { line: b.line, from: s.name, to: e.name, path: segPath(b.stops, k, m) }], walk);
+            });
+          }
+        });
+      });
+    }
+    if (!best) return null;
+    return { mode: 'train', minutes: Math.max(3, Math.round(best.total)), path: [].concat(...best.legs.map(l => l.path)),
+      train: { legs: best.legs.map(({ line, from, to }) => ({ line, from, to })), walk: Math.round(best.walk) } };
+  });
+}
+// 道路の経路（距離と形）。行き先ごとに取得し、失敗した行き先は null
+async function roadRoutes(lat, lng) {
+  const res = await Promise.all(state.dests.map(async d => {
+    try {
+      const r = await fetch(`${OSRM}${lng},${lat};${d.lng},${d.lat}?overview=simplified&geometries=geojson`);
+      if (!r.ok) return null;
+      const js = await r.json(), rt = js.routes && js.routes[0];
+      return rt ? { km: rt.distance / 1000, path: rt.geometry.coordinates.map(([x, y]) => [+y.toFixed(5), +x.toFixed(5)]) } : null;
+    } catch (e) { return null; }
+  }));
+  if (res.every(x => !x)) throw new Error('取得できませんでした');
+  return res;
+}
+const DIRECT_TITLE = '京都の主要エリアへ、バスで乗換なし';
+let busTimer = null, busSeq = 0;
+function scheduleBus() { clearTimeout(busTimer); busTimer = setTimeout(detectBus, 500); }
+async function detectBus() {
+  if (!hasProp()) return;
+  const key = propKey(), seq = ++busSeq, lat = state.lat, lng = state.lng;
+  const st = $('busStatus');
+  const got = {}, failed = {}, names = { bus: 'バスの路線', train: '電車の路線', road: '道路の経路' };
+  // 検索中は地図に「調べています」を重ね、保存ボタンを止める。結果は全部そろってから1回で反映
+  const t0 = Date.now();
+  const showBusy = () => {
+    if (seq !== busSeq) return;
+    $('busySteps').innerHTML = Object.keys(names).map(k => `<li><span>${k in got ? '✓' : failed[k] ? '×' : '…'}</span>${names[k]}${k in got ? '' : failed[k] ? '（取得できず）' : 'を検索中'}</li>`).join('');
+    const sec = Math.round((Date.now() - t0) / 1000);
+    $('busyTime').textContent = `${sec}秒経過` + (sec >= 15 ? '　混雑時は1分ほどかかることがあります' : '');
+  };
+  setBusy(true); showBusy();
+  const timer = setInterval(showBusy, 1000);
+  st.className = 'status'; st.textContent = 'バス・電車の経路を調べています…';
+  const run = (k, p) => p.then(v => { got[k] = v; }, () => { failed[k] = true; }).then(showBusy);
+  await Promise.all([
+    run('bus', overpass(busQuery(lat, lng)).then(js => analyzeBus(js, lat, lng))),
+    run('train', overpass(trainQuery(lat, lng)).then(js => analyzeTrain(js, lat, lng))),
+    run('road', roadRoutes(lat, lng)),
+  ]);
+  clearInterval(timer);
+  if (seq !== busSeq) return;
+  const B = got.bus, T = got.train, R = got.road;
+  const speed = Number(state.speed) || 12, over = Number(state.overhead) || 0;
+  const dests = state.dests.map((d, i) => {
+    if (B && B.dests[i]) return B.dests[i];
+    if (T && T[i]) return T[i];
+    if (R && R[i]) return { mode: 'road', minutes: Math.max(3, Math.round(R[i].km / speed * 60 + over)), roadKm: R[i].km, path: R[i].path, dataOk: !!(B && T) };
+    return { mode: null };
+  });
+  state.bus = { key, nearest: B ? B.nearest : null, dests, complete: true };
+  const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
+  const errs = { bus: 'バス', train: '電車', road: '道路経路' }, errList = Object.keys(failed).map(k => errs[k]);
+  st.className = errList.length === 3 ? 'status err' : 'status ok';
+  st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
+    + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所 ／ その他: ${dests.length - nBus - nTrain}か所`
+    + (errList.length ? `\n（${errList.join('・')}のデータを取得できませんでした。その分は距離からの目安で表示）` : '');
+  if (nBus === dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
+  if (nBus < dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
+  renderDests();
+  refresh();
+  setBusy(false);
+}
+function setBusy(on) {
+  $('mapBusy').hidden = !on;
+  ['btnPng', 'btnPng2', 'btnSvg', 'btnBus'].forEach(id => { $(id).disabled = on; });
+}
+
+// ---- URL → 物件名・住所 ----
+async function fetchHtml(url) {
+  const tries = [url, 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url), 'https://corsproxy.io/?url=' + encodeURIComponent(url)];
+  let lastErr;
+  for (const u of tries) {
+    try {
+      const res = await fetch(u);
+      if (res.ok) { const t = await res.text(); if (t.length > 500) return t; }
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('取得できませんでした');
+}
+const PREF_RE = /(北海道|東京都|大阪府|京都府|(?:神奈川|和歌山|鹿児島|[^\s\d<>「」（）()]{2})県)?[^\s<>|｜「」（）()、,]{1,8}?[市区郡][^\s<>|｜「」（）()、,]{2,40}/;
+function parseProperty(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  // 改行タグや郵便番号が住所とくっつかないようにする
+  doc.querySelectorAll('br').forEach(br => br.replaceWith(' '));
+  doc.querySelectorAll('a, span, div, p, td, dd').forEach(el => el.append(' '));
+  const out = {};
+  // 物件名
+  const og = doc.querySelector('meta[property="og:title"]')?.content || doc.title || '';
+  const h1 = doc.querySelector('h1')?.textContent.trim() || '';
+  let name = (og || h1).split(/[｜|]|\s[─—–-]\s/)[0].replace(/の(物件|プラン)詳細.*$/, '').trim();
+  if (!name && h1) name = h1;
+  out.name = name;
+  // JSON-LD
+  for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
+    try {
+      const walk = o => {
+        if (!o || typeof o !== 'object') return;
+        if (o.address && !out.addr) {
+          const a = o.address; out.addr = typeof a === 'string' ? a : [a.addressRegion, a.addressLocality, a.streetAddress].filter(Boolean).join('');
+        }
+        if (o.geo && o.geo.latitude && !out.lat) { out.lat = +o.geo.latitude; out.lng = +o.geo.longitude; }
+        Object.values(o).forEach(walk);
+      };
+      walk(JSON.parse(s.textContent));
+    } catch (e) {}
+  }
+  // 「所在地」「住所」ラベルの隣
+  if (!out.addr) {
+    for (const el of doc.querySelectorAll('th,dt,td,span,div,p,li,h3,h4')) {
+      const t = el.textContent.trim();
+      if (/^(所在地|住所|物件所在地)[:：]?$/.test(t)) {
+        const next = el.nextElementSibling || el.parentElement?.nextElementSibling;
+        const v = next?.textContent.replace(/〒?\s*\d{3}-?\d{4}/g, ' ').replace(/\s+/g, ' ').trim();
+        if (v && PREF_RE.test(v)) { out.addr = v.match(PREF_RE)[0].replace(/Google.*$|地図.*$/, ''); break; }
+      }
+    }
+  }
+  if (!out.addr) {
+    const text = doc.body?.textContent.replace(/\s+/g, ' ') || '';
+    const m = text.match(/(?:京都府)?京都市[^\s<>|｜「」（）()、,]{3,40}/) || text.match(PREF_RE);
+    if (m) out.addr = m[0];
+  }
+  // 地図埋め込みの座標
+  if (!out.lat) {
+    const m = html.match(/!3d(3\d\.\d{3,})!4d(13\d\.\d{3,})/) || html.match(/(?:[?&]q=|query=|ll=|center=|@|lat["'=:\s]+)(3\d\.\d{4,})[,\s"'&a-z=:]*?(13\d\.\d{4,})/i);
+    if (m) { out.lat = +m[1]; out.lng = +m[2]; }
+  }
+  return out;
+}
+async function loadUrl() {
+  const url = $('url').value.trim();
+  state.url = url;
+  if (!/^https?:\/\//.test(url)) { setStatus('URLを入力してください', 'err'); return; }
+  setStatus('ページを読み込み中…');
+  try {
+    const html = await fetchHtml(url);
+    const p = parseProperty(html);
+    if (p.name) { state.name = p.name; $('bname').value = p.name; }
+    if (p.addr) { state.addr = p.addr; $('addr').value = p.addr; }
+    if (p.lat && p.lng && p.lat > 20 && p.lat < 50) { setProp(p.lat, p.lng, `読み込みました: ${p.name || ''}\n${p.addr || ''}（ページ内の地図の座標を使用）`); return; }
+    if (p.addr) { await geocode(); return; }
+    setStatus('物件名は読み込めましたが、住所が見つかりませんでした。住所を手入力してください。', 'err');
+    refresh();
+  } catch (e) {
+    setStatus('ページを読み込めませんでした（サイト側の制限の可能性があります）。\n物件名と住所をコピーして貼り付け、「位置を検索」を押してください。', 'err');
+  }
+}
+
+// ---- 地図クリックで物件位置 ----
+$('preview').addEventListener('click', ev => {
+  const svg = $('preview').querySelector('svg');
+  if (!svg || !proj) return;
+  const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  if (p.x < MAP.x || p.x > MAP.x + MAP.w || p.y < MAP.y || p.y > MAP.y + MAP.h) return;
+  const ll = proj.inv(p.x, p.y);
+  setProp(ll.lat, ll.lng, `地図上で位置を指定しました（${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}）`);
+});
+
+// ---- 保存 ----
+function fileBase() { return (state.name || 'access-map').replace(/[\\/:*?"<>|\s]/g, '_'); }
+function download(blob, name) {
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function savePng(scale) {
+  const svgText = render();
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'); c.width = W * scale; c.height = H * scale;
+    const ctx = c.getContext('2d'); ctx.scale(scale, scale); ctx.drawImage(img, 0, 0, W, H);
+    c.toBlob(b => download(b, fileBase() + (scale > 1 ? '@2x' : '') + '.png'), 'image/png');
+  };
+  img.onerror = () => alert('画像の書き出しに失敗しました');
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgText);
+}
+$('btnPng').onclick = () => savePng(1);
+$('btnPng2').onclick = () => savePng(2);
+$('btnSvg').onclick = () => download(new Blob([render()], { type: 'image/svg+xml' }), fileBase() + '.svg');
+
+// ---- 初期化 ----
+$('url').value = state.url || '';
+$('addr').value = state.addr || '';
+if (hasProp()) { $('plat').value = state.lat; $('plng').value = state.lng; }
+bindText('bname', 'name'); bindText('addr', 'addr'); bindText('stop', 'stop');
+bindText('title', 'title'); bindText('subtitle', 'subtitle'); bindText('btitle', 'btitle'); bindText('bsub', 'bsub');
+bindText('zoom', 'zoom', true); bindText('rings', 'rings'); bindText('marks', 'marks'); bindText('streets', 'streets');
+bindText('speed', 'speed', true); bindText('overhead', 'overhead', true);
+$('zoomLabel').textContent = `×${(1 / state.zoom).toFixed(2)}`;
+$('spdLabel').textContent = state.speed;
+['plat', 'plng'].forEach(id => $(id).addEventListener('input', () => {
+  const la = parseFloat($('plat').value), ln = parseFloat($('plng').value);
+  if (Number.isFinite(la) && Number.isFinite(ln)) { state.lat = la; state.lng = ln; updateEstimatePlaceholders(); refresh(); scheduleBus(); }
+}));
+$('btnFetch').onclick = loadUrl;
+$('btnGeo').onclick = geocode;
+$('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); });
+$('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
+renderDests();
+refresh();
+$('btnBus').onclick = () => { if (hasProp()) detectBus(); else setStatus('先に物件の位置を指定してください', 'err'); };
+if (hasProp() && (!busOf(0) || !state.bus.complete)) scheduleBus();
+</script>
+</body>
+</html>
