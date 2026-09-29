@@ -44,6 +44,18 @@
   .hint { font-size: 11px; color: #888; line-height: 1.5; }
   details summary { cursor: pointer; font-size: 12px; color: #666; margin-top: 4px; }
   #preview { background: #fff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 8px; }
+  #previewWrap { position: relative; }
+  #mapBusy { position: absolute; inset: 0; border-radius: 8px; background: rgba(247,246,241,.82); backdrop-filter: blur(2px);
+    display: flex; align-items: center; justify-content: center; z-index: 5; }
+  #mapBusy[hidden] { display: none; }
+  #mapBusy .card { background: #12303a; color: #fff; border-radius: 14px; padding: 22px 30px; box-shadow: 0 6px 24px rgba(0,0,0,.25); min-width: 320px; }
+  #mapBusy .ttl { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 700; }
+  #mapBusy .spin { width: 26px; height: 26px; border: 4px solid rgba(255,255,255,.25); border-top-color: #5fd3c9; border-radius: 50%; animation: spin 0.9s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #mapBusy ul { list-style: none; margin: 14px 0 6px; padding: 0; font-size: 14px; line-height: 1.9; }
+  #mapBusy li span { display: inline-block; width: 1.6em; }
+  #mapBusy .sub { font-size: 12px; color: #bfe3e0; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
   #preview svg { width: 100%; height: auto; display: block; cursor: crosshair; }
   .dl { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
   @media (max-width: 900px) {
@@ -132,8 +144,16 @@
   </div>
 
   <div class="right-panel">
-    <div id="mapStatus" style="display:none;background:#12303a;color:#fff;border-radius:6px;padding:6px 10px;margin-bottom:6px;font-size:13px"></div>
-    <div id="preview"></div>
+    <div id="previewWrap">
+      <div id="preview"></div>
+      <div id="mapBusy" hidden>
+        <div class="card">
+          <div class="ttl"><div class="spin"></div>経路を調べています…</div>
+          <ul id="busySteps"></ul>
+          <div class="sub" id="busyTime"></div>
+        </div>
+      </div>
+    </div>
     <div class="dl">
       <button id="btnPng">PNG保存（1600×1000）</button>
       <button class="sub" id="btnPng2">高解像度PNG（3200×2000）</button>
@@ -3552,45 +3572,51 @@ async function detectBus() {
   if (!hasProp()) return;
   const key = propKey(), seq = ++busSeq, lat = state.lat, lng = state.lng;
   const st = $('busStatus');
-  const got = {}, failed = {}, names = { bus: 'バス', train: '電車', road: '道路経路' };
-  // 届いた順に地図へ反映する（電車の検索は時間がかかることがあるため）
-  const apply = () => {
+  const got = {}, failed = {}, names = { bus: 'バスの路線', train: '電車の路線', road: '道路の経路' };
+  // 検索中は地図に「調べています」を重ね、保存ボタンを止める。結果は全部そろってから1回で反映
+  const t0 = Date.now();
+  const showBusy = () => {
     if (seq !== busSeq) return;
-    const B = got.bus, T = got.train, R = got.road;
-    const speed = Number(state.speed) || 12, over = Number(state.overhead) || 0;
-    const dests = state.dests.map((d, i) => {
-      if (B && B.dests[i]) return B.dests[i];
-      if (T && T[i]) return T[i];
-      if (R && R[i]) return { mode: 'road', minutes: Math.max(3, Math.round(R[i].km / speed * 60 + over)), roadKm: R[i].km, path: R[i].path, dataOk: !!(B && T) };
-      return { mode: null };
-    });
-    const pending = Object.keys(names).filter(k => !(k in got) && !failed[k]);
-    state.bus = { key, nearest: B ? B.nearest : null, dests, complete: !pending.length };
-    const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
-    const errs = Object.keys(failed).map(k => names[k]);
-    st.className = pending.length ? 'status' : errs.length === 3 ? 'status err' : 'status ok';
-    st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
-      + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所 ／ その他: ${dests.length - nBus - nTrain}か所`
-      + (pending.length ? `\n${pending.map(k => names[k]).join('・')}の経路を調べています…` : '')
-      + (errs.length ? `\n（${errs.join('・')}のデータを取得できませんでした。その分は距離からの目安で表示）` : '');
-    setMapStatus(pending.length ? `${pending.map(k => names[k]).join('・')}の経路を調べています…（地図は届いた分から更新されます）` : '');
-    if (!pending.length) {
-      if (nBus === dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
-      if (nBus < dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
-    }
-    renderDests();
-    refresh();
+    $('busySteps').innerHTML = Object.keys(names).map(k => `<li><span>${k in got ? '✓' : failed[k] ? '×' : '…'}</span>${names[k]}${k in got ? '' : failed[k] ? '（取得できず）' : 'を検索中'}</li>`).join('');
+    const sec = Math.round((Date.now() - t0) / 1000);
+    $('busyTime').textContent = `${sec}秒経過` + (sec >= 15 ? '　混雑時は1分ほどかかることがあります' : '');
   };
-  st.className = 'status'; st.textContent = 'バス・電車の路線を調べています…';
-  setMapStatus('バス・電車の経路を調べています…');
-  const run = (k, p) => p.then(v => { got[k] = v; }, () => { failed[k] = true; }).then(apply);
+  setBusy(true); showBusy();
+  const timer = setInterval(showBusy, 1000);
+  st.className = 'status'; st.textContent = 'バス・電車の経路を調べています…';
+  const run = (k, p) => p.then(v => { got[k] = v; }, () => { failed[k] = true; }).then(showBusy);
   await Promise.all([
     run('bus', overpass(busQuery(lat, lng)).then(js => analyzeBus(js, lat, lng))),
     run('train', overpass(trainQuery(lat, lng)).then(js => analyzeTrain(js, lat, lng))),
     run('road', roadRoutes(lat, lng)),
   ]);
+  clearInterval(timer);
+  if (seq !== busSeq) return;
+  const B = got.bus, T = got.train, R = got.road;
+  const speed = Number(state.speed) || 12, over = Number(state.overhead) || 0;
+  const dests = state.dests.map((d, i) => {
+    if (B && B.dests[i]) return B.dests[i];
+    if (T && T[i]) return T[i];
+    if (R && R[i]) return { mode: 'road', minutes: Math.max(3, Math.round(R[i].km / speed * 60 + over)), roadKm: R[i].km, path: R[i].path, dataOk: !!(B && T) };
+    return { mode: null };
+  });
+  state.bus = { key, nearest: B ? B.nearest : null, dests, complete: true };
+  const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
+  const errs = { bus: 'バス', train: '電車', road: '道路経路' }, errList = Object.keys(failed).map(k => errs[k]);
+  st.className = errList.length === 3 ? 'status err' : 'status ok';
+  st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
+    + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所 ／ その他: ${dests.length - nBus - nTrain}か所`
+    + (errList.length ? `\n（${errList.join('・')}のデータを取得できませんでした。その分は距離からの目安で表示）` : '');
+  if (nBus === dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
+  if (nBus < dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
+  renderDests();
+  refresh();
+  setBusy(false);
 }
-function setMapStatus(msg) { const el = $('mapStatus'); el.textContent = msg; el.style.display = msg ? '' : 'none'; }
+function setBusy(on) {
+  $('mapBusy').hidden = !on;
+  ['btnPng', 'btnPng2', 'btnSvg', 'btnBus'].forEach(id => { $(id).disabled = on; });
+}
 
 // ---- URL → 物件名・住所 ----
 async function fetchHtml(url) {
