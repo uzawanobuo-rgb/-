@@ -518,21 +518,25 @@ ${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row"><button t
 </div></details>`;
     }).join('');
     return `
-<details class="card" open><summary><span class="step">1</span>目的地と条件<span class="badge ${destOk ? 'ok' : 'ng'}">${destOk ? esc(p.destName) : '未入力'}</span></summary>
-<div class="card-b"><div class="grid">
+<details class="card" open><summary><span class="step">1</span>目的地と条件
+<span class="sum-actions"><button type="button" class="btn small" data-action="geocode-dest">住所・地名から座標を検索</button>
+${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(p.destLat)},${esc(p.destLng)}">Googleマップで確認</a>` : ''}</span>
+<span class="badge ${destOk ? 'ok' : 'ng'}">${destOk ? esc(p.destName) : '未入力'}</span></summary>
+<div class="card-b">
+<div class="grid">
+${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('p2.customer', { ph: '山田' }), 'all')}
+</div>
+<div class="grid g3">
+${field('チェックイン <small>未入力なら翌月1日</small>', inp('p2.checkIn', { type: 'date' }))}
+${field('チェックアウト <small>未入力なら30日間</small>', inp('p2.checkOut', { type: 'date' }))}
+${field('人数', inp('persons', { type: 'number', step: 1 }))}
+</div>
+<div class="grid">
 ${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
 ${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
 ${field('住所・地名（座標の検索用）', inp('p2.destAddress', { ph: '〇〇株式会社 本社の住所 など' }), 'all')}
 ${field('緯度', inp('p2.destLat', { ph: '35.6862' }))}
 ${field('経度', inp('p2.destLng', { ph: '139.7660' }))}
-</div>
-<div class="row"><button type="button" class="btn small" data-action="geocode-dest">住所・地名から座標を検索</button>
-${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(p.destLat)},${esc(p.destLng)}">Googleマップで確認</a>` : ''}</div>
-<div class="grid g3">
-${field('チェックイン <small>未入力なら翌月1日</small>', inp('p2.checkIn', { type: 'date' }))}
-${field('チェックアウト <small>未入力なら30日間</small>', inp('p2.checkOut', { type: 'date' }))}
-${field('人数', inp('persons', { type: 'number', step: 1 }))}
-${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('p2.customer', { ph: '山田' }), 'all')}
 </div></div></details>
 ${propCards}
 ${renderTextCard('p2', built.model)}`;
@@ -764,6 +768,11 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
   }
 
   document.addEventListener('click', async e => {
+    if (e.target.closest('summary .sum-actions')) {
+      const a = e.target.closest('a');
+      if (!a) e.preventDefault(); // ボタン：開閉させない（リンクはそのまま開く）
+      else { e.preventDefault(); window.open(a.href, '_blank', 'noopener'); return; }
+    }
     const b = e.target.closest('[data-action]');
     if (!b || b.tagName === 'INPUT') return;
     const act = b.dataset.action, path = b.dataset.path, i = +b.dataset.i;

@@ -116,3 +116,4 @@ ol.howto { margin: 0; padding-left: 20px; line-height: 1.7; font-size: 13px; }
 .import-box { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px dashed #B8D9D6; border-radius: 10px; background: #F4FAF9; }
 .card.restore { border-color: #B8D9D6; background: #F4FAF9; }
 .transit-box { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border: 1px dashed #B8D9D6; border-radius: 8px; background: #F4FAF9; }
+.sum-actions { display: inline-flex; flex-wrap: wrap; gap: 6px; font-weight: 500; }
