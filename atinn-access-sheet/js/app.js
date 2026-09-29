@@ -511,7 +511,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
   // 使っている文字だけのフォント（Google Fonts の text= 指定）を埋め込む
   async function fontCSS(text) {
     const chars = Array.from(new Set((text + '0123456789,.約分円（）()・＋×〜～※ABCN').replace(/\s/g, ''))).join('');
-    const url = 'https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&text=' + encodeURIComponent(chars);
+    const url = 'https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&text=' + encodeURIComponent(chars);
     let css = await (await fetch(url)).text();
     const urls = Array.from(new Set(Array.from(css.matchAll(/url\((https:[^)]+)\)/g)).map(m => m[1])));
     for (const u of urls) { const d = await blobToDataURL(await (await fetch(u)).blob()); css = css.split(u).join(d); }

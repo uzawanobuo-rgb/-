@@ -67,7 +67,7 @@
 </div>${right || ''}</div>`;
   }
   function frame(inner) {
-    return `<div class="atinn-sheet" style="width:1123px;height:794px;box-sizing:border-box;border-top:10px solid #0F7C7A;padding:18px 40px 16px;display:flex;flex-direction:column;gap:12px;background:#F7F6F2;color:#1E2B33;font-family:'Zen Kaku Gothic New','Hiragino Sans',sans-serif;overflow:hidden;">${inner}</div>`;
+    return `<div class="atinn-sheet" style="width:1123px;height:794px;box-sizing:border-box;border-top:10px solid #0F7C7A;padding:18px 40px 16px;display:flex;flex-direction:column;gap:12px;background:#F7F6F2;color:#1E2B33;font-family:'M PLUS 1p','Hiragino Sans',sans-serif;overflow:hidden;">${inner}</div>`;
   }
   function panel(svg, h, what) {
     return `<div style="position:relative;height:${h}px;flex-shrink:0;background:#FFFFFF;border:1px solid #E2DED3;border-radius:16px;overflow:hidden;">${svg}

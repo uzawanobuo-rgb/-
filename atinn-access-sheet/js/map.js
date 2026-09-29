@@ -400,7 +400,7 @@
 
     // ---- 描画 ----
     const s = [];
-    s.push(`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(spec.ariaLabel || '路線概要図')}" style="display:block;font-family:'Zen Kaku Gothic New',sans-serif;">`);
+    s.push(`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${esc(spec.ariaLabel || '路線概要図')}" style="display:block;font-family:'M PLUS 1p',sans-serif;">`);
     s.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${C.bg}"/>`);
     if (spec.yamanote !== false && ringInView && ringPts.length > 2) {
       const d = pathD(ringPts) + ' Z';
