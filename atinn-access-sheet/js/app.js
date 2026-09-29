@@ -414,6 +414,7 @@ ${renderPropEditor('p1.property', prop, {})}
 <details class="card" open><summary><span class="step">2</span>主要駅までの所要時間<span class="badge ${sel.length ? 'ok' : 'ng'}">${sel.length ? `${sel.length}駅を表示` : '未入力'}</span></summary>
 <div class="card-b">
 <p class="muted" style="margin:0">所要時間＝<b>物件から乗車駅までの徒歩</b>＋<b>乗車時間</b>（乗換の歩き・待ちを含む。日中・平日の目安）。<b>「乗車（分）」を入れた駅</b>のうち、上限以内の駅から短い順に3つがシートに載ります。</p>
+<div class="row"><button type="button" class="btn small" data-action="clear-routes">所要時間をすべてクリア</button><span class="muted">乗車駅は物件の最寄駅に戻ります</span></div>
 <div class="grid">${field('載せる上限（徒歩＋乗車）', `<select data-bind="p1.maxMin">${[30, 45, 60, 90, 120].map(v => `<option value="${v}" ${v === limit ? 'selected' : ''}>${v}分以内</option>`).join('')}</select>`)}
 <p class="muted" style="margin:0;align-self:end">郊外の物件は 60分・90分 などに広げてください。</p></div>
 ${routes}
@@ -686,6 +687,11 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
       }
       case 'del-leg': { const r = getPath(path); r.legs.splice(i, 1); persist(); renderForm(); renderPreview(); break; }
       case 'photo': { const p = getPath(path); p.photoIdx = i; p.photoCustom = ''; p.hidePhoto = false; persist(); renderForm(); renderPreview(); break; }
+      case 'clear-routes':
+        if (!confirm('主要駅までの所要時間をすべて消します。よろしいですか？')) return;
+        state.p1.routes = {};
+        MAJOR.forEach(name => fillRouteDefaults(p1Route(name), state.p1.property, name));
+        persist(); renderForm(); renderPreview(); break;
       case 'clear-prop':
         if (!confirm(`物件${LETTERS[i]}の入力を消します。よろしいですか？`)) return;
         state.p2.properties[i] = emptyProp(); state.p2.routes[i] = emptyRoute(); persist(); renderForm(); renderPreview(); break;
