@@ -185,7 +185,90 @@
     }, parseBuilding(text));
   }
 
-  const M = { toHalf, stripBrackets, parsePrice, parseStations, parseCoords, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
+
+  // ---------- Yahoo!乗換案内の検索結果（「乗換取込」ブックマークレット）----------
+  // 路線名を短く：「ＪＲ東海道本線(上野東京ライン)高崎行」→「JR上野東京ライン」、「ＪＲ山手線内回り東京・上野方面」→「JR山手線」
+  function cleanLine(s) {
+    s = toHalf(s).replace(/ＪＲ/g, 'JR').replace(/[Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)).trim();
+    const alias = /^(JR)?[^(（]*[(（]([^)）]*ライン)[)）]/.exec(s);
+    if (alias) return (alias[1] || '') + alias[2];
+    if (/バス/.test(s)) return s.replace(/[(（][^)）]*[)）].*$/, '').replace(/\s*\S*(行|方面)$/, '').replace(/・/, ' ').trim();
+    const m = /^(.*?(?:線|ライン|ゆりかもめ|ライナー))/.exec(s);
+    if (m) return m[1].replace(/(内回り|外回り)$/, '');
+    return s.replace(/\s*\S*(行|方面)$/, '').trim();
+  }
+  // 「西麻布/都営バス」「渋谷駅前(東側)/都営バス」「大宮(埼玉県)」「品川駅」→ 地点名
+  function cleanStation(s) {
+    return String(s || '').replace(/\/.*$/, '').replace(/[(（][^)）]*[)）]/g, '').replace(/〔[^〕]*〕/g, '').replace(/駅$/, '').trim();
+  }
+  function hm(s) { const m = /(\d{1,2}):(\d{2})/.exec(s); return m ? (+m[1]) * 60 + (+m[2]) : null; }
+
+  // 経路の詳細を「地点 → 区間 → 地点 …」として読む
+  const SKIP = /^(時刻表|出口|地図|地図でルートを表示|ルート保存|定期券|ルート共有|印刷する|発|着)$|^出口[:：]|^\[発\]|^乗車位置|^\d+駅$|円$|^[\d.]+km$|^IC優先|^現金優先|^乗換：|^定期の種類|^\d+か月|^メールで送信|^カレンダーに登録|^[早楽安]+$/;
+  function parseTransitRoutes(text) {
+    const L = String(text || '').replace(/\r/g, '').split('\n').map(x => x.trim()).filter(Boolean);
+    const routes = [];
+    for (let i = 0; i < L.length; i++) {
+      const m = /^(\d{1,2}:\d{2})発→(\d{1,2}:\d{2})着(\d+)分（乗車(\d+)分）/.exec(L[i]);
+      if (!m) continue;
+      let transfers = null;
+      const points = [], segs = [];
+      let pend = { arr: null, dep: null }, expectPoint = false, expectSeg = false, j = i + 1;
+      for (; j < L.length; j++) {
+        const x = L[j];
+        if (/^(\d{1,2}:\d{2})発→/.test(x) || /^ルートに表示される記号/.test(x) || /^ルート\d+$/.test(x)) break;
+        const t = /^乗換：(\d+)回/.exec(x);
+        if (t) { transfers = +t[1]; continue; }
+        const tm = /^(\d{1,2}:\d{2})(発|着)?$/.exec(x);
+        if (tm) {
+          const kind = tm[2] || (L[j + 1] === '発' ? '発' : L[j + 1] === '着' ? '着' : '発');
+          if (kind === '発') pend.dep = hm(tm[1]); else pend.arr = hm(tm[1]);
+          expectPoint = true; expectSeg = false;
+          continue;
+        }
+        if (SKIP.test(x)) continue;
+        if (expectPoint) {
+          points.push({ name: cleanStation(x), raw: x, arr: pend.arr, dep: pend.dep });
+          pend = { arr: null, dep: null }; expectPoint = false; expectSeg = true;
+          continue;
+        }
+        if (expectSeg) {
+          const w = /^徒歩(\d+)?分?/.exec(x);
+          segs.push(w ? { walk: true, min: w[1] ? +w[1] : null } : { walk: false, line: x });
+          expectSeg = false;
+        }
+      }
+      i = j - 1;
+      const rideIdx = segs.map((sg, k) => sg.walk ? -1 : k).filter(k => k >= 0);
+      if (points.length < 2 || !rideIdx.length) continue;
+      const f = rideIdx[0];
+      const board = points[f], last = points[points.length - 1];
+      const initialWalk = segs.slice(0, f).reduce((a, sg) => a + (sg.min || 0), 0);
+      let ride = board.dep != null && last.arr != null ? last.arr - board.dep : +m[3];
+      if (ride < 0) ride += 24 * 60;
+      routes.push({
+        dep: m[1], arr: m[2], total: +m[3], ride, transfers: transfers ?? (rideIdx.length - 1), initialWalk,
+        from: board.name, to: last.name,
+        legs: rideIdx.map(k => ({ mode: /バス/.test(segs[k].line) ? 'bus' : 'train', line: cleanLine(segs[k].line), to: (points[k + 1] || last).name })),
+      });
+    }
+    return routes;
+  }
+
+  // 貼り付けられた内容（ブックマークレットのJSON またはページ全文）から、乗車時間がいちばん短い経路を選ぶ
+  function parseTransit(payload) {
+    let p = payload;
+    if (typeof p === 'string') {
+      const s = p.trim();
+      if (s.startsWith('{')) { try { p = JSON.parse(s); } catch (e) { p = { text: s }; } } else p = { text: s };
+    }
+    const routes = parseTransitRoutes(p.text || '');
+    if (!routes.length) return null;
+    const best = routes.slice().sort((a, b) => a.ride - b.ride || a.transfers - b.transfers)[0];
+    return Object.assign({ url: p.url || '', routes }, best);
+  }
+
+  const M = { cleanLine, cleanStation, parseTransitRoutes, parseTransit, toHalf, stripBrackets, parsePrice, parseStations, parseCoords, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnParse = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
