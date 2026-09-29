@@ -2697,8 +2697,11 @@ function mountain(x, y, w, h) {
 function trainIcon(x, y, color) {
   // バスと見分けやすいよう、パンタグラフ・架線・斜めの運転台・線路つきの電車
   return `<g transform="translate(${(x - 29).toFixed(1)},${(y - 12).toFixed(1)})">
-    <rect x="-5" y="-18" width="68" height="58" rx="10" fill="#fff" opacity=".9"/>
-    <path d="M-3,-14 H61" stroke="#8a9296" stroke-width="1.2"/>
+    <g stroke="#fff" stroke-width="6" stroke-linejoin="round" stroke-linecap="round" fill="#fff" opacity=".95">
+      <path d="M21,0 L30,-7 L23,-14 M17,-14 H30"/>
+      <path d="M0,4 Q0,0 4,0 H45 Q51,0 55,7 L58,21 Q58,26 53,26 H4 Q0,26 0,22 Z"/>
+      <path d="M4,28 H54 V33 H4 Z M-3,33 H61"/>
+    </g>
     <path d="M21,0 L30,-7 L23,-14" stroke="#3a4247" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
     <path d="M17,-14 H30" stroke="#3a4247" stroke-width="2.6" stroke-linecap="round"/>
     <rect x="19" y="-2" width="12" height="3" rx="1" fill="#3a4247"/>
