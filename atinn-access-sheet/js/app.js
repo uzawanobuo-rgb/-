@@ -246,10 +246,11 @@
     const parsed = Parse.parsePlan(text);
     const prop = getPath(path);
     let defaults = null;
-    if (path === 'p1.property') defaults = () => MAJOR.forEach(name => fillRouteDefaults(p1Route(name), prop, name));
+    // 別の物件を取り込んだら、前の物件の乗車駅・所要時間は消してから初期値を入れる
+    if (path === 'p1.property') defaults = () => { state.p1.routes = {}; MAJOR.forEach(name => fillRouteDefaults(p1Route(name), prop, name)); };
     else {
       const i = +path.split('.')[2];
-      defaults = () => fillRouteDefaults(state.p2.routes[i], prop, state.p2.destName);
+      defaults = () => { state.p2.routes[i] = emptyRoute(); fillRouteDefaults(state.p2.routes[i], prop, state.p2.destName); };
     }
     const miss = applyImport(prop, parsed, defaults);
     persist(); renderForm(); renderPreview(); autoResolveStations();
@@ -365,9 +366,9 @@ ${field('禁煙/喫煙', inp(`${path}.smoking`))}${field('設定人数', inp(`${
 <div class="route-h">${o.head}
 <span class="total">合計 <b>${info.total ?? '–'}</b>分${info.display !== null && info.display !== info.total ? `（表示 ${info.display}分）` : ''}・${info.transfers === 0 ? '乗換なし' : info.transfers != null ? `乗換${info.transfers}回` : '–'}</span></div>
 <div class="grid g4">
-${field('乗車駅／バス停', `<input data-bind="${path}.station" type="text" value="${esc(route.station || '')}" list="dl-${o.id}" placeholder="${esc(stList[0] || '駅名')}"><datalist id="dl-${o.id}">${stList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`, 'span2')}
-${field('徒歩（分）', inp(`${path}.walk`, { type: 'number' }))}
-${field('乗車（分）', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
+${field('乗車駅／バス停 <small>物件から歩いて乗る駅</small>', `<input data-bind="${path}.station" type="text" value="${esc(route.station || '')}" list="dl-${o.id}" placeholder="${esc(stList[0] || '駅名')}"><datalist id="dl-${o.id}">${stList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`, 'span2')}
+${field('徒歩（分） <small>物件→乗車駅</small>', inp(`${path}.walk`, { type: 'number' }))}
+${field('乗車（分） <small>電車・バス</small>', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
 </div>
 <table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
 <div class="row"><button type="button" class="btn small" data-action="add-leg" data-path="${path}">＋ 乗換を追加</button>${searchLinks(route.station || stList[0], o.toName, o.fromCoord)}</div>
@@ -387,11 +388,17 @@ ${coordStatus(names)}
     const built = Sheet.buildP1(viewState());
     const sel = built.model.selected;
     const coord = prop.lat !== '' && prop.lat != null ? { lat: prop.lat, lng: prop.lng } : null;
+    const limit = Calc.num(p.maxMin) || 30;
     const routes = MAJOR.map(name => {
       const r = p1Route(name);
       const info = Sheet.routeInfo(r);
-      const over = info.total !== null && info.total > 30;
-      const head = `<b>${esc(name)}</b>${sel.includes(name) ? '<span class="chip">シートに表示</span>' : over ? '<span class="chip gray">31分以上のため除外</span>' : ''}`;
+      const over = info.total !== null && info.total > limit;
+      const chip = sel.includes(name) ? '<span class="chip">シートに表示</span>'
+        : r.exclude ? '<span class="chip gray">載せない</span>'
+        : over ? `<span class="chip gray">${limit}分超のため除外</span>`
+        : info.ride === null ? '<span class="chip gray">乗車（分）を入れると表示</span>'
+        : '<span class="chip gray">4番目以降のため非表示</span>';
+      const head = `<b>${esc(name)}</b>${chip}`;
       return renderRouteEditor(`p1.routes.${name}`, r, { id: 'p1-' + name, head, toName: name, stations: prop.stations, fromCoord: coord, selected: sel.includes(name), excludable: true });
     }).join('');
     const propOk = prop.name && prop.lat !== '' && prop.lat != null;
@@ -406,7 +413,9 @@ ${renderPropEditor('p1.property', prop, {})}
 </div></details>
 <details class="card" open><summary><span class="step">2</span>主要駅までの所要時間<span class="badge ${sel.length ? 'ok' : 'ng'}">${sel.length ? `${sel.length}駅を表示` : '未入力'}</span></summary>
 <div class="card-b">
-<p class="muted" style="margin:0">所要時間＝物件から駅までの徒歩＋乗車時間（乗換の歩き・待ちを含む。日中・平日の目安）。<b>30分以内の駅から短い順に3つ</b>がシートに載ります。合計がいちばん短くなる駅を選んでください（バスも可）。</p>
+<p class="muted" style="margin:0">所要時間＝<b>物件から乗車駅までの徒歩</b>＋<b>乗車時間</b>（乗換の歩き・待ちを含む。日中・平日の目安）。<b>「乗車（分）」を入れた駅</b>のうち、上限以内の駅から短い順に3つがシートに載ります。</p>
+<div class="grid">${field('載せる上限（徒歩＋乗車）', `<select data-bind="p1.maxMin">${[30, 45, 60, 90, 120].map(v => `<option value="${v}" ${v === limit ? 'selected' : ''}>${v}分以内</option>`).join('')}</select>`)}
+<p class="muted" style="margin:0;align-self:end">郊外の物件は 60分・90分 などに広げてください。</p></div>
 ${routes}
 </div></details>
 ${renderTextCard('p1', built.model)}`;

@@ -86,14 +86,20 @@
     const resolve = makeResolver(state);
     const ci = p1.checkIn || Calc.defaultCheckIn();
 
-    // 主要駅の選定：31分以上を外し、短い順に3つ
+    // 主要駅の選定：上限（初期値30分）を超える駅を外し、短い順に3つ
+    const limit = n(p1.maxMin) || 30;
     const rows = GEO.majorStations.map(ms => {
       const r = (p1.routes || {})[ms.name] || {};
       return { ms, r, info: routeInfo(r) };
     });
-    const selected = rows.filter(x => !x.r.exclude && x.info.total !== null && x.info.total <= 30)
+    const selected = rows.filter(x => !x.r.exclude && x.info.total !== null && x.info.total <= limit)
       .sort((a, b) => a.info.total - b.info.total).slice(0, 3);
-    if (!selected.length) warnings.push('主要駅への所要時間を入力してください（30分以内の駅が表示されます）');
+    if (!selected.length) {
+      const entered = rows.filter(x => !x.r.exclude && x.info.total !== null);
+      warnings.push(entered.length
+        ? `${limit}分以内の主要駅がありません。「②主要駅までの所要時間」の上限を広げてください`
+        : '主要駅までの「乗車（分）」を入力してください（入力した駅が地図に載ります）');
+    }
 
     const center = (prop.lat != null && prop.lng != null) ? { lat: +prop.lat, lng: +prop.lng, name: prop.name || '物件' } : null;
     if (!center) warnings.push('物件の座標（緯度・経度）が未入力です');
@@ -114,7 +120,7 @@
     // 見出し
     const maxMin = selected.length ? Math.max.apply(null, selected.map(x => x.info.display)) : 30;
     const allCentral = selected.every(x => CENTRAL.includes(x.ms.name));
-    const autoTitle = `${allCentral ? '都心の' : ''}主要駅へ、${ceil5(maxMin)}分以内`;
+    const autoTitle = selected.length ? `${allCentral ? '都心の' : ''}主要駅へ、${ceil5(maxMin)}分以内` : '主要駅へのアクセス';
     const title = state.headline || autoTitle;
     const sub = state.subheadline || `${prop.name || '物件'}から主要駅へのアクセス概要図`;
     const addr = Parse.shortAddress(prop.address || '').upToChome;

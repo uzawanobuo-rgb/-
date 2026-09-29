@@ -89,7 +89,7 @@ const priceCases = require('../testdata/price_cases.json').cases;
 const REAL = {
   '33705': { name: 'アットイン品川9', address: '東京都港区高輪4-19-11', near: ['品川', 8, 'JR山手線'], stations: 5, floors: 4, built: '1976年10月' },
   '33492': { name: 'アットインmini門前仲町5-1', address: '東京都江東区福住1-5-4', near: ['門前仲町', 11, '東京メトロ東西線'], stations: 5, floors: 5, built: '2017年07月' },
-  '27788': { name: 'アットイン飯田橋5-1', address: '東京都新宿区箪笥町18-3', near: ['牛込神楽坂', 3, '都営大江戸線'], stations: 4, floors: 9, built: '1987年05月' },
+  '27788': { name: 'アットイン飯田橋5-1', address: '東京都新宿区箪笥町18-3', near: ['牛込神楽坂', 3, '都営大江戸線'], stations: 6, floors: 9, built: '1987年05月' },
   '34063': { name: 'アットイン田町2', address: '東京都港区芝浦2-8-9', near: ['芝浦ふ頭', 7, 'ゆりかもめ'], stations: 4, floors: 11, built: '2000年01月' },
 };
 for (const id of Object.keys(REAL)) {
@@ -112,3 +112,12 @@ for (const id of Object.keys(REAL)) {
     assert.deepEqual(r.price, { dailyList: pv.daily_list, rentList: pv.rent_list, utilities: pv.utilities, dailyCampaign: pv.daily_campaign, cleaningList: pv.cleaning_list, cleaningCampaign: pv.cleaning_campaign, insurancePerMonth: pv.insurance_per_month });
   });
 }
+
+test('交通：路線名の中にカッコがある（平塚4-1）', () => {
+  const t = '詳細情報\nプラン名\t【おためし入居キャンペーン】アットイン平塚4-1（横浜駅まで電車で約30分）\n住所\t〒254-0042 神奈川県平塚市明石町21-25 Googleマップで開く\n交通\t平塚駅 ( JR東海道本線(東京～熱海) ほか ) 徒歩 8分\n間取り\t1K\t専有面積\t20.59㎡\n総階数\t10階建\n\nほかの物件\n田原町駅徒歩5分の人気物件\n蔵前駅 徒歩7分';
+  const r = P.parsePlan(t);
+  assert.deepEqual(r.stations, [{ name: '平塚', line: 'JR東海道本線(東京～熱海)', walk: 8 }]);
+  assert.equal(r.name, 'アットイン平塚4-1');
+  assert.equal(r.address, '神奈川県平塚市明石町21-25');
+  assert.equal(r.floors, 10);
+});
