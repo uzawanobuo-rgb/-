@@ -132,3 +132,13 @@ test('清掃キャンペーン0円（無料）は0として読む。郵便番号
   assert.equal(r.cleaningCampaign, 0);
   assert.equal(r.insurancePerMonth, 830);
 });
+
+test('交通：ページ内の別物件のおすすめ一覧（同じ書式）は拾わない', () => {
+  const page = JSON.parse(fs.readFileSync(path.join(__dirname, '../testdata/plan_pages/30877.json'), 'utf8'));
+  // 実際のページでは、スクリプトで描かれる別物件の一覧が詳細情報の前後に並ぶ
+  const rec = '\nこの物件を見た人はこんな物件も見ています\nアットイン浅草橋\n田原町駅 ( 東京メトロ銀座線 ほか ) 徒歩 5分\n蔵前駅 ( 都営大江戸線 ほか ) 徒歩 7分\nアットイン明大前\n明大前駅 ( 京王京王線 ほか ) 徒歩 8分\n川崎駅 ( JR京浜東北線 ほか ) 徒歩 11分\n';
+  for (const text of [rec + page.text, page.text + rec]) {
+    const r = P.parsePlan(Object.assign({}, page, { text }));
+    assert.deepEqual(r.stations.map(s => [s.name, s.walk]), [['平塚', 8]]);
+  }
+});
