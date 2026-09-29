@@ -373,6 +373,18 @@ ${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://
 ` + renderPropRest(path, prop, opts);
   }
 
+  // 閉じた「料金・写真・強みタグ」の見出しに出す要約
+  function propSummary(prop, opts) {
+    const pv = prop.price || {}, yen = v => Calc.yen(v);
+    const daily = Calc.num(pv.dailyCampaign) ?? Calc.num(pv.dailyList);
+    const clean = Calc.num(pv.cleaningCampaign) ?? Calc.num(pv.cleaningList);
+    const parts = [daily !== null ? `1日 ${yen(daily)}円` : '<span class="warn-t">料金 未入力</span>'];
+    if (clean !== null) parts.push(`清掃 ${yen(clean)}円`);
+    if (opts.photos) parts.push(prop.hidePhoto ? '写真なし' : `写真 ${(prop.photos || []).length + (prop.photoCustom ? 1 : 0)}枚`);
+    if (opts.tag && prop.tag) parts.push(`タグ「${esc(prop.tag)}」`);
+    return parts.join('・');
+  }
+
   // 最寄駅・料金・写真・タグ・詳細（両方の表示で共通）
   function renderPropRest(path, prop, opts) {
     const pv = 'price';
@@ -394,6 +406,8 @@ ${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真�
     return `<div class="sub-h">最寄駅</div>
 <table class="mini"><thead><tr><th>駅名</th><th>路線</th><th>徒歩</th><th></th></tr></thead><tbody>${stRows}</tbody></table>
 <div class="row"><button type="button" class="btn small" data-action="add-station" data-path="${path}">＋ 駅を追加</button></div>
+<details class="more" data-ui="more-${path}" ${ui.open['more-' + path] ? 'open' : ''}><summary>料金・写真・強みタグ <span class="more-sum">${propSummary(prop, opts)}</span></summary>
+<div class="more-b">
 <div class="sub-h">料金（ご利用料金(1ヶ月以上)・税込）${prop.imported ? '<span class="muted">黄色＝取込値から修正</span>' : ''}</div>
 <div class="grid g4">
 ${priceField('dailyList', '利用料/日（定価）')}${priceField('dailyCampaign', 'キャンペーン/日')}
@@ -404,6 +418,7 @@ ${priceField('insurancePerMonth', '住宅保険/月')}
 <p class="muted" style="margin:0">キャンペーン価格があればそれを使います（期間表記はチェックしません）。</p>
 ${photos}
 ${opts.tag ? `<div class="grid">${field('強みタグ <small>（空欄なら自動。「、」区切りで複数）</small>', inp(`${path}.tag`, { ph: opts.tagPh || '' }), 'all')}</div>` : ''}
+</div></details>
 <details><summary class="muted" style="cursor:pointer">物件の詳細（築年・構造など）</summary>
 <div class="grid g3" style="margin-top:6px">
 ${field('築年月', inp(`${path}.built`, { ph: '2019年3月' }))}${field('構造', inp(`${path}.structure`))}${field('階建', inp(`${path}.floors`, { type: 'number' }))}
