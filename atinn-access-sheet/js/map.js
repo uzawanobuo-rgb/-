@@ -248,7 +248,9 @@
     // 7. 駅名ラベル
     const stLabels = [];
     const seenSt = new Set();
+    const calloutNames = new Set(ends.map(e => e.r.callout && e.r.callout.title).filter(Boolean));
     stationMarks.forEach(s => {
+      if (s.kind === 'transfer' && calloutNames.has(s.name)) return;
       const key = s.name + '@' + Math.round(s.p.x) + ',' + Math.round(s.p.y);
       if (seenSt.has(key)) return; seenSt.add(key);
       const size = s.kind === 'board' ? (mode === 'p1' ? 15 : 13) : 13;
@@ -276,6 +278,9 @@
     const lineLabels = [];
     legLabels.forEach(ll => {
       if (!ll.text && !ll.bus) return;
+      // 同じ線路を共有するルート（例：東京行きと上野行きの上野東京ライン）で同じ路線名を重ねて書かない
+      const mid = ll.pts[Math.floor(ll.pts.length / 2)];
+      if (!ll.bus && lineLabels.some(o => o.c.text === ll.text && ll.pts.some(p => Math.hypot(p.x - o.c.x, p.y - o.c.y) < 260))) return;
       const segs = [];
       for (let i = 1; i < ll.pts.length; i++) segs.push({ p: ll.pts[i - 1], q: ll.pts[i], len: Math.hypot(ll.pts[i].x - ll.pts[i - 1].x, ll.pts[i].y - ll.pts[i - 1].y) });
       segs.sort((a, b) => b.len - a.len);
