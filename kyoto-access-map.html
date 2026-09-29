@@ -2727,7 +2727,7 @@ function qrSvg(text, x, y, size) {
 }
 function bottomLine(i) {
   const m = modeOf(i), b = busOf(i);
-  if (m === 'bus') return '乗換なし ｜ QRで時刻表 ▶';
+  if (m === 'bus') return 'バス乗換なし ｜ QRで時刻表 ▶';
   if (m === 'train') return `電車：${trainSummary(b.train)} ▶`;
   return 'QRで経路・時刻表 ▶';
 }
@@ -2875,7 +2875,7 @@ function render() {
     const mins = minutesOf(d);
     const dist = hasProp() ? kmBetween(state, d) : null;
     const mode = modeOf(i), b = busOf(i);
-    const pill = mode === 'bus' ? '乗換なし' : mode === 'train' ? (b.train.legs.length > 1 ? '電車・乗換1回' : '電車') : '';
+    const pill = mode === 'bus' ? 'バス乗換なし' : mode === 'train' ? (b.train.legs.length > 1 ? '電車・乗換1回' : '電車') : '';
     const direct = !!pill;
     const badgeW = direct ? textW(pill, 15, 700) + 20 : 0;
     const nameW = textW(d.name, 28, 700) + (direct ? badgeW + 12 : 0);
