@@ -2596,7 +2596,10 @@ let proj = null;
 const PAD = { l: 330, r: 330, t: 110, b: 110 };
 function makeProjection() {
   const pts = state.dests.map(d => ({ lat: d.lat, lng: d.lng }));
-  if (hasProp()) pts.push({ lat: state.lat, lng: state.lng });
+  if (hasProp()) {
+    pts.push({ lat: state.lat, lng: state.lng });
+    state.dests.forEach((d, i) => { const b = busOf(i); if (b && b.path) b.path.forEach(([lat, lng]) => pts.push({ lat, lng })); });
+  }
   const minLat = Math.min(...pts.map(p => p.lat)), maxLat = Math.max(...pts.map(p => p.lat));
   const minLng = Math.min(...pts.map(p => p.lng)), maxLng = Math.max(...pts.map(p => p.lng));
   const lat0 = (minLat + maxLat) / 2, lng0 = (minLng + maxLng) / 2;
@@ -2620,6 +2623,33 @@ function smoothPath(pts, P, close) {
   }
   const l = q[q.length - 1];
   return d + `L${l[0].toFixed(1)},${l[1].toFixed(1)}` + (close ? 'Z' : '');
+}
+function polyLen(q) { let L = 0; for (let k = 1; k < q.length; k++) L += Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]); return L; }
+function polyAt(q, t) {
+  let want = polyLen(q) * t;
+  for (let k = 1; k < q.length; k++) {
+    const seg = Math.hypot(q[k][0] - q[k - 1][0], q[k][1] - q[k - 1][1]);
+    if (want <= seg || k === q.length - 1) { const u = seg ? Math.min(1, want / seg) : 0; return [q[k - 1][0] + (q[k][0] - q[k - 1][0]) * u, q[k - 1][1] + (q[k][1] - q[k - 1][1]) * u]; }
+    want -= seg;
+  }
+  return q[0];
+}
+function samplePts(q, step) { const L = polyLen(q), n = Math.max(2, Math.ceil(L / step)); const out = []; for (let k = 0; k <= n; k++) out.push(polyAt(q, k / n)); return out; }
+function smoothPx(q) {
+  if (q.length < 3) return 'M' + q.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join('L');
+  let s = `M${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}`;
+  for (let k = 1; k < q.length - 1; k++) s += `Q${q[k][0].toFixed(1)},${q[k][1].toFixed(1)} ${((q[k][0] + q[k + 1][0]) / 2).toFixed(1)},${((q[k][1] + q[k + 1][1]) / 2).toFixed(1)}`;
+  const l = q[q.length - 1];
+  return s + `L${l[0].toFixed(1)},${l[1].toFixed(1)}`;
+}
+// 線を進行方向の左右に off px ずらす（同じ道を通るルートが重ならないように）
+function offsetLine(q, off) {
+  if (!off) return q;
+  return q.map((p, k) => {
+    const a = q[Math.max(0, k - 1)], b = q[Math.min(q.length - 1, k + 1)];
+    const L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    return [p[0] - (b[1] - a[1]) / L * off, p[1] + (b[0] - a[0]) / L * off];
+  });
 }
 function distToPolyline(x, y, q) {
   let best = Infinity;
@@ -2796,7 +2826,7 @@ function render() {
   destPts.forEach(([x, y]) => occupied.push({ x: x - 16, y: y - 16, w: 32, h: 32 }));
 
   // ルート
-  const routeSvg = [], routePts = [], busSvg = [], routeGeo = [];
+  const routeSvg = [], routePts = [], busSvg = [], routeGeo = [], walkSvg = [];
   // 縮尺バーは、物件・行き先から離れている方の下隅に置く
   const sbKm = s > 280 ? 0.5 : 1, sbw = sbKm * s, sbBoxW = sbw + 84;
   const corner = side => ({ x: side === 'left' ? MAP.x + 18 : MAP.x + MAP.w - sbBoxW - 18, y: MAP.y + MAP.h - 64, w: sbBoxW, h: 48 });
@@ -2821,22 +2851,38 @@ function render() {
     const rank = []; order.forEach((idx, r) => { rank[idx] = r; });
     state.dests.forEach((d, i) => {
       const [dx, dy] = destPts[i];
-      const mx = (px + dx) / 2, my = (py + dy) / 2;
-      const len = Math.hypot(dx - px, dy - py) || 1;
-      const nx = -(dy - py) / len, ny = (dx - px) / len;
-      const bend = (rank[i] - (state.dests.length - 1) / 2) * Math.min(90, len * 0.22);
-      const cx = mx + nx * bend, cy = my + ny * bend;
-      const d0 = `M${px.toFixed(1)},${py.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${dx.toFixed(1)},${dy.toFixed(1)}`;
-      routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" opacity=".85"/>`);
-      const mode = modeOf(i);
+      const b = busOf(i), mode = modeOf(i);
+      let q;
+      if (b && b.path && b.path.length >= 2) {
+        // 実際の経路（停留所・駅の並び、または道路）に沿って描く。同じ道を通る線は少しずらす
+        q = offsetLine(b.path.map(p => P(p[0], p[1])), (rank[i] - (state.dests.length - 1) / 2) * 7);
+        const last = q[q.length - 1];
+        if (Math.hypot(last[0] - dx, last[1] - dy) > 4) q.push([dx, dy]);
+        if (Math.hypot(q[0][0] - px, q[0][1] - py) > 10) {
+          walkSvg.push(`<path d="M${px.toFixed(1)},${py.toFixed(1)} L${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}" stroke="#fff" stroke-width="8" stroke-linecap="round" opacity=".85"/>
+            <path d="M${px.toFixed(1)},${py.toFixed(1)} L${q[0][0].toFixed(1)},${q[0][1].toFixed(1)}" stroke="${d.color}" stroke-width="3.5" stroke-dasharray="1 7" stroke-linecap="round"/>`);
+          routePts.push(...samplePts([[px, py], q[0]], 8));
+        }
+      } else {
+        // 経路が分からないときは、物件から行き先へのカーブで示す
+        const mx = (px + dx) / 2, my = (py + dy) / 2;
+        const len = Math.hypot(dx - px, dy - py) || 1;
+        const nx = -(dy - py) / len, ny = (dx - px) / len;
+        const bend = (rank[i] - (state.dests.length - 1) / 2) * Math.min(90, len * 0.22);
+        const cx = mx + nx * bend, cy = my + ny * bend;
+        q = [];
+        for (let t = 0; t <= 1.0001; t += 0.025) q.push([(1 - t) ** 2 * px + 2 * (1 - t) * t * cx + t * t * dx, (1 - t) ** 2 * py + 2 * (1 - t) * t * cy + t * t * dy]);
+      }
+      const d0 = smoothPx(q);
+      routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>`);
       if (mode === 'train') {
-        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="7" fill="none" stroke-linecap="round"/>`);
+        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="7" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`);
         routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="2.5" fill="none" stroke-dasharray="8 8"/>`);
       } else {
-        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="6" fill="none" stroke-dasharray="14 10" stroke-linecap="round"/>`);
+        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="6" fill="none" stroke-dasharray="14 10" stroke-linecap="round" stroke-linejoin="round"/>`);
       }
-      routeGeo.push({ px, py, cx, cy, dx, dy, len, color: d.color, mode: modeOf(i) });
-      for (let t = 0.02; t < 1; t += 0.02) routePts.push([(1 - t) ** 2 * px + 2 * (1 - t) * t * cx + t * t * dx, (1 - t) ** 2 * py + 2 * (1 - t) * t * cy + t * t * dy]);
+      routeGeo.push({ q, len: polyLen(q), color: d.color, mode });
+      routePts.push(...samplePts(q, 8).slice(1, -1));
     });
   }
   const countIn = (r, pts, pad) => pts.filter(([x, y]) => x > r.x - pad && x < r.x + r.w + pad && y > r.y - pad && y < r.y + r.h + pad).length;
@@ -2886,13 +2932,12 @@ function render() {
   state.dests.forEach((d, i) => {
     const [dx, dy] = destPts[i];
     const mins = minutesOf(d);
-    const dist = hasProp() ? kmBetween(state, d) : null;
     const mode = modeOf(i), b = busOf(i);
     const pill = mode === 'bus' ? 'バス乗換なし' : mode === 'train' ? (b.train.legs.length > 1 ? '電車・乗換1回' : '電車') : '';
     const direct = !!pill;
     const badgeW = direct ? textW(pill, 15, 700) + 20 : 0;
     const nameW = textW(d.name, 28, 700) + (direct ? badgeW + 12 : 0);
-    const lineW = textW('約 ', 22) + textW(String(mins), 42, 700) + textW(' 分', 22) + (dist != null ? textW(`（直線 ${dist.toFixed(1)}km）`, 17) + 8 : 0);
+    const lineW = textW('約 ', 22) + textW(String(mins), 42, 700) + textW(' 分', 22);
     const cw = Math.max(nameW, lineW) + 46, ch = 106;
     // 点のまわり一周（15°刻み×距離2段階）を候補にし、点線・他のカード・ラベルと重ならない位置を選ぶ
     let best = null, bestScore = Infinity;
@@ -2936,7 +2981,6 @@ function render() {
       <text x="${lx.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">約</text>
       <text x="${numX.toFixed(1)}" y="${(best.y + 90).toFixed(1)}" font-size="42" font-weight="700" fill="${d.color}">${esc(mins)}</text>
       <text x="${unitX.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">分</text>
-      ${dist != null ? `<text x="${(unitX + textW('分', 22) + 8).toFixed(1)}" y="${(best.y + 87).toFixed(1)}" font-size="17" fill="#6b7a7e">（直線 ${dist.toFixed(1)}km）</text>` : ''}
       <circle cx="${dx.toFixed(1)}" cy="${dy.toFixed(1)}" r="15" fill="${d.color}" stroke="#fff" stroke-width="4"/>`);
   });
   occupied.push(...destCards);
@@ -2944,7 +2988,7 @@ function render() {
   for (const g of routeGeo) {
     if (g.len < 150) continue;
     for (const t of [0.5, 0.4, 0.6, 0.32, 0.68]) {
-      const bx = (1 - t) ** 2 * g.px + 2 * (1 - t) * t * g.cx + t * t * g.dx, by = (1 - t) ** 2 * g.py + 2 * (1 - t) * t * g.cy + t * t * g.dy;
+      const [bx, by] = polyAt(g.q, t);
       const r = g.mode === 'train' ? { x: bx - 35, y: by - 36, w: 70, h: 62 } : { x: bx - 31, y: by - 26, w: 62, h: 44 };
       if (occupied.some(o => overlaps(r, o, 2))) continue;
       busSvg.push(g.mode === 'train' ? trainIcon(bx, by - 4, g.color) : busIcon(bx, by - 4, g.color)); occupied.push(r); break;
@@ -3100,6 +3144,7 @@ function render() {
 
   out.push(labels.join(''));
   out.push(markSvg.join(''));
+  out.push(walkSvg.join(''));
   out.push(routeSvg.join(''));
   out.push(busSvg.join(''));
   out.push(propSvg);
@@ -3259,7 +3304,7 @@ const OVERPASS = [
   'https://overpass.kumi.systems/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
-const OSRM = 'https://router.project-osrm.org/table/v1/driving/';
+const OSRM = 'https://router.project-osrm.org/route/v1/driving/';
 const ORIGIN_RADIUS = 550;     // 物件から歩けるバス停(m)
 const STATION_RADIUS = 1500;   // 物件から歩ける駅(m)
 const DEST_STATION_RADIUS = 650;
@@ -3326,6 +3371,8 @@ function timetableUrl(route) {
   return null;
 }
 const ll = n => ({ lat: n.lat, lng: n.lon });
+// 停留所列の i→j の区間を、乗る順の [緯度, 経度] 配列にする（地図に実際の経路として描く）
+function segPath(stops, i, j) { return (i <= j ? stops.slice(i, j + 1) : stops.slice(j, i + 1).reverse()).map(p => [+p.lat.toFixed(5), +p.lng.toFixed(5)]); }
 // 路線(relation)の停留所を順番どおりに並べ、路線に沿った累積距離を付ける
 function routeStops(r, nodes, dedupe) {
   const seq = (r.members || []).filter(m => m.type === 'node' && STOP_ROLE.test(m.role || '') && nodes.has(m.ref)).map(m => nodes.get(m.ref));
@@ -3372,7 +3419,7 @@ function analyzeBus(js, lat, lng) {
           const total = walk + ride;
           if (!best || total < best.total) {
             const names = seq.slice(Math.min(i, j), Math.max(i, j) + 1).map(n => n.name).filter((nm, k, a) => nm && nm !== a[k - 1]);
-            best = { total, walk, ride, from: seq[i].name, to: seq[j].name, stops: Math.max(1, names.length - 1) };
+            best = { total, walk, ride, from: seq[i].name, to: seq[j].name, stops: Math.max(1, names.length - 1), path: segPath(seq, i, j) };
           }
         }
       }
@@ -3383,7 +3430,7 @@ function analyzeBus(js, lat, lng) {
     if (!best) return null;
     const qrRoute = cands.find(c => timetableUrl(c) && c.total <= best.total + 4) || null;
     return {
-      mode: 'bus', minutes: Math.max(3, Math.round(best.total)),
+      mode: 'bus', minutes: Math.max(3, Math.round(best.total)), path: best.path,
       best: { ref: best.ref, name: best.name, from: best.from, to: best.to, stops: best.stops },
       refs: [...new Set(cands.filter(c => c.total <= best.total + 8).map(c => c.ref).filter(Boolean))].slice(0, 5),
       qrUrl: qrRoute ? timetableUrl(qrRoute) : null, qrRef: qrRoute ? qrRoute.ref : '',
@@ -3415,7 +3462,7 @@ function analyzeTrain(js, lat, lng) {
         const walk = walkM * 1.25 / WALK_M_PER_MIN;
         a.stops.forEach((s, j) => {
           if (!ok(a, i, j)) return;
-          const leg1 = { line: a.line, from: o.name, to: s.name };
+          const leg1 = { line: a.line, from: o.name, to: s.name, path: segPath(a.stops, i, j) };
           // 直通
           if (kmBetween(d, s) * 1000 <= DEST_STATION_RADIUS) consider(walk + TRAIN_WAIT + ride(a, i, j), [leg1], walk);
           // 乗換1回
@@ -3423,22 +3470,29 @@ function analyzeTrain(js, lat, lng) {
             if (b === a || b.line === a.line) continue;
             b.stops.forEach((e, m) => {
               if (!ok(b, k, m) || kmBetween(d, e) * 1000 > DEST_STATION_RADIUS) return;
-              consider(walk + TRAIN_WAIT + ride(a, i, j) + TRANSFER_MIN + ride(b, k, m), [leg1, { line: b.line, from: s.name, to: e.name }], walk);
+              consider(walk + TRAIN_WAIT + ride(a, i, j) + TRANSFER_MIN + ride(b, k, m), [leg1, { line: b.line, from: s.name, to: e.name, path: segPath(b.stops, k, m) }], walk);
             });
           }
         });
       });
     }
     if (!best) return null;
-    return { mode: 'train', minutes: Math.max(3, Math.round(best.total)), train: { legs: best.legs, walk: Math.round(best.walk) } };
+    return { mode: 'train', minutes: Math.max(3, Math.round(best.total)), path: [].concat(...best.legs.map(l => l.path)),
+      train: { legs: best.legs.map(({ line, from, to }) => ({ line, from, to })), walk: Math.round(best.walk) } };
   });
 }
-async function roadKms(lat, lng) {
-  const pts = [[lng, lat], ...state.dests.map(d => [d.lng, d.lat])].map(p => p.join(',')).join(';');
-  const res = await fetch(`${OSRM}${pts}?sources=0&annotations=distance`);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const js = await res.json();
-  return js.distances[0].slice(1).map(m => (m == null ? null : m / 1000));
+// 道路の経路（距離と形）。行き先ごとに取得し、失敗した行き先は null
+async function roadRoutes(lat, lng) {
+  const res = await Promise.all(state.dests.map(async d => {
+    try {
+      const r = await fetch(`${OSRM}${lng},${lat};${d.lng},${d.lat}?overview=simplified&geometries=geojson`);
+      if (!r.ok) return null;
+      const js = await r.json(), rt = js.routes && js.routes[0];
+      return rt ? { km: rt.distance / 1000, path: rt.geometry.coordinates.map(([x, y]) => [+y.toFixed(5), +x.toFixed(5)]) } : null;
+    } catch (e) { return null; }
+  }));
+  if (res.every(x => !x)) throw new Error('取得できませんでした');
+  return res;
 }
 const DIRECT_TITLE = '京都の主要エリアへ、バスで乗換なし';
 let busTimer = null, busSeq = 0;
@@ -3451,7 +3505,7 @@ async function detectBus() {
   const [bus, train, road] = await Promise.allSettled([
     overpass(busQuery(lat, lng)).then(js => analyzeBus(js, lat, lng)),
     overpass(trainQuery(lat, lng)).then(js => analyzeTrain(js, lat, lng)),
-    roadKms(lat, lng),
+    roadRoutes(lat, lng),
   ]);
   if (seq !== busSeq) return;
   const B = bus.status === 'fulfilled' ? bus.value : null, T = train.status === 'fulfilled' ? train.value : null, R = road.status === 'fulfilled' ? road.value : null;
@@ -3459,7 +3513,7 @@ async function detectBus() {
   const dests = state.dests.map((d, i) => {
     if (B && B.dests[i]) return B.dests[i];
     if (T && T[i]) return T[i];
-    if (R && R[i] != null) return { mode: 'road', minutes: Math.max(3, Math.round(R[i] / speed * 60 + over)), roadKm: R[i], dataOk: !!(B && T) };
+    if (R && R[i]) return { mode: 'road', minutes: Math.max(3, Math.round(R[i].km / speed * 60 + over)), roadKm: R[i].km, path: R[i].path, dataOk: !!(B && T) };
     return { mode: null };
   });
   state.bus = { key, nearest: B ? B.nearest : null, dests };
@@ -3608,7 +3662,7 @@ $('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); })
 $('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
 renderDests();
 refresh();
-if (hasProp() && (!busOf(0) || !('mode' in busOf(0)))) scheduleBus();
+if (hasProp() && (!busOf(0) || !('mode' in busOf(0)) || (busOf(0).mode && !busOf(0).path))) scheduleBus();
 </script>
 </body>
 </html>
