@@ -88,8 +88,11 @@
       <div class="status" id="busStatus" style="margin:0 0 8px"></div>
       <div id="dests"></div>
       <div class="hint" style="margin-top:6px">
-        物件の位置が決まると、OpenStreetMapのバス路線データから、近くのバス停と<b>乗換なしで行ける路線</b>を自動で調べます。<br>
-        所要時間は「バス停までの徒歩＋路線に沿った距離÷バス平均時速 約<span id="spdLabel"></span>km/h」の<b>目安</b>です（乗換なしの路線がない場合は直線距離から推定）。数字を入れればその値を使います。<br>
+        物件の位置が決まると、OpenStreetMapの路線データから次の順で経路を調べます：<br>
+        ① <b>バスで乗換なし</b>（バス停までの徒歩＋路線に沿った距離÷平均時速 約<span id="spdLabel"></span>km/h）<br>
+        ② ①がなければ<b>電車</b>（直通または乗換1回。駅までの徒歩・待ち・乗換時間を含む）<br>
+        ③ どちらもなければ、道路の経路距離から推定<br>
+        時間はいずれも<b>目安</b>です。数字を入れればその値を使います。<br>
         QRは、京都市バスの路線が見つかればその系統の時刻表ページ、それ以外はGoogleマップの経路検索（公共交通）を開きます。URLを入れれば差し替えられます。<br>
         OSMのデータは有志の登録なので、抜けや古い情報があることがあります。公開前に路線を確認してください。
       </div>
@@ -2551,7 +2554,7 @@ function estMinutes(d) {
 }
 function autoMinutes(d) {
   const b = busOf(state.dests.indexOf(d));
-  return b && b.best ? b.minutes : estMinutes(d);
+  return b && b.mode ? b.minutes : estMinutes(d);
 }
 function minutesOf(d) {
   const m = String(d.min || '').trim();
@@ -2589,7 +2592,7 @@ const DAIMONJI = [35.0255, 135.8005];
 
 // 物件と3つの行き先がちょうど収まる縮尺にする（余白を最小に）
 let proj = null;
-const PAD = { l: 330, r: 330, t: 80, b: 80 };
+const PAD = { l: 330, r: 330, t: 110, b: 110 };
 function makeProjection() {
   const pts = state.dests.map(d => ({ lat: d.lat, lng: d.lng }));
   if (hasProp()) pts.push({ lat: state.lat, lng: state.lng });
@@ -2690,6 +2693,15 @@ function mountain(x, y, w, h) {
   return `<path d="M${f(x - w / 2)},${f(y)} Q${f(x - w * 0.18)},${f(y - h * 1.15)} ${f(x)},${f(y - h)} Q${f(x + w * 0.2)},${f(y - h * 1.1)} ${f(x + w / 2)},${f(y)} Z" fill="#9fcf93"/>
     <path d="M${f(x)},${f(y - h)} Q${f(x + w * 0.2)},${f(y - h * 1.1)} ${f(x + w / 2)},${f(y)} L${f(x + w * 0.1)},${f(y)} Z" fill="#8cc280"/>`;
 }
+function trainIcon(x, y, color) {
+  return `<g transform="translate(${(x - 28).toFixed(1)},${(y - 17).toFixed(1)})">
+    <rect x="-3" y="-3" width="62" height="40" rx="12" fill="#fff" opacity=".9"/>
+    <rect x="0" y="0" width="56" height="30" rx="12" fill="${color}"/>
+    <rect x="6" y="6" width="19" height="11" rx="2" fill="#fff"/><rect x="31" y="6" width="19" height="11" rx="2" fill="#fff"/>
+    <rect x="4" y="21" width="48" height="3" fill="#fff" opacity=".6"/>
+    <circle cx="14" cy="33" r="3.5" fill="#333"/><circle cx="42" cy="33" r="3.5" fill="#333"/>
+    <path d="M-2,37 H58" stroke="#555" stroke-width="2"/></g>`;
+}
 function busIcon(x, y, color) {
   return `<g transform="translate(${(x - 28).toFixed(1)},${(y - 17).toFixed(1)})">
     <rect x="-3" y="-3" width="62" height="38" rx="10" fill="#fff" opacity=".9"/>
@@ -2711,6 +2723,12 @@ function qrSvg(text, x, y, size) {
     if (qr.isDark(r, c)) d += `M${(x + (c + quiet) * cell).toFixed(2)},${(y + (r + quiet) * cell).toFixed(2)}h${cell.toFixed(2)}v${cell.toFixed(2)}h-${cell.toFixed(2)}z`;
   }
   return `<rect x="${x}" y="${y}" width="${size}" height="${size}" fill="#fff"/><path d="${d}" fill="#111" shape-rendering="crispEdges"/>`;
+}
+function bottomLine(i) {
+  const m = modeOf(i), b = busOf(i);
+  if (m === 'bus') return '乗換なし ｜ QRで時刻表 ▶';
+  if (m === 'train') return `電車：${trainSummary(b.train)} ▶`;
+  return 'QRで経路・時刻表 ▶';
 }
 function overlaps(a, b, pad = 0) {
   return a.x < b.x + b.w + pad && b.x < a.x + a.w + pad && a.y < b.y + b.h + pad && b.y < a.y + a.h + pad;
@@ -2765,8 +2783,22 @@ function render() {
 
   // ルート
   const routeSvg = [], routePts = [], busSvg = [], routeGeo = [];
-  const scaleBox = { x: MAP.x + 10, y: MAP.y + MAP.h - 70, w: 240, h: 62 };
-  occupied.push(scaleBox, { x: MAP.x + MAP.w - 96, y: MAP.y + 12, w: 80, h: 100 });
+  // 縮尺バーは、物件・行き先から離れている方の下隅に置く
+  const sbKm = s > 280 ? 0.5 : 1, sbw = sbKm * s, sbBoxW = sbw + 84;
+  const corner = side => ({ x: side === 'left' ? MAP.x + 18 : MAP.x + MAP.w - sbBoxW - 18, y: MAP.y + MAP.h - 64, w: sbBoxW, h: 48 });
+  const crowd = r => destPts.concat(propPt ? [propPt] : []).filter(([x, y]) => x > r.x - 200 && x < r.x + r.w + 200 && y > r.y - 160).length;
+  const sbSide = crowd(corner('left')) <= crowd(corner('right')) ? 'left' : 'right';
+  const scaleBox = corner(sbSide);
+  const fixedBoxes = [scaleBox, { x: MAP.x + MAP.w - 96, y: MAP.y + 12, w: 80, h: 100 }]; // 縮尺・方位（何も重ねない）
+  occupied.push(...fixedBoxes);
+  const [sx1, sy1] = P(34.9878, 135.7552), [sx2, sy2] = P(34.9861, 135.7628);
+  const stationBox = { x: sx1 - 6, y: sy1 - 8, w: sx2 - sx1 + 12, h: Math.max(22, sy2 - sy1) + 16 }; // 京都駅ビル
+  const railPts = [];
+  for (const r of RAILS) for (let k = 0; k < r.pts.length - 1; k++) {
+    const [ax, ay] = P(r.pts[k][0], r.pts[k][1]), [bx, by] = P(r.pts[k + 1][0], r.pts[k + 1][1]);
+    const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, by - ay) / 12));
+    for (let t = 0; t <= n; t++) railPts.push([ax + (bx - ax) * t / n, ay + (by - ay) * t / n]);
+  }
   if (propPt) {
     const [px, py] = propPt;
     // 物件から見た方向順に並べ、外側のルートほど外へ膨らませて重なりを防ぐ
@@ -2782,8 +2814,14 @@ function render() {
       const cx = mx + nx * bend, cy = my + ny * bend;
       const d0 = `M${px.toFixed(1)},${py.toFixed(1)} Q${cx.toFixed(1)},${cy.toFixed(1)} ${dx.toFixed(1)},${dy.toFixed(1)}`;
       routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="12" fill="none" stroke-linecap="round" opacity=".85"/>`);
-      routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="6" fill="none" stroke-dasharray="14 10" stroke-linecap="round"/>`);
-      routeGeo.push({ px, py, cx, cy, dx, dy, len, color: d.color });
+      const mode = modeOf(i);
+      if (mode === 'train') {
+        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="7" fill="none" stroke-linecap="round"/>`);
+        routeSvg.push(`<path d="${d0}" stroke="#fff" stroke-width="2.5" fill="none" stroke-dasharray="8 8"/>`);
+      } else {
+        routeSvg.push(`<path d="${d0}" stroke="${d.color}" stroke-width="6" fill="none" stroke-dasharray="14 10" stroke-linecap="round"/>`);
+      }
+      routeGeo.push({ px, py, cx, cy, dx, dy, len, color: d.color, mode: modeOf(i) });
       for (let t = 0.02; t < 1; t += 0.02) routePts.push([(1 - t) ** 2 * px + 2 * (1 - t) * t * cx + t * t * dx, (1 - t) ** 2 * py + 2 * (1 - t) * t * cy + t * t * dy]);
     });
   }
@@ -2835,22 +2873,27 @@ function render() {
     const [dx, dy] = destPts[i];
     const mins = minutesOf(d);
     const dist = hasProp() ? kmBetween(state, d) : null;
-    const direct = isDirect(i);
-    const badgeW = direct ? textW('乗換なし', 15, 700) + 20 : 0;
+    const mode = modeOf(i), b = busOf(i);
+    const pill = mode === 'bus' ? '乗換なし' : mode === 'train' ? (b.train.legs.length > 1 ? '電車・乗換1回' : '電車') : '';
+    const direct = !!pill;
+    const badgeW = direct ? textW(pill, 15, 700) + 20 : 0;
     const nameW = textW(d.name, 28, 700) + (direct ? badgeW + 12 : 0);
     const lineW = textW('約 ', 22) + textW(String(mins), 42, 700) + textW(' 分', 22) + (dist != null ? textW(`（直線 ${dist.toFixed(1)}km）`, 17) + 8 : 0);
     const cw = Math.max(nameW, lineW) + 46, ch = 106;
     // 点のまわり一周（15°刻み×距離2段階）を候補にし、点線・他のカード・ラベルと重ならない位置を選ぶ
     let best = null, bestScore = Infinity;
-    for (const gapPx of [24, 60, 110]) {
+    for (const gapPx of [24, 60, 110, 170])  {
       for (let deg = 0; deg < 360; deg += 15) {
         const t = deg * Math.PI / 180, c = Math.cos(t), sn = Math.sin(t);
         const f = Math.min((cw / 2 + gapPx) / Math.max(Math.abs(c), 1e-6), (ch / 2 + gapPx) / Math.max(Math.abs(sn), 1e-6));
         const r = { x: dx + c * f - cw / 2, y: dy + sn * f - ch / 2, w: cw, h: ch };
         let score = inMap(r) ? 0 : 5000;
+        for (const o of fixedBoxes) if (overlaps(r, o, 6)) score += 5000;
+        if (overlaps(r, stationBox, 6)) score += 600; // 京都駅ビルにかぶせない
+        score += countIn(r, railPts, 2) * 8;          // 線路にもなるべくかぶせない
         score += countIn(r, routePts, 10) * 400; // 点線にかぶるのは最優先で避ける
         for (const o of occupied) if (overlaps(r, o, 6)) score += 300;
-        for (const o of destCards) if (overlaps(r, o, 6)) score += 1000;
+        for (const o of destCards) if (overlaps(r, o, 6)) score += 8000; // カード同士は重ねない
         score += Math.abs(sn) * 6 + gapPx * 0.4;
         // 引き出し線が点線を横切る場合も減点
         const lx = Math.min(Math.max(dx, r.x + 16), r.x + r.w - 16), ly = Math.min(Math.max(dy, r.y + 16), r.y + r.h - 16);
@@ -2875,7 +2918,7 @@ function render() {
     cardSvg.push(`<g filter="url(#sh)"><rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="#fff"/></g>
       <rect x="${best.x.toFixed(1)}" y="${best.y.toFixed(1)}" width="${cw.toFixed(1)}" height="${ch}" rx="16" fill="${d.color}" fill-opacity=".13" stroke="${d.color}" stroke-opacity=".4" stroke-width="2"/>
       <text x="${lx.toFixed(1)}" y="${(best.y + 41).toFixed(1)}" font-size="28" font-weight="700" fill="#16323a">${esc(d.name)}</text>
-      ${direct ? `<rect x="${(lx + textW(d.name, 28, 700) + 12).toFixed(1)}" y="${(best.y + 19).toFixed(1)}" width="${badgeW.toFixed(1)}" height="26" rx="13" fill="${d.color}"/><text x="${(lx + textW(d.name, 28, 700) + 12 + badgeW / 2).toFixed(1)}" y="${(best.y + 37).toFixed(1)}" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">乗換なし</text>` : ''}
+      ${direct ? `<rect x="${(lx + textW(d.name, 28, 700) + 12).toFixed(1)}" y="${(best.y + 19).toFixed(1)}" width="${badgeW.toFixed(1)}" height="26" rx="13" fill="${d.color}"/><text x="${(lx + textW(d.name, 28, 700) + 12 + badgeW / 2).toFixed(1)}" y="${(best.y + 37).toFixed(1)}" font-size="15" font-weight="700" fill="#fff" text-anchor="middle">${pill}</text>` : ''}
       <text x="${lx.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">約</text>
       <text x="${numX.toFixed(1)}" y="${(best.y + 90).toFixed(1)}" font-size="42" font-weight="700" fill="${d.color}">${esc(mins)}</text>
       <text x="${unitX.toFixed(1)}" y="${(best.y + 88).toFixed(1)}" font-size="22" fill="#16323a">分</text>
@@ -2890,7 +2933,7 @@ function render() {
       const bx = (1 - t) ** 2 * g.px + 2 * (1 - t) * t * g.cx + t * t * g.dx, by = (1 - t) ** 2 * g.py + 2 * (1 - t) * t * g.cy + t * t * g.dy;
       const r = { x: bx - 31, y: by - 26, w: 62, h: 44 };
       if (occupied.some(o => overlaps(r, o, 2))) continue;
-      busSvg.push(busIcon(bx, by - 4, g.color)); occupied.push(r); break;
+      busSvg.push(g.mode === 'train' ? trainIcon(bx, by - 4, g.color) : busIcon(bx, by - 4, g.color)); occupied.push(r); break;
     }
   }
 
@@ -3052,7 +3095,7 @@ function render() {
   const nx = MAP.x + MAP.w - 56, ny = MAP.y + 50;
   out.push(`<circle cx="${nx}" cy="${ny}" r="28" fill="#fff" stroke="#dde3d6" stroke-width="2"/><path d="M${nx},${ny - 18} L${nx + 10},${ny + 14} L${nx},${ny + 7} L${nx - 10},${ny + 14} Z" fill="#16323a"/>`);
   out.push(`<text x="${nx}" y="${ny + 48}" font-size="16" font-weight="700" text-anchor="middle" fill="#16323a">N</text>`);
-  const sbKm = s > 280 ? 0.5 : 1, sbw = sbKm * s, sx = MAP.x + 28, sy = MAP.y + MAP.h - 28;
+  const sx = scaleBox.x + 10, sy = MAP.y + MAP.h - 28;
   out.push(`<rect x="${sx - 10}" y="${sy - 36}" width="${(sbw + 84).toFixed(1)}" height="48" rx="10" fill="#fff" opacity=".9"/>
     <path d="M${sx},${sy - 12} V${sy} H${(sx + sbw).toFixed(1)} V${sy - 12}" stroke="#16323a" stroke-width="3" fill="none"/>
     <text x="${(sx + sbw + 10).toFixed(1)}" y="${sy + 1}" font-size="17" fill="#16323a" font-weight="700">${sbKm === 0.5 ? '500m' : '1km'}</text>
@@ -3079,7 +3122,7 @@ function render() {
       <rect x="${(cx + 12).toFixed(1)}" y="${cy + 12}" width="7" height="${ch - 24}" rx="3.5" fill="${d.color}"/>
       <text x="${(cx + 36).toFixed(1)}" y="${cy + 36}" font-size="24" fill="#16323a">${esc(d.short)}方面</text>
       <text x="${(cx + 36).toFixed(1)}" y="${cy + 76}" font-size="22" fill="#16323a">約 <tspan font-size="34" font-weight="700">${esc(mins)}</tspan> 分</text>
-      <text x="${(cx + 36).toFixed(1)}" y="${cy + 104}" font-size="16" fill="${d.color}">${isDirect(i) ? '乗換なし ｜ QRで時刻表 ▶' : 'QRで経路・時刻表 ▶'}</text>`);
+      <text x="${(cx + 36).toFixed(1)}" y="${cy + 104}" font-size="16" fill="${d.color}">${esc(bottomLine(i))}</text>`);
     out.push(qrSvg(qrUrlOf(d), cx + cw - qs - 8, cy + (ch - qs) / 2, qs));
   });
   out.push(`<text x="${W - 50}" y="${H - 6}" font-size="12" text-anchor="end" fill="#9aa">所要時間は目安です。道路状況・ダイヤにより変わります。</text>`);
@@ -3106,12 +3149,16 @@ function renderDests() {
     el.style.borderLeftColor = d.color;
     const est = autoMinutes(d);
     const b = busOf(i);
-    const info = !b ? '' : b.best
-      ? `✓ 乗換なし：${esc(b.best.from)} → ${esc(b.best.to)}（${b.best.stops}停留所）<br>路線：${esc(b.refs.map(r => r + '系統').join('・') || b.best.name)}<br>QR：${b.qrUrl ? '市バス' + esc(b.qrRef) + '系統の時刻表' : 'Googleマップの経路検索'}`
-      : '乗換なしの路線は見つかりませんでした（時間は距離からの目安、QRはGoogleマップ）';
+    const info = !b ? '' : b.mode === 'bus'
+      ? `✓ バス乗換なし：${esc(b.best.from)} → ${esc(b.best.to)}（${b.best.stops}停留所）<br>路線：${esc(b.refs.map(r => r + '系統').join('・') || b.best.name)}<br>QR：${b.qrUrl ? '市バス' + esc(b.qrRef) + '系統の時刻表' : 'Googleマップの経路検索'}`
+      : b.mode === 'train'
+      ? `🚃 バスの乗換なし路線がないため電車：<br>${b.train.legs.map(l => `${esc(l.line)}　${esc(stationName(l.from))} → ${esc(stationName(l.to))}`).join('<br>乗換 → ')}<br>（駅まで徒歩約${b.train.walk}分を含む）　QR：Googleマップの経路検索`
+      : b.mode === 'road'
+      ? `${b.dataOk ? 'バス・電車の路線が見つからないため' : '路線データを取得できなかったため'}、道路の経路距離（${b.roadKm.toFixed(1)}km）から推定`
+      : '路線データを取得できなかったため、距離からの目安';
     el.innerHTML = `
       <div style="font-weight:700;color:${esc(d.color)}">${esc(d.name)}</div>
-      ${info ? `<div class="hint" style="margin:2px 0 4px;color:${b.best ? '#13706b' : '#b25a1f'}">${info}</div>` : ''}
+      ${info ? `<div class="hint" style="margin:2px 0 4px;color:${b.mode === 'bus' || b.mode === 'train' ? '#13706b' : '#b25a1f'}">${info}</div>` : ''}
       <div class="row">
         <input type="text" data-k="min" value="${esc(d.min)}" placeholder="所要分（自動: ${est ?? '–'}分）">
       </div>
@@ -3191,14 +3238,21 @@ async function geocode() {
   }
 }
 
-// ---- バス路線の自動判定（OpenStreetMap のバス路線データ / Overpass API） ----
+// ---- 経路の自動判定（OpenStreetMap の路線データ / Overpass API、道路経路 / OSRM） ----
+// 優先順：① バス乗換なし → ② 電車（直通 or 乗換1回） → ③ 道路の経路距離から推定
 const OVERPASS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
-const ORIGIN_RADIUS = 550; // 物件から歩ける範囲のバス停(m)
+const OSRM = 'https://router.project-osrm.org/table/v1/driving/';
+const ORIGIN_RADIUS = 550;     // 物件から歩けるバス停(m)
+const STATION_RADIUS = 1500;   // 物件から歩ける駅(m)
+const DEST_STATION_RADIUS = 650;
 const WALK_M_PER_MIN = 80;
+const TRAIN_WAIT = 4, TRANSFER_MIN = 6;
+const RAIL_SPEED = { train: 42, subway: 32, light_rail: 25, monorail: 30, tram: 15 };
+const RAIL_MODES = 'train|subway|light_rail|monorail|tram';
 const STOP_ROLE = /^(stop|platform)?(_entry_only|_exit_only)?$/;
 function propKey() { return hasProp() ? state.lat.toFixed(5) + ',' + state.lng.toFixed(5) : ''; }
 function busOf(i) { return state.bus && state.bus.key === propKey() ? state.bus.dests[i] : null; }
@@ -3208,7 +3262,12 @@ function stopLabel() {
   const n = nearestStop();
   return n ? `${n.name} 徒歩${n.walk}分` : '';
 }
-function isDirect(i) { const b = busOf(i); return !!(b && b.best); }
+function modeOf(i) { const b = busOf(i); return b ? b.mode : null; }
+function isDirect(i) { return modeOf(i) === 'bus'; }
+function stationName(n) { const s = String(n || '').replace(/[（(].*?[）)]/g, '').trim(); return s ? (/駅$/.test(s) ? s : s + '駅') : ''; }
+function stationKey(n) { return String(n || '').replace(/[（(].*?[）)]/g, '').replace(/駅$/, '').replace(/\s/g, ''); }
+function lineName(t) { return String(t['name:ja'] || t.name || t.ref || '').replace(/[（(].*?[）)]/g, '').replace(/[:：].*$/, '').replace(/\s*[-–→].*$/, '').trim(); }
+function trainSummary(tr) { return tr.legs.map((l, k) => (k ? '' : stationName(l.from).replace(/駅$/, '')) + '→' + stationName(l.to).replace(/駅$/, '')).join(''); }
 
 async function overpass(q) {
   let lastErr;
@@ -3231,6 +3290,19 @@ rel(bn.near)[type=route][route=bus]->.r;
 node(r.r)->.s;
 .s out body;`;
 }
+function railStops(a) {
+  return `node(${a})[railway~"^(stop|station|halt|tram_stop)$"];node(${a})[public_transport~"^(stop_position|platform|station)$"][~"^(${RAIL_MODES})$"~"yes"];`;
+}
+function trainQuery(lat, lng) {
+  const dests = state.dests.map(d => railStops(`around:${DEST_STATION_RADIUS},${d.lat},${d.lng}`)).join('');
+  return `[out:json][timeout:60];
+(${railStops(`around:${STATION_RADIUS},${lat},${lng}`)})->.o;
+(${dests})->.d;
+(rel(bn.o)[type=route][route~"^(${RAIL_MODES})$"];rel(bn.d)[type=route][route~"^(${RAIL_MODES})$"];)->.r;
+.r out body;
+node(r.r)->.s;
+.s out body;`;
+}
 // 京都市バスの系統番号 → 系統別時刻表ページ（例: 204号系統 → 20400.htm、23号系統 → 02300.htm）
 function timetableUrl(route) {
   if (!route) return null;
@@ -3239,13 +3311,24 @@ function timetableUrl(route) {
   if (m && /京都市|市バス|市営/.test(who)) return `https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/kto/${m[1].padStart(3, '0')}00.htm`;
   return null;
 }
+const ll = n => ({ lat: n.lat, lng: n.lon });
+// 路線(relation)の停留所を順番どおりに並べ、路線に沿った累積距離を付ける
+function routeStops(r, nodes, dedupe) {
+  const seq = (r.members || []).filter(m => m.type === 'node' && STOP_ROLE.test(m.role || '') && nodes.has(m.ref)).map(m => nodes.get(m.ref));
+  const out = [];
+  for (const n of seq) {
+    const name = (n.tags || {}).name || '';
+    if (dedupe && out.length && name && stationKey(out[out.length - 1].name) === stationKey(name)) continue;
+    out.push({ name, key: stationKey(name), lat: n.lat, lng: n.lon });
+  }
+  for (let k = 0; k < out.length; k++) out[k].cum = k ? out[k - 1].cum + kmBetween(out[k - 1], out[k]) * 1000 : 0;
+  return out;
+}
 function analyzeBus(js, lat, lng) {
   const here = { lat, lng };
   const nodes = new Map();
   for (const e of js.elements || []) if (e.type === 'node') nodes.set(e.id, e);
   const rels = (js.elements || []).filter(e => e.type === 'relation');
-  const ll = n => ({ lat: n.lat, lng: n.lon });
-  // 最寄りバス停
   let nearest = null;
   for (const n of nodes.values()) {
     const t = n.tags || {};
@@ -3259,67 +3342,121 @@ function analyzeBus(js, lat, lng) {
     const cands = [];
     for (const r of rels) {
       const t = r.tags || {};
-      const seq = (r.members || []).filter(m => m.type === 'node' && STOP_ROLE.test(m.role || '') && nodes.has(m.ref)).map(m => nodes.get(m.ref));
+      const seq = routeStops(r, nodes, false);
       if (seq.length < 2) continue;
       const oneWay = t['public_transport:version'] === '2';
-      const cum = [0];
-      for (let k = 1; k < seq.length; k++) cum.push(cum[k - 1] + kmBetween(ll(seq[k - 1]), ll(seq[k])) * 1000);
       let best = null;
       for (let i = 0; i < seq.length; i++) {
-        const walkM = kmBetween(here, ll(seq[i])) * 1000;
+        const walkM = kmBetween(here, seq[i]) * 1000;
         if (walkM > ORIGIN_RADIUS) continue;
         for (let j = 0; j < seq.length; j++) {
           if (j === i || (oneWay && j < i)) continue;
-          if (kmBetween(d, ll(seq[j])) * 1000 > d.radius) continue;
-          const along = Math.abs(cum[j] - cum[i]) * 1.15;
+          if (kmBetween(d, seq[j]) * 1000 > d.radius) continue;
+          const along = Math.abs(seq[j].cum - seq[i].cum) * 1.15;
           if (along < 200) continue;
           const walk = walkM * 1.25 / WALK_M_PER_MIN, ride = along / 1000 / speed * 60;
           const total = walk + ride;
           if (!best || total < best.total) {
-            const names = seq.slice(Math.min(i, j), Math.max(i, j) + 1).map(n => (n.tags || {}).name || '').filter((nm, k, a) => nm && nm !== a[k - 1]);
-            best = { total, walk, ride, from: (seq[i].tags || {}).name || '', to: (seq[j].tags || {}).name || '', stops: Math.max(1, names.length - 1) };
+            const names = seq.slice(Math.min(i, j), Math.max(i, j) + 1).map(n => n.name).filter((nm, k, a) => nm && nm !== a[k - 1]);
+            best = { total, walk, ride, from: seq[i].name, to: seq[j].name, stops: Math.max(1, names.length - 1) };
           }
         }
       }
-      if (best) cands.push(Object.assign(best, { ref: t.ref || '', name: t.name || '', operator: t.operator || '', network: t.network || '', id: r.id }));
+      if (best) cands.push(Object.assign(best, { ref: t.ref || '', name: t.name || '', operator: t.operator || '', network: t.network || '' }));
     }
     cands.sort((a, b) => a.total - b.total);
     const best = cands[0] || null;
-    // QR用：時刻表ページがある京都市バスの路線を優先（最速から+4分以内）
-    const qrRoute = best ? cands.find(c => timetableUrl(c) && c.total <= best.total + 4) || null : null;
-    const refs = [...new Set(cands.filter(c => best && c.total <= best.total + 8).map(c => c.ref).filter(Boolean))].slice(0, 5);
-    return best ? {
-      best: { ref: best.ref, name: best.name, operator: best.operator, from: best.from, to: best.to, stops: best.stops },
-      minutes: Math.max(3, Math.round(best.total)), refs,
+    if (!best) return null;
+    const qrRoute = cands.find(c => timetableUrl(c) && c.total <= best.total + 4) || null;
+    return {
+      mode: 'bus', minutes: Math.max(3, Math.round(best.total)),
+      best: { ref: best.ref, name: best.name, from: best.from, to: best.to, stops: best.stops },
+      refs: [...new Set(cands.filter(c => c.total <= best.total + 8).map(c => c.ref).filter(Boolean))].slice(0, 5),
       qrUrl: qrRoute ? timetableUrl(qrRoute) : null, qrRef: qrRoute ? qrRoute.ref : '',
-    } : { best: null, refs: [] };
+    };
   });
   return { nearest, dests };
+}
+function analyzeTrain(js, lat, lng) {
+  const here = { lat, lng };
+  const nodes = new Map();
+  for (const e of js.elements || []) if (e.type === 'node') nodes.set(e.id, e);
+  const routes = (js.elements || []).filter(e => e.type === 'relation').map(r => {
+    const t = r.tags || {};
+    const stops = routeStops(r, nodes, true);
+    return { line: lineName(t), speed: RAIL_SPEED[t.route] || 40, oneWay: t['public_transport:version'] === '2', stops };
+  }).filter(r => r.stops.length >= 2);
+  const ride = (r, i, j) => Math.abs(r.stops[j].cum - r.stops[i].cum) * 1.1 / 1000 / r.speed * 60;
+  const ok = (r, i, j) => j !== i && (!r.oneWay || j > i) && Math.abs(r.stops[j].cum - r.stops[i].cum) > 300;
+  // 乗換駅の索引：駅名 → [路線, 位置]
+  const byKey = new Map();
+  routes.forEach(r => r.stops.forEach((s, k) => { if (s.key) { if (!byKey.has(s.key)) byKey.set(s.key, []); byKey.get(s.key).push([r, k]); } }));
+  return state.dests.map(d => {
+    let best = null;
+    const consider = (total, legs, walkMin) => { if (!best || total < best.total) best = { total, legs, walk: walkMin }; };
+    for (const a of routes) {
+      a.stops.forEach((o, i) => {
+        const walkM = kmBetween(here, o) * 1000;
+        if (walkM > STATION_RADIUS) return;
+        const walk = walkM * 1.25 / WALK_M_PER_MIN;
+        a.stops.forEach((s, j) => {
+          if (!ok(a, i, j)) return;
+          const leg1 = { line: a.line, from: o.name, to: s.name };
+          // 直通
+          if (kmBetween(d, s) * 1000 <= DEST_STATION_RADIUS) consider(walk + TRAIN_WAIT + ride(a, i, j), [leg1], walk);
+          // 乗換1回
+          for (const [b, k] of byKey.get(s.key) || []) {
+            if (b === a || b.line === a.line) continue;
+            b.stops.forEach((e, m) => {
+              if (!ok(b, k, m) || kmBetween(d, e) * 1000 > DEST_STATION_RADIUS) return;
+              consider(walk + TRAIN_WAIT + ride(a, i, j) + TRANSFER_MIN + ride(b, k, m), [leg1, { line: b.line, from: s.name, to: e.name }], walk);
+            });
+          }
+        });
+      });
+    }
+    if (!best) return null;
+    return { mode: 'train', minutes: Math.max(3, Math.round(best.total)), train: { legs: best.legs, walk: Math.round(best.walk) } };
+  });
+}
+async function roadKms(lat, lng) {
+  const pts = [[lng, lat], ...state.dests.map(d => [d.lng, d.lat])].map(p => p.join(',')).join(';');
+  const res = await fetch(`${OSRM}${pts}?sources=0&annotations=distance`);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const js = await res.json();
+  return js.distances[0].slice(1).map(m => (m == null ? null : m / 1000));
 }
 const DIRECT_TITLE = '京都の主要エリアへ、バスで乗換なし';
 let busTimer = null, busSeq = 0;
 function scheduleBus() { clearTimeout(busTimer); busTimer = setTimeout(detectBus, 500); }
 async function detectBus() {
   if (!hasProp()) return;
-  const key = propKey(), seq = ++busSeq;
+  const key = propKey(), seq = ++busSeq, lat = state.lat, lng = state.lng;
   const st = $('busStatus');
-  st.className = 'status'; st.textContent = 'バス路線を調べています…';
-  try {
-    const js = await overpass(busQuery(state.lat, state.lng));
-    if (seq !== busSeq) return;
-    state.bus = Object.assign(analyzeBus(js, state.lat, state.lng), { key });
-    const nDirect = state.bus.dests.filter(d => d.best).length;
-    st.className = 'status ok';
-    st.textContent = (state.bus.nearest ? `最寄りバス停: ${state.bus.nearest.name}（徒歩${state.bus.nearest.walk}分）\n` : '近くにバス停が見つかりませんでした\n')
-      + `乗換なしで行ける行き先: ${nDirect} / ${state.dests.length}`;
-    if (nDirect === state.dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
-    if (nDirect < state.dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
-  } catch (e) {
-    if (seq !== busSeq) return;
-    state.bus = null;
-    st.className = 'status err';
-    st.textContent = 'バス路線データを取得できませんでした（' + e.message + '）。\n所要時間は距離からの目安、QRはGoogleマップの経路検索で作ります。';
-  }
+  st.className = 'status'; st.textContent = 'バス・電車の路線を調べています…';
+  const [bus, train, road] = await Promise.allSettled([
+    overpass(busQuery(lat, lng)).then(js => analyzeBus(js, lat, lng)),
+    overpass(trainQuery(lat, lng)).then(js => analyzeTrain(js, lat, lng)),
+    roadKms(lat, lng),
+  ]);
+  if (seq !== busSeq) return;
+  const B = bus.status === 'fulfilled' ? bus.value : null, T = train.status === 'fulfilled' ? train.value : null, R = road.status === 'fulfilled' ? road.value : null;
+  const speed = Number(state.speed) || 12, over = Number(state.overhead) || 0;
+  const dests = state.dests.map((d, i) => {
+    if (B && B.dests[i]) return B.dests[i];
+    if (T && T[i]) return T[i];
+    if (R && R[i] != null) return { mode: 'road', minutes: Math.max(3, Math.round(R[i] / speed * 60 + over)), roadKm: R[i], dataOk: !!(B && T) };
+    return { mode: null };
+  });
+  state.bus = { key, nearest: B ? B.nearest : null, dests };
+  const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
+  const errs = [!B && 'バス', !T && '電車', !R && '道路経路'].filter(Boolean);
+  st.className = errs.length === 3 ? 'status err' : 'status ok';
+  st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
+    + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所 ／ その他: ${dests.length - nBus - nTrain}か所`
+    + (errs.length ? `\n（${errs.join('・')}のデータを取得できませんでした。その分は距離からの目安で表示）` : '');
+  if (nBus === dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
+  if (nBus < dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
   renderDests();
   refresh();
 }
@@ -3457,7 +3594,7 @@ $('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); })
 $('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
 renderDests();
 refresh();
-if (hasProp() && !busOf(0)) scheduleBus();
+if (hasProp() && (!busOf(0) || !('mode' in busOf(0)))) scheduleBus();
 </script>
 </body>
 </html>
