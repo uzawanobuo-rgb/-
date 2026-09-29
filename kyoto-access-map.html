@@ -2831,7 +2831,7 @@ let lastBox = null;
 function render() {
   const z = Number(state.zoom) || 1;
   let fit = { k: 1, dx: 0, dy: 0, z: 1 };
-  const good = [], okish = []; // good: はみ出し・重なりなし＆カードが点のそば／okish: カードが少し離れる
+  const good = []; // はみ出し・重なりがない倍率（カードは点から離れても引き出し線でつなぐので可）
   if (hasProp()) {
     const M = 22, tw = MAP.w - 2 * M, th = MAP.h - 2 * M, mcx = MAP.x + MAP.w / 2, mcy = MAP.y + MAP.h / 2;
     for (let it = 0; it < 8; it++) {
@@ -2839,18 +2839,18 @@ function render() {
       const b = lastBox;
       if (!b) break;
       const inside = b.x >= MAP.x + M - 3 && b.y >= MAP.y + M - 3 && b.x + b.w <= MAP.x + MAP.w - M + 3 && b.y + b.h <= MAP.y + MAP.h - M + 3;
-      if (inside && !b.bad) (b.far ? okish : good).push({ ...fit });
+      if (inside && !b.bad) good.push({ ...fit });
       const f = Math.min(tw / b.w, th / b.h);
-      if (inside && !b.bad && !b.far && f < 1.03) break;
-      // ラベルは拡大しないので、倍率は控えめに寄せていく。重なるときは少し引く
-      const nk = fit.k * ((b.bad || b.far) && f >= 1 ? 0.9 : Math.max(0.6, Math.min(1.8, f > 1 ? 1 + (f - 1) * 0.9 : f * 0.97)));
+      if (inside && !b.bad && f < 1.03) break;
+      // ラベルは拡大しないので、倍率は控えめに寄せていく。重なる・はみ出すときだけ少し引く（ルートを大きく見せるのを優先）
+      const nk = fit.k * (b.bad && f >= 1 ? 0.9 : Math.max(0.6, Math.min(1.8, f > 1 ? 1 + (f - 1) * 0.9 : f * 0.97)));
       const bcx = b.x + b.w / 2, bcy = b.y + b.h / 2;
       // 中身の中心が地図の中心に来るようにずらす（中心の地理的位置を保ったまま倍率を変える）
       fit = { k: nk, z: 1, dx: -(bcx - mcx - fit.dx) * nk / fit.k, dy: -(bcy - mcy - fit.dy) * nk / fit.k };
     }
   }
   const pickMax = arr => arr.reduce((m, f) => (!m || f.k > m.k ? f : m), null);
-  const best = pickMax(good) || pickMax(okish);
+  const best = pickMax(good);
   return renderOnce({ ...(best || fit), z });
 }
 function renderOnce(fit) {
@@ -2875,7 +2875,7 @@ function renderOnce(fit) {
   // ---- 地図：まずラベル類の配置を決め、その後で下から順に描く ----
   const tl = proj.inv(MAP.x, MAP.y), br = proj.inv(MAP.x + MAP.w, MAP.y + MAP.h);
   const occupied = [], fitRects = [];
-  let fitBad = false, fitFar = false;
+  let fitBad = false;
   const propPt = hasProp() ? P(state.lat, state.lng) : null;
   const destPts = state.dests.map(d => P(d.lat, d.lng));
   destPts.forEach(([x, y]) => occupied.push({ x: x - 16, y: y - 16, w: 32, h: 32 }));
@@ -3024,8 +3024,6 @@ function renderOnce(fit) {
     }
     fitRects.push({ ...best });
     if (bestScore >= 300) fitBad = true; // 枠外・他のカードや縮尺にかぶる
-    { const nx0 = Math.min(Math.max(dx, best.x), best.x + cw), ny0 = Math.min(Math.max(dy, best.y), best.y + ch);
-      if (Math.hypot(nx0 - dx, ny0 - dy) > 75) fitFar = true; } // カードが点から離れすぎ
     best.x = Math.min(Math.max(best.x, MAP.x + 10), MAP.x + MAP.w - cw - 10);
     best.y = Math.min(Math.max(best.y, MAP.y + 10), MAP.y + MAP.h - ch - 10);
     destCards.push(best);
@@ -3050,7 +3048,7 @@ function renderOnce(fit) {
     const all = fitRects.concat(destPts.concat([propPt], routePts).map(([x, y]) => ({ x: x - 16, y: y - 16, w: 32, h: 32 })));
     const x1 = Math.min(...all.map(r => r.x)), y1 = Math.min(...all.map(r => r.y));
     const x2 = Math.max(...all.map(r => r.x + r.w)), y2 = Math.max(...all.map(r => r.y + r.h));
-    lastBox = { x: x1, y: y1, w: x2 - x1, h: y2 - y1, bad: fitBad, far: fitFar };
+    lastBox = { x: x1, y: y1, w: x2 - x1, h: y2 - y1, bad: fitBad };
   } else lastBox = null;
   // バスのアイコン：カードや物件ラベルに隠れない位置に置く
   for (const g of routeGeo) {
