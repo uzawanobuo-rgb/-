@@ -36,8 +36,26 @@
     return s;
   }
 
-  let state;
-  try { state = normalize(JSON.parse(localStorage.getItem(STORE_KEY) || 'null')); } catch (e) { state = defaultState(); }
+  // 開くたびにまっさらから始める。前回の入力は「前回の入力を復元」で戻せるように別の場所へ移しておく。
+  const PREV_KEY = STORE_KEY + ':prev';
+  let state = defaultState();
+  try {
+    const last = localStorage.getItem(STORE_KEY);
+    localStorage.removeItem(STORE_KEY);
+    if (last && hasContent(JSON.parse(last))) { localStorage.removeItem(PREV_KEY); localStorage.setItem(PREV_KEY, last); }
+  } catch (e) { /* 保存できない環境でも動かす */ }
+  function hasContent(s) {
+    if (!s) return false;
+    const p1 = s.p1 && s.p1.property, p2 = s.p2 || {};
+    return !!((p1 && (p1.name || p1.planUrl)) || p2.destName || (p2.properties || []).some(p => p && (p.name || p.planUrl)));
+  }
+  function prevSaved() {
+    try { const v = JSON.parse(localStorage.getItem(PREV_KEY) || 'null'); return hasContent(v) ? v : null; } catch (e) { return null; }
+  }
+  function prevLabel(v) {
+    const names = v.pattern === 'p2' ? (v.p2.properties || []).map(p => p && p.name).filter(Boolean) : [v.p1 && v.p1.property && v.p1.property.name].filter(Boolean);
+    return names.join('・') || (v.p2 && v.p2.destName) || '前回の入力';
+  }
   const ui = { open: { howto: !localStorage.getItem(STORE_KEY + ':seen') } };
 
   function persist() {
@@ -484,7 +502,11 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     const selStart = ae && 'selectionStart' in ae ? (() => { try { return ae.selectionStart; } catch (e) { return null; } })() : null;
     const pastes = {};
     form.querySelectorAll('textarea[data-paste]').forEach(t => { if (t.value) pastes[t.dataset.paste] = t.value; });
-    form.innerHTML = renderHowto() + (state.pattern === 'p2' ? renderP2() : renderP1()) + stationDatalist();
+    const prev = !hasContent(state) && prevSaved();
+    const restore = prev ? `<div class="card restore"><div class="card-b" style="padding:10px 14px;flex-direction:row;align-items:center;flex-wrap:wrap">
+<span class="muted">前回の入力（${esc(prevLabel(prev))}）があります。</span>
+<button type="button" class="btn small" data-action="restore-prev">前回の入力を復元</button></div></div>` : '';
+    form.innerHTML = restore + renderHowto() + (state.pattern === 'p2' ? renderP2() : renderP1()) + stationDatalist();
     Object.keys(pastes).forEach(k => { const t = form.querySelector(`textarea[data-paste="${k}"]`); if (t) t.value = pastes[k]; });
     if (focusKey) {
       const el = form.querySelector(`[data-bind="${CSS.escape(focusKey)}"]`);
@@ -662,6 +684,12 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         state = normalize(Object.assign(Samples[state.pattern](), { pattern: state.pattern }));
         if (state.pattern === 'p1') state.p2 = defaultState().p2; else state.p1 = defaultState().p1;
         persist(); renderForm(); renderPreview(); break;
+      case 'restore-prev': {
+        const v = prevSaved();
+        if (!v) return;
+        state = normalize(v); persist(); renderForm(); renderPreview(); autoResolveStations(); toast('前回の入力を復元しました');
+        break;
+      }
       case 'reset':
         if (!confirm('入力をすべて消して新規作成します。よろしいですか？（必要なら先に「データ保存」）')) return;
         { const pat = state.pattern; state = defaultState(); state.pattern = pat; }
