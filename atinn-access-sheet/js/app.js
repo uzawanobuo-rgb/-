@@ -20,7 +20,7 @@
     return {
       v: 1, pattern: 'p1', persons: 1, baseDate: Calc.todayStr(),
       p1: { checkIn: Calc.defaultCheckIn(), property: emptyProp(), routes: {}, headline: '', subheadline: '', note: '' },
-      p2: { destName: '', destLabel: 'お勤め先', destAddress: '', destLat: '', destLng: '', customer: '', checkIn: '', checkOut: '', properties: [emptyProp(), emptyProp(), emptyProp()], routes: [emptyRoute(), emptyRoute(), emptyRoute()], headline: '', subheadline: '', note: '' },
+      p2: { destName: '', destLabel: 'お勤め先', destAddress: '', destPlace: '', destLat: '', destLng: '', customer: '', checkIn: '', checkOut: '', properties: [emptyProp(), emptyProp(), emptyProp()], routes: [emptyRoute(), emptyRoute(), emptyRoute()], headline: '', subheadline: '', note: '' },
       stationCoords: {},
     };
   }
@@ -574,6 +574,8 @@ ${renderTextCard('p1', built.model)}`;
     else {
       const q = p2.destAddress || p2.destName;
       if (!q) { if (!quiet) toast('住所か目的地名を入力してください'); return; }
+      // 自動では、駅名か住所だけで探す。会社名・店名は別の場所になりやすいので、URLを貼ってもらう
+      if (quiet && !p2.destAddress) { if (p2.destAuto) { p2.destLat = ''; p2.destLng = ''; p2.destPlace = ''; persist(); renderForm(); renderPreview(); } return; }
       const my = ++destSeq;
       try { r = await geocode(q); } catch (er) { if (!quiet) toast('検索できませんでした。「住所・緯度・経度」を開いて入力してください'); return; }
       if (my !== destSeq) return; // 入力が変わった
@@ -586,7 +588,7 @@ ${renderTextCard('p1', built.model)}`;
         return;
       }
     }
-    p2.destLat = r.lat; p2.destLng = r.lng; p2.destAuto = true;
+    p2.destLat = r.lat; p2.destLng = r.lng; p2.destAuto = true; p2.destPlace = r.title || '';
     persist(); renderForm(); renderPreview(); autoResolveStations();
     toast('目的地の地図の位置を入れました：' + (r.title || ''));
   }
@@ -638,14 +640,15 @@ ${field('チェックイン<br><small>未入力なら翌月1日</small>', dateIn
 ${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('p2.checkOut', 'checkin'))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
-<div class="grid">
-${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
-${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
+${field('目的地の場所（GoogleマップのURL）<br><small>Googleマップで目的地を開き、アドレスバーのURLを貼ります。位置と経路の検索先がその場所になります</small>', `<input type="text" data-gmap="1" placeholder="https://www.google.com/maps/place/…">`, 'all')}
+<div class="row muted" style="margin:-4px 0 4px">${destCoord ? `<span>✓ 地図の位置：${esc(p.destPlace || p.destAddress || p.destName || '')}（${(+p.destLat).toFixed(5)}, ${(+p.destLng).toFixed(5)}）</span>` : '<span class="warn-t">地図の位置：未設定（URLを貼るか、目的地に駅名を入れると入ります）</span>'}</div>
+<div class="grid align-end">
+${field('目的地（シートの表記）<br><small>見出しに出る名前（駅名・地名・会社名など）</small>', inp('p2.destName', { ph: '大手町' }))}
+${field('目的地の種類<br><small>&nbsp;</small>', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
 </div>
-<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・GoogleマップURL <span class="more-sum">${destCoord ? '地図の位置：✓ 設定済み' : '<span class="warn-t">地図の位置：未設定（住所を入れるか、GoogleマップのURLを貼ってください）</span>'}</span></summary>
+<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>URLがないとき：住所で探す</summary>
 <div class="more-b"><div class="grid">
-${field('住所・地名（座標の検索用）', inp('p2.destAddress', { ph: '〇〇株式会社 本社の住所 など' }), 'all')}
-${field('GoogleマップのURL<br><small>Googleマップで場所を開き、アドレスバーのURLを貼ると、その場所を目的地の位置にします（店名・施設名のときはこちら）</small>', `<input type="text" data-gmap="1" placeholder="https://www.google.com/maps/place/…">`, 'all')}
+${field('住所・地名<br><small>入れたら見出しの「住所・地名から座標を検索」を押します。経路の検索先にもなります</small>', inp('p2.destAddress', { ph: '東京都江戸川区平井3-25-7 など' }), 'all')}
 </div></div></details>
 </div></details>
 ${propCards}
@@ -932,7 +935,8 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     }
     const p2 = state.p2;
     p2.destLat = r.lat; p2.destLng = r.lng; p2.destAuto = false;
-    if (r.name) p2.destAddress = r.name; // 経路の検索先もこの場所にする
+    p2.destPlace = r.name || 'ピンの場所';
+    if (r.name) p2.destAddress = r.name; // 経路の検索先もこの場所にする（位置も一緒に渡すので、同じ名前の別の場所にはならない）
     if (!p2.destName && r.name) p2.destName = r.name;
     persist(); renderForm(); renderPreview();
     const stale = p2.routes.some(rt => Sheet.routeEndGap(state, rt));
