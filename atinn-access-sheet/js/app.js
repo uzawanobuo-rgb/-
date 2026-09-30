@@ -351,7 +351,7 @@
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
 <li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）を開き、登録したブックマーク「アットイン取込」をクリック（押すだけでコピーされます）。</li>
 <li>このツールの<b>貼り付け欄</b>に貼り付け（Ctrl+V）→「取り込む」。写真・料金・最寄駅・地図座標が入ります。</li>
-<li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の貼り付け欄に Ctrl+V）。</li>
+<li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の「コピーした経路を読み込む」を押す）。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
 <div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">アットイン取込</a>
@@ -500,17 +500,14 @@ ${stTable}
     const st = (n, force) => /駅$|バス|〔/.test(n) ? n : (force || isStation(n)) ? n + '駅' : n;
     return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(st(fromName, true))}&to=${encodeURIComponent(st(toName))}&y=${d.getUTCFullYear()}&m=${pad(d.getUTCMonth() + 1)}&d=${pad(d.getUTCDate())}&hh=10&m1=0&m2=0&type=1&ticket=ic&expkind=1&ws=3&s=0&al=0&shin=0&ex=0&hb=0&lb=1&sr=1`;
   }
-  function searchLinks(fromName, toName, fromCoord, missing, path) {
-    const links = [];
+  function searchLinks(fromName, toName, missing, path) {
     if (fromName && toName) {
-      links.push(`<a class="btn primary small" target="_blank" href="${esc(yahooUrl(fromName, toName))}" data-action="yahoo" data-path="${esc(path || '')}" data-to="${esc(toName)}">① Yahoo!乗換案内で検索</a>`);
-    } else {
-      // ボタンは消さずに、足りないものを示す
-      const why = !toName ? (missing || '行き先を入れると検索できます') : '乗車駅を入れると検索できます';
-      links.push(`<span class="btn primary small" aria-disabled="true" style="opacity:.45;cursor:not-allowed">① Yahoo!乗換案内で検索</span><span class="muted">${esc(why)}</span>`);
+      return `<a class="btn primary small" target="_blank" href="${esc(yahooUrl(fromName, toName))}" data-action="yahoo" data-path="${esc(path || '')}" data-to="${esc(toName)}">Yahoo!乗換案内で検索</a>
+<span class="muted">結果のページでブックマーク「乗換取込」を押すと、自動で入ります</span>`;
     }
-    if (fromCoord && toName) links.push(`<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&origin=${fromCoord.lat},${fromCoord.lng}&destination=${encodeURIComponent(toName)}&travelmode=transit">Googleマップ経路</a>`);
-    return links.join('');
+    // ボタンは消さずに、足りないものを示す
+    const why = !toName ? (missing || '行き先を入れると検索できます') : '乗車駅を入れると検索できます';
+    return `<span class="btn primary small" aria-disabled="true" style="opacity:.45;cursor:not-allowed">Yahoo!乗換案内で検索</span><span class="muted">${esc(why)}</span>`;
   }
 
   function renderRouteEditor(path, route, o) {
@@ -523,15 +520,16 @@ ${stTable}
 <td class="act">${legs.length > 1 ? `<button type="button" class="x" data-action="del-leg" data-path="${path}" data-i="${i}" title="削除">×</button>` : ''}</td></tr>`).join('');
     const names = [route.station].concat(legs.map((l, i) => l.to || (i === legs.length - 1 ? o.toName : '')));
     const stList = (o.stations || []).map(s => s.name).filter(Boolean);
-    return `<div class="route ${o.selected ? 'sel' : ''} ${route.exclude ? 'off' : ''}">
+    const toName = o.searchTo || o.toName;
+    const gmap = o.fromCoord && toName ? `https://www.google.com/maps/dir/?api=1&origin=${o.fromCoord.lat},${o.fromCoord.lng}&destination=${encodeURIComponent(toName)}&travelmode=transit` : '';
+    const src = /^https?:\/\//.test(route.source || '') ? route.source : '';
+    return `<div class="route ${o.selected ? 'sel' : ''} ${route.exclude ? 'off' : ''}" data-route="${esc(path)}">
 <div class="route-h">${o.head}
 <span class="total">合計 <b>${info.total ?? '–'}</b>分${info.display !== null && info.display !== info.total ? `（表示 ${info.display}分）` : ''}・${info.transfers === 0 ? '乗換なし' : info.transfers != null ? `乗換${info.transfers}回` : '–'}</span></div>
 <div class="transit-box">
-<div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.fromCoord, o.missing, path)}</div>
-<div class="f"><span>② 検索結果のページでブックマーク「乗換取込」を押す → 自動でここに入ります<small class="muted">（入らないときは、ここに Ctrl+V）</small></span>
-<div class="row" style="flex-wrap:nowrap"><input type="text" data-paste-route="${path}" data-to="${esc(o.searchTo || o.toName || '')}" placeholder="ここに貼り付けると、乗車時間・乗換・路線が入ります">
-<button type="button" class="btn small" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}">クリップボードから</button></div></div>
-${route.note && /Yahoo/.test(route.note) ? `<div class="muted">✓ ${esc(route.note)}</div>` : ''}
+<div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.missing, path)}</div>
+<div class="row muted">${route.note && /Yahoo/.test(route.note) ? `<span>✓ ${esc(route.note)}</span>` : ''}
+<button type="button" class="linkish" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}" title="「乗換取込」でコピーした経路を読み込みます">自動で入らないとき：コピーした経路を読み込む</button></div>
 </div>
 <div class="grid g4 align-end">
 ${field('乗車駅／バス停<br><small>物件から歩いて乗る駅</small>', `<input data-bind="${path}.station" type="text" value="${esc(route.station || '')}" list="dl-${o.id}" placeholder="${esc(stList[0] || '駅名')}"><datalist id="dl-${o.id}">${stList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`, 'span2')}
@@ -543,7 +541,7 @@ ${field('乗車（分）<br><small>電車・バス（乗換込み）</small>', i
 <div class="grid g4 align-end">
 ${field('表示する分 <small>任意</small>', inp(`${path}.display`, { type: 'number', ph: String(info.total ?? '') }))}
 ${field('乗換回数 <small>任意</small>', inp(`${path}.transfers`, { type: 'number', ph: String(legs.length - 1) }))}
-${/^https?:\/\//.test(route.source || '') ? `<div class="f span2"><span>出典</span><div class="row"><a class="btn small" href="${esc(route.source)}" target="_blank" rel="noopener">${/transit\.yahoo\.co\.jp/.test(route.source) ? 'Yahoo!乗換案内' : '出典ページ'} ↗</a></div></div>` : ''}
+${src || gmap ? `<div class="f span2"><span>出典・確認</span><div class="row">${src ? `<a class="btn small" href="${esc(src)}" target="_blank" rel="noopener">${/transit\.yahoo\.co\.jp/.test(src) ? 'Yahoo!乗換案内' : '出典ページ'} ↗</a>` : ''}${gmap ? `<a class="btn small" href="${esc(gmap)}" target="_blank" rel="noopener">Googleマップ経路 ↗</a>` : ''}</div></div>` : ''}
 </div>
 ${o.excludable ? `<label class="row muted"><input type="checkbox" data-bind="${path}.exclude" ${route.exclude ? 'checked' : ''}> この駅はシートに載せない</label>` : ''}
 ${coordStatus(names)}
@@ -947,8 +945,8 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     if (!pat && !/"bm":\s*3/.test(text)) msgs.push('　※ブックマーク「乗換取込」を登録し直すと、貼り付けなしで自動で入るようになります（使い方の欄から再ドラッグ）');
     toast(msgs.join(''));
     // 取り込んだ経路の欄を見える位置に出す
-    const el = document.querySelector(`[data-paste-route="${CSS.escape(path)}"]`);
-    if (pat && el) el.closest('.route').scrollIntoView({ block: 'center' });
+    const el = document.querySelector(`[data-route="${CSS.escape(path)}"]`);
+    if (pat && el) el.scrollIntoView({ block: 'center' });
     return msgs[0];
   }
 
@@ -988,7 +986,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         break;
       case 'transit-clip':
         try { applyTransit(path, await navigator.clipboard.readText(), b.dataset.to); }
-        catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); }
+        catch (er) { toast('クリップボードを読めませんでした。ブラウザの「クリップボードの読み取り」を許可してから、もう一度押してください'); }
         break;
       case 'restore-prev': {
         const v = prevSaved();
@@ -1014,7 +1012,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         {
           let txt = null;
           try { txt = await navigator.clipboard.readText(); }
-          catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); break; }
+          catch (er) { toast('クリップボードを読めませんでした。ブラウザの「クリップボードの読み取り」を許可してから、もう一度押してください'); break; }
           importInto(path, txt);
         }
         break;
