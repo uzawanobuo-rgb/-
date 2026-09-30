@@ -65,6 +65,12 @@
   function routeEndGap(state, r) {
     const p2 = state.p2 || {};
     if (!r || p2.destLat === '' || p2.destLat == null || p2.destLng === '' || p2.destLng == null) return null;
+    // 乗換取込で Yahoo! の到着地点の位置が分かっていれば、それで確かめる（名前だけの検索で別の場所になっていないか）
+    if (r.arrive && r.arrive.lat != null) {
+      const dy = (r.arrive.lat - p2.destLat) * 111, dx = (r.arrive.lng - p2.destLng) * 111 * Math.cos(p2.destLat * Math.PI / 180);
+      const km = Math.hypot(dx, dy);
+      return km > 0.8 ? { name: r.arrive.name, km, arrive: true } : null;
+    }
     const legs = (r.legs || []).filter(l => l && l.to);
     if (!legs.length) return null;
     const name = legs[legs.length - 1].to;
@@ -246,7 +252,9 @@
     if (dest) {
       const routes = items.map(x => {
         const gap = routeEndGap(state, x.r);
-        if (gap) warnings.push(`${x.letter}：経路が「${gap.name}」までで、目的地から約${gap.km.toFixed(1)}km離れています。目的地を変えたときは、Yahoo!乗換案内で検索し直してください`);
+        if (gap) warnings.push(gap.arrive
+          ? `${x.letter}：Yahoo!乗換案内の行き先「${gap.name}」が、目的地から約${gap.km.toFixed(1)}km離れています。行き先が違う場所になっていないか確かめて、検索し直してください`
+          : `${x.letter}：経路が「${gap.name}」までで、目的地から約${gap.km.toFixed(1)}km離れています。目的地を変えたときは、Yahoo!乗換案内で検索し直してください`);
         const mr = x.prop.lat != null && x.prop.lat !== '' ? mapRoute(x.r, x.info, resolve, x.r.alight || destName, dest, warnings, x.letter) : { legs: [] };
         if (x.prop.lat == null || x.prop.lat === '') { warnings.push(`${x.letter}：物件の座標が未入力です`); return null; }
         mr.origin = { lat: +x.prop.lat, lng: +x.prop.lng, name: x.prop.name, letter: x.letter };

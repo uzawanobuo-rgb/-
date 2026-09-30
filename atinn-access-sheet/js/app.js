@@ -539,7 +539,7 @@ ${stTable}
 <div class="transit-box">
 <div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.missing, path, o.searchCoord)}</div>
 <div class="row muted">${route.note && /Yahoo/.test(route.note) ? `<span>✓ ${esc(route.note)}</span>` : ''}
-${(() => { const g = path.startsWith('p2.') && Sheet.routeEndGap(state, route); return g ? `<span class="warn-t">経路が「${esc(g.name)}」までのままです（目的地から約${g.km.toFixed(1)}km）→ 検索し直してください</span>` : ''; })()}
+${(() => { const g = path.startsWith('p2.') && Sheet.routeEndGap(state, route); return g ? `<span class="warn-t">${g.arrive ? `Yahoo!の行き先「${esc(g.name)}」が目的地から約${g.km.toFixed(1)}km離れています → 行き先を確かめて検索し直してください` : `経路が「${esc(g.name)}」までのままです（目的地から約${g.km.toFixed(1)}km）→ 検索し直してください`}</span>` : ''; })()}
 <button type="button" class="linkish" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}" title="「乗換取込」でコピーした経路を読み込みます">自動で入らないとき：コピーした経路を読み込む</button></div>
 </div>
 <div class="grid g4 align-end">
@@ -1004,11 +1004,15 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     route.display = '';
     route.source = r.url || route.source;
     route.note = `Yahoo!乗換案内から取込（${r.dep}発・乗車${r.ride}分・乗換${r.transfers}回）`;
+    // 到着地点の位置（Yahoo!の地図リンクから）。目的地とずれていないかの確認に使う
+    route.arrive = r.toCoord ? { name: r.to, lat: r.toCoord.lat, lng: r.toCoord.lng } : null;
     persist(); renderForm(); renderPreview(); autoResolveStations();
     const sp = v => String(v || '').replace(/[\s　]/g, '');
     const want = sp(toName).replace(/駅$/, '');
     const msgs = [`${r.from} → ${r.to}：乗車${r.ride}分・乗換${r.transfers === 0 ? 'なし' : r.transfers + '回'}を入れました`];
-    if (want && sp(r.to) !== want && !sp(r.to).startsWith(want)) msgs.push(`（行き先が「${r.to}」です。${want}の検索結果か確認してください）`);
+    const gap = path.startsWith('p2.') && Sheet.routeEndGap(state, route);
+    if (gap && gap.arrive) msgs.push(`（行き先「${gap.name}」が目的地から約${gap.km.toFixed(1)}km離れています。違う場所になっていないか確かめてください）`);
+    if (!(gap && gap.arrive) && want && sp(r.to) !== want && !sp(r.to).startsWith(want)) msgs.push(`（行き先が「${r.to}」です。${want}の検索結果か確認してください）`);
     if (route.walk === '') msgs.push(`「${r.from}」は物件の最寄駅にないので、徒歩（分）を入れてください`);
     // 古いブックマーク（貼り付け式）からの取込なら、新しいブックマークを案内する
     if (!pat && !/"bm":\s*3/.test(text)) msgs.push('　※ブックマーク「乗換取込」を登録し直すと、貼り付けなしで自動で入るようになります（使い方の欄から再ドラッグ）');
