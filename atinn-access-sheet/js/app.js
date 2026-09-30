@@ -495,7 +495,7 @@ ${field('乗車（分）<br><small>電車・バス（乗換込み）</small>', i
 <div class="grid g4 align-end">
 ${field('表示する分 <small>任意</small>', inp(`${path}.display`, { type: 'number', ph: String(info.total ?? '') }))}
 ${field('乗換回数 <small>任意</small>', inp(`${path}.transfers`, { type: 'number', ph: String(legs.length - 1) }))}
-${src || gmap ? `<div class="f span2"><span>出典・確認</span><div class="row">${src ? `<a class="btn small" href="${esc(src)}" target="_blank" rel="noopener">${/transit\.yahoo\.co\.jp/.test(src) ? 'Yahoo!乗換案内' : '出典ページ'} ↗</a>` : ''}${gmap ? `<a class="btn small" href="${esc(gmap)}" target="_blank" rel="noopener">Googleマップ経路 ↗</a>` : ''}</div></div>` : ''}
+${src || gmap ? `<div class="f span2"><span>出典・確認</span><div class="row" style="flex-wrap:nowrap">${src ? `<a class="btn small" href="${esc(src)}" target="_blank" rel="noopener">${/transit\.yahoo\.co\.jp/.test(src) ? 'Y!乗換案内' : '出典ページ'} ↗</a>` : ''}${gmap ? `<a class="btn small" href="${esc(gmap)}" target="_blank" rel="noopener">GMap確認 ↗</a>` : ''}</div></div>` : ''}
 </div>
 ${o.excludable ? `<label class="row muted"><input type="checkbox" data-bind="${path}.exclude" ${route.exclude ? 'checked' : ''}> この駅はシートに載せない</label>` : ''}
 ${coordStatus(names)}
