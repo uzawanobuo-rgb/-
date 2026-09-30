@@ -39,7 +39,7 @@
 
   // 開くたびにまっさらから始める。前回の入力は「前回の入力を復元」で戻せるように別の場所へ移しておく。
   const PREV_KEY = STORE_KEY + ':prev';
-  // ブックマーク「アットイン取込」から開かれたタブは、続きの作業なので、いまの入力を引き継ぐ
+  // ブックマーク「プラン取込」から開かれたタブは、続きの作業なので、いまの入力を引き継ぐ
   const FROM_BM = /^#atinn-/.test(location.hash);
   if (FROM_BM) try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* noop */ }
   let state = defaultState();
@@ -126,7 +126,7 @@
   function numOrEmpty(v) { const n = Calc.num(v); return n === null ? '' : n; }
 
   // ---------- ブックマークレット ----------
-  // ブックマーク「アットイン取込」：本体は js/bm-atinn.js。「乗換取込」と同じく、公開ページから開いているときは本体を読み込むだけの短いコードにする。
+  // ブックマーク「プラン取込」：本体は js/bm-atinn.js。「乗換取込」と同じく、公開ページから開いているときは本体を読み込むだけの短いコードにする。
   const loaderFor = file => 'javascript:' + encodeURIComponent(`(function(){var s=document.createElement('script');s.src=${JSON.stringify(new URL(file, location.href).href)}+'?t='+Date.now();s.dataset.run='1';s.onerror=function(){alert('ブックマークの本体を読み込めませんでした。ネットワークを確認してください。')};document.body.appendChild(s)})()`);
   const BOOKMARKLET = /^https?:$/.test(location.protocol)
     ? loaderFor('js/bm-atinn.js')
@@ -282,7 +282,7 @@
     if (parsed.fetchedAt) state.baseDate = Calc.todayStr(new Date(parsed.fetchedAt));
     const miss = [];
     if (!prop.name) miss.push('物件名');
-    if (prop.lat === '' || prop.lat == null) miss.push('地図の位置（プランページで「アットイン取込」から取り込み直してください）');
+    if (prop.lat === '' || prop.lat == null) miss.push('地図の位置（プランページで「プラン取込」から取り込み直してください）');
     if (!prop.stations.length) miss.push('最寄駅');
     const pv = prop.price;
     if (!pv || (Calc.num(pv.dailyCampaign) ?? Calc.num(pv.dailyList)) === null) miss.push('料金');
@@ -359,15 +359,15 @@
 <div class="card-b">
 <ol class="howto">
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
-<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）で、登録したブックマーク「<b>アットイン取込</b>」をクリック。ツールのタブが開くので、<b>入れる物件（A〜C）を選ぶだけ</b>です（パターン1はそのまま入ります）。写真・料金・最寄駅・地図座標が入ります。</li>
+<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）で、登録したブックマーク「<b>プラン取込</b>」をクリック。ツールのタブが開くので、<b>入れる物件（A〜C）を選ぶだけ</b>です（パターン1はそのまま入ります）。写真・料金・最寄駅・地図座標が入ります。</li>
 <li>ツールが開かないとき（ポップアップが止められたときなど）は、コピーはされているので、ツールの画面で <b>Ctrl+V</b>（または物件の欄の「コピーした物件を読み込む」）で入れます。</li>
 <li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の「コピーした経路を読み込む」を押す）。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
-<div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">アットイン取込</a>
+<div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">プラン取込</a>
 <a class="bm" href="${esc(TRANSIT_BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">乗換取込</a>
 <span class="muted">← 2つともブックマークバーへドラッグ</span></div>
-<p class="muted" style="margin:0">2026年9月30日より前に登録した人は、「アットイン取込」「乗換取込」とも一度だけ登録し直してください（古いほうを削除して、上のボタンを再ドラッグ）。以後はツールを直しても登録し直す必要はありません。</p>
+<p class="muted" style="margin:0">2026年9月30日より前に登録した人は、「プラン取込」「乗換取込」とも一度だけ登録し直してください（古いほうを削除して、上のボタンを再ドラッグ）。以後はツールを直しても登録し直す必要はありません。</p>
 <p class="muted" style="margin:0">ブックマークレットが使えないときは、プランページで<b>全選択（Ctrl+A）→コピー（Ctrl+C）</b>して貼り付けても、料金・最寄駅などは取り込めます（写真・座標は除く。座標は住所から検索できます）。</p>
 </div></details>`;
   }
@@ -380,8 +380,8 @@
     if (opts.simple) {
       return `<div class="card-b" style="padding:0">
 <div class="import-box">
-<div class="row muted"><span>プランページでブックマーク「アットイン取込」を押すと、自動で入ります</span>
-<button type="button" class="linkish" data-action="import-clip" data-path="${path}" title="「アットイン取込」でコピーした物件を読み込みます">自動で入らないとき：コピーした物件を読み込む</button></div>
+<div class="row muted"><span>プランページでブックマーク「プラン取込」を押すと、自動で入ります</span>
+<button type="button" class="linkish" data-action="import-clip" data-path="${path}" title="「プラン取込」でコピーした物件を読み込みます">自動で入らないとき：コピーした物件を読み込む</button></div>
 ${copyRow(path)}
 ${importedNote(path)}
 </div>
@@ -396,7 +396,7 @@ ${inlineField('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2�
 <div class="f"><span>① プランURL</span>
 <div class="row" style="flex-wrap:nowrap">${inp(`${path}.planUrl`, { type: 'url', ph: 'https://atinn.jp/plan/33705' })}
 ${planUrl ? `<a class="btn primary small" href="${esc(planUrl)}" target="_blank" rel="noopener">開く ↗</a>` : '<span class="btn small" aria-disabled="true" style="opacity:.5">開く ↗</span>'}</div></div>
-<p class="muted" style="margin:0">② 開いたプランページで、ブックマーク「<b>アットイン取込</b>」を押す（押すだけでコピーされます）<br>（ブックマークが無ければ、ページで Ctrl+A → Ctrl+C でも可）</p>
+<p class="muted" style="margin:0">② 開いたプランページで、ブックマーク「<b>プラン取込</b>」を押す（押すだけでコピーされます）<br>（ブックマークが無ければ、ページで Ctrl+A → Ctrl+C でも可）</p>
 <div class="f"><span>③ ここに貼り付け（Ctrl+V で自動取り込み）</span>
 <textarea class="paste" data-paste="${path}" placeholder="ここに Ctrl+V で貼り付け"></textarea></div>
 ${importedNote(path)}
@@ -936,7 +936,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   document.addEventListener('paste', e => {
     const t = e.target;
     if (t.dataset && t.dataset.gmap) { e.preventDefault(); applyGmap((e.clipboardData || window.clipboardData).getData('text')); return; }
-    // 入力欄の外で Ctrl+V：アットイン取込のデータなら、入れる物件を選んで取り込む
+    // 入力欄の外で Ctrl+V：プラン取込のデータなら、入れる物件を選んで取り込む
     if (!t.closest || !t.closest('input, textarea, select, [contenteditable]')) {
       const txt = (e.clipboardData || window.clipboardData).getData('text');
       let d = null;
@@ -1168,7 +1168,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   }
   window.addEventListener('resize', () => { fitPreview(); syncTopbar(); });
 
-  // ---------- ブックマーク「アットイン取込」からの受け取り ----------
+  // ---------- ブックマーク「プラン取込」からの受け取り ----------
   // ブックマークは名前「atinn-tool」のタブを開く。ブラウザがこのタブを見つけられればここに切り替わり、
   // 見つけられなければ新しいタブで開く。新しいタブが開いたら、古いタブは役目を終える。
   window.name = 'atinn-tool';
@@ -1181,7 +1181,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
       window.close(); // ブックマークが開いたタブなら閉じられる。閉じられなければ案内を出す
       const o = document.createElement('div');
       o.className = 'retired';
-      o.innerHTML = '<div><b>このタブは古くなりました</b><br>アットイン取込で開いた新しいタブで続きをしています。<br>このタブは閉じてください。</div>';
+      o.innerHTML = '<div><b>このタブは古くなりました</b><br>プラン取込で開いた新しいタブで続きをしています。<br>このタブは閉じてください。</div>';
       document.body.appendChild(o);
     };
     if (FROM_BM) channel.postMessage({ type: 'takeover' });
