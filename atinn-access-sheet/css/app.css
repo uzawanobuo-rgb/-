@@ -198,3 +198,4 @@ details.more > summary { align-items: center; }
 .card.prop-card > summary .sum-actions { margin-left: auto; flex-shrink: 0; }
 .icon-link { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; background: #fff; border: 1px solid #9FD0CB; color: var(--teal-d); font-size: 11px; font-weight: 700; text-decoration: none; }
 .icon-link:hover { background: #DDEFED; }
+.sub-h.st-h { justify-content: space-between; }

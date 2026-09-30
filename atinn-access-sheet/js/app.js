@@ -479,10 +479,7 @@ ${prop.photoCustom ? `<button type="button" class="on" style="background-image:u
 <div class="row"><label class="btn small">写真をアップロード<input type="file" accept="image/*" hidden data-action="upload-photo" data-path="${path}"></label>
 <label class="row muted"><input type="checkbox" data-bind="${path}.hidePhoto" ${prop.hidePhoto ? 'checked' : ''}> 写真を載せない</label>
 ${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真はありません</span>'}</div>` : '';
-    return `<div class="sub-h">最寄駅</div>
-${stTable}
-<div class="row"><button type="button" class="btn small" data-action="add-station" data-path="${path}">＋ 駅を追加</button></div>
-<details class="more" data-ui="more-${path}" ${ui.open['more-' + path] ? 'open' : ''}><summary>料金・写真・強みタグ <span class="more-sum">${propSummary(prop, opts)}</span></summary>
+    return `<details class="more" data-ui="more-${path}" ${ui.open['more-' + path] ? 'open' : ''}><summary>料金・写真・強みタグ <span class="more-sum">${propSummary(prop, opts)}</span></summary>
 <div class="more-b">
 <div class="sub-h">料金（ご利用料金(1ヶ月以上)・税込）${prop.imported ? '<span class="muted">黄色＝取込値から修正</span>' : ''}</div>
 <div class="grid g4">
@@ -500,6 +497,8 @@ ${opts.tag ? `<div class="grid">${field('強みタグ <small>（空欄なら自�
 ${field('築年月', inp(`${path}.built`, { ph: '2019年3月' }))}${field('構造', inp(`${path}.structure`))}${field('階建', inp(`${path}.floors`, { type: 'number' }))}
 ${field('禁煙/喫煙', inp(`${path}.smoking`))}${field('設定人数', inp(`${path}.capacity`, { type: 'number' }))}${field('プラン名', inp(`${path}.planName`))}
 </div></details>
+<div class="sub-h st-h">最寄駅<button type="button" class="btn small" data-action="add-station" data-path="${path}">＋ 駅を追加</button></div>
+${stTable}
 </div>`;
   }
 
