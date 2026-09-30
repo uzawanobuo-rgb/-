@@ -304,6 +304,13 @@
       defaults = () => { state.p2.routes[i] = emptyRoute(); fillRouteDefaults(state.p2.routes[i], prop, state.p2.destName); };
     }
     const miss = applyImport(prop, parsed, defaults);
+    const now = new Date();
+    const got = [`最寄駅${(prop.stations || []).length}件`];
+    if ((Calc.num((prop.price || {}).dailyCampaign) ?? Calc.num((prop.price || {}).dailyList)) !== null) got.push('料金');
+    if ((prop.photos || []).length) got.push(`写真${prop.photos.length}枚`);
+    if (prop.lat !== '' && prop.lat != null) got.push('地図の位置');
+    ui.imported = ui.imported || {};
+    ui.imported[path] = { name: prop.name || '（物件名なし）', got: got.join('・'), miss, time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}` };
     const ta = document.querySelector(`textarea[data-paste="${path}"]`);
     if (ta) ta.value = '';
     persist(); renderForm(); renderPreview(); autoResolveStations();
@@ -339,6 +346,7 @@
 <div class="import-box">
 <div class="f"><span>プランページでブックマーク「アットイン取込」を押す → ここに貼り付け（Ctrl+V）</span>
 <textarea class="paste" data-paste="${path}" placeholder="ここに Ctrl+V で貼り付けると取り込みます"></textarea></div>
+${importedNote(path)}
 </div>
 <div class="grid">
 ${field('物件名（シートに表示）', inp(`${path}.name`, { ph: 'アットイン六本木4' }), 'span2')}
@@ -358,6 +366,7 @@ ${planUrl ? `<a class="btn primary small" href="${esc(planUrl)}" target="_blank"
 <p class="muted" style="margin:0">② 開いたプランページで、ブックマーク「<b>アットイン取込</b>」を押す（押すだけでコピーされます）<br>（ブックマークが無ければ、ページで Ctrl+A → Ctrl+C でも可）</p>
 <div class="f"><span>③ ここに貼り付け（Ctrl+V で自動取り込み）</span>
 <textarea class="paste" data-paste="${path}" placeholder="ここに Ctrl+V で貼り付け"></textarea></div>
+${importedNote(path)}
 <div class="row"><button type="button" class="btn small" data-action="import" data-path="${path}">取り込む</button>
 <button type="button" class="btn small" data-action="import-clip" data-path="${path}">クリップボードから取り込む</button></div>
 <p class="muted" style="margin:0">※URLを入れただけでは読み込めません（ブラウザの制限で、ほかのサイトのページを直接読めないため）。</p>
@@ -372,6 +381,13 @@ ${field('経度', inp(`${path}.lng`, { ph: '139.7218' }))}
 ${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>` : ''}
 <span class="muted">Googleマップの座標（35.66, 139.72）を緯度欄に貼っても入ります</span></div>
 ` + renderPropRest(path, prop, opts);
+  }
+
+  // 貼り付け欄の下に出す「取り込みました」の表示（次に貼るまで残す）
+  function importedNote(path) {
+    const r = ui.imported && ui.imported[path];
+    if (!r) return '';
+    return `<div class="imported-note">✓ 取り込みました：<b>${esc(r.name)}</b>（${esc(r.got)}）<span class="muted">${esc(r.time)}</span>${r.miss.length ? `<br><span class="warn-t">未取得：${esc(r.miss.join('・'))} → 手入力してください</span>` : ''}</div>`;
   }
 
   // 閉じた「料金・写真・強みタグ」の見出しに出す要約
@@ -840,7 +856,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
       }
       case 'reset':
         if (!confirm('入力をすべて消して新規作成します。よろしいですか？（必要なら先に「データ保存」）')) return;
-        { const pat = state.pattern; state = defaultState(); state.pattern = pat; }
+        { const pat = state.pattern; state = defaultState(); state.pattern = pat; ui.imported = {}; }
         persist(); renderForm(); renderPreview(); break;
       case 'save-json': saveJson(); break;
       case 'png': busy(b, exportPng); break;
@@ -870,7 +886,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         persist(); renderForm(); renderPreview(); break;
       case 'clear-prop':
         if (!confirm(`物件${LETTERS[i]}の入力を消します。よろしいですか？`)) return;
-        state.p2.properties[i] = emptyProp(); state.p2.routes[i] = emptyRoute(); persist(); renderForm(); renderPreview(); break;
+        state.p2.properties[i] = emptyProp(); state.p2.routes[i] = emptyRoute(); if (ui.imported) delete ui.imported[`p2.properties.${i}`]; persist(); renderForm(); renderPreview(); break;
       case 'geocode-prop': {
         const p = getPath(path);
         if (!p.address) { toast('住所を入力してください'); return; }
