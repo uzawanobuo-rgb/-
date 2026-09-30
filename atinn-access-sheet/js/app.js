@@ -43,19 +43,31 @@
   try {
     const last = localStorage.getItem(STORE_KEY);
     localStorage.removeItem(STORE_KEY);
-    if (last && hasContent(JSON.parse(last))) { localStorage.removeItem(PREV_KEY); localStorage.setItem(PREV_KEY, last); }
+    if (last) {
+      // 前回使わなかったパターンは、その前の入力を残しておく（パターンごとに最後の入力を戻せるように）
+      const cur = JSON.parse(last);
+      let old = null;
+      try { old = JSON.parse(localStorage.getItem(PREV_KEY) || 'null'); } catch (e) { /* 壊れていれば捨てる */ }
+      if (old) ['p1', 'p2'].forEach(pat => { if (!hasPatternContent(cur, pat) && hasPatternContent(old, pat)) cur[pat] = old[pat]; });
+      if (hasContent(cur)) { localStorage.removeItem(PREV_KEY); localStorage.setItem(PREV_KEY, JSON.stringify(cur)); }
+    }
   } catch (e) { /* 保存できない環境でも動かす */ }
-  function hasContent(s) {
+  // パターンごとに「入力があるか」を見る
+  function hasPatternContent(s, pat) {
     if (!s) return false;
-    const p1 = s.p1 && s.p1.property, p2 = s.p2 || {};
-    return !!((p1 && (p1.name || p1.planUrl)) || p2.destName || (p2.properties || []).some(p => p && (p.name || p.planUrl)));
+    if (pat === 'p1') { const p = s.p1 && s.p1.property; return !!(p && (p.name || p.planUrl)); }
+    const p2 = s.p2 || {};
+    return !!(p2.destName || p2.customer || (p2.properties || []).some(p => p && (p.name || p.planUrl)));
   }
+  function hasContent(s) { return hasPatternContent(s, 'p1') || hasPatternContent(s, 'p2'); }
   function prevSaved() {
     try { const v = JSON.parse(localStorage.getItem(PREV_KEY) || 'null'); return hasContent(v) ? v : null; } catch (e) { return null; }
   }
-  function prevLabel(v) {
-    const names = v.pattern === 'p2' ? (v.p2.properties || []).map(p => p && p.name).filter(Boolean) : [v.p1 && v.p1.property && v.p1.property.name].filter(Boolean);
-    return names.join('・') || (v.p2 && v.p2.destName) || '前回の入力';
+  // 復元の案内に出す名前（いま見ているパターンの分だけ）
+  function prevLabel(v, pat) {
+    if (pat === 'p1') return (v.p1 && v.p1.property && v.p1.property.name) || '物件';
+    const names = (v.p2.properties || []).map(p => p && p.name).filter(Boolean);
+    return [v.p2.destName ? `目的地：${v.p2.destName}` : '', names.join('・')].filter(Boolean).join('／') || 'パターン2';
   }
   const ui = { open: { howto: !localStorage.getItem(STORE_KEY + ':seen') } };
 
@@ -660,9 +672,11 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     const selStart = ae && 'selectionStart' in ae ? (() => { try { return ae.selectionStart; } catch (e) { return null; } })() : null;
     const pastes = {};
     form.querySelectorAll('textarea[data-paste]').forEach(t => { if (t.value) pastes[t.dataset.paste] = t.value; });
-    const prev = !hasContent(state) && prevSaved();
+    // いま見ているパターンが空で、前回そのパターンに入力があったときだけ案内する
+    const pat = state.pattern, prevAll = prevSaved();
+    const prev = !hasPatternContent(state, pat) && hasPatternContent(prevAll, pat) ? prevAll : null;
     const restore = prev ? `<div class="card restore"><div class="card-b" style="padding:10px 14px;flex-direction:row;align-items:center;flex-wrap:wrap">
-<span class="muted">前回の入力（${esc(prevLabel(prev))}）があります。</span>
+<span class="muted">前回の${pat === 'p1' ? 'パターン1' : 'パターン2'}の入力（${esc(prevLabel(prev, pat))}）があります。</span>
 <button type="button" class="btn small" data-action="restore-prev">前回の入力を復元</button></div></div>` : '';
     form.innerHTML = restore + renderHowto() + (state.pattern === 'p2' ? renderP2() : renderP1()) + stationDatalist();
     Object.keys(pastes).forEach(k => { const t = form.querySelector(`textarea[data-paste="${k}"]`); if (t) t.value = pastes[k]; });
@@ -927,7 +941,12 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
       case 'restore-prev': {
         const v = prevSaved();
         if (!v) return;
-        state = normalize(v); persist(); renderForm(); renderPreview(); autoResolveStations(); toast('前回の入力を復元しました');
+        // いま見ているパターンの分だけ戻す（もう一方のパターンと、見ているタブはそのまま）
+        const pat = state.pattern, old = normalize(v);
+        state[pat] = old[pat];
+        state.stationCoords = Object.assign({}, old.stationCoords, state.stationCoords);
+        if (!hasPatternContent(state, pat === 'p1' ? 'p2' : 'p1')) { state.persons = old.persons; state.baseDate = old.baseDate; }
+        persist(); renderForm(); renderPreview(); autoResolveStations(); toast(`前回の${pat === 'p1' ? 'パターン1' : 'パターン2'}の入力を復元しました`);
         break;
       }
       case 'reset':
