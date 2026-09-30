@@ -212,7 +212,7 @@
       if (tags[x.i].length) return;
       const p = x.prop;
       const by = /(\d{4})/.exec(p.built || '');
-      if (by && thisYear - Number(by[1]) <= 8) tags[x.i].push(`築浅（${by[1]}年築）`);
+      if (by && thisYear - Number(by[1]) <= 5) tags[x.i].push(`築浅（${by[1]}年築）`);
       else if (n(p.floors) >= 10) tags[x.i].push(`${n(p.floors)}階建`);
       else if (x.info.walk !== null && x.info.walk <= 5) tags[x.i].push(`駅徒歩${x.info.walk}分`);
       else if (p.smoking === '禁煙') tags[x.i].push('全室禁煙');
