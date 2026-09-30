@@ -39,11 +39,15 @@
 
   // 開くたびにまっさらから始める。前回の入力は「前回の入力を復元」で戻せるように別の場所へ移しておく。
   const PREV_KEY = STORE_KEY + ':prev';
+  // ブックマーク「アットイン取込」から開かれたタブは、続きの作業なので、いまの入力を引き継ぐ
+  const FROM_BM = /^#atinn-/.test(location.hash);
+  if (FROM_BM) try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* noop */ }
   let state = defaultState();
   try {
     const last = localStorage.getItem(STORE_KEY);
-    localStorage.removeItem(STORE_KEY);
-    if (last) {
+    if (FROM_BM) { if (last) state = normalize(JSON.parse(last)); }
+    else localStorage.removeItem(STORE_KEY);
+    if (last && !FROM_BM) {
       // 前回使わなかったパターンは、その前の入力を残しておく（パターンごとに最後の入力を戻せるように）
       const cur = JSON.parse(last);
       let old = null;
@@ -71,7 +75,9 @@
   }
   const ui = { open: { howto: !localStorage.getItem(STORE_KEY + ':seen') } };
 
+  let retired = false; // 新しいタブに引き継いだあとの古いタブは、保存しない
   function persist() {
+    if (retired) return;
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
     catch (e) {
       // 写真で容量オーバーのときは写真を除いて保存
@@ -110,75 +116,21 @@
     if (opts.cls) attrs.push(`class="${opts.cls}"`);
     return `<input ${attrs.join(' ')}>`;
   }
+  // 日付は手入力（「10/5」→ Tab でOK）。年を省いたら、ref 以降でいちばん近い日にする
+  function dateInp(path, ref) {
+    return `<input data-bind="${path}" data-date="${esc(ref || '')}" type="text" inputmode="numeric" autocomplete="off" value="${esc(Calc.showDate(getPath(path)))}" placeholder="例：10/5">`;
+  }
   // 項目名を左、入力欄を右に1行で並べる（項目名の幅をそろえて縦位置を合わせる）
   function inlineField(label, html) { return `<label class="f-inline all"><span>${label}</span>${html}</label>`; }
   function field(label, html, cls) { return `<label class="f ${cls || ''}"><span>${label}</span>${html}</label>`; }
   function numOrEmpty(v) { const n = Calc.num(v); return n === null ? '' : n; }
 
   // ---------- ブックマークレット ----------
-  // プランページで実行し、本文・地図座標・写真をJSONにしてコピーする。解析はツール側（parse.js）で行う。
-  function bookmarkletMain() {
-    (async () => {
-      const d = document;
-      if (!/(^|\.)atinn\.jp$/.test(location.hostname) && !confirm('アットインのページではないようです。続けますか？')) return;
-      const h = d.documentElement.outerHTML;
-      let lat = null, lng = null;
-      const m = h.match(/maps\.google\.[a-z.]+\/maps\?[^"'<>\s]*?q=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i) || h.match(/google\.[a-z.]+\/maps[^"'<>\s]*?[?&;](?:q|ll|center)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i);
-      if (m) { lat = +m[1]; lng = +m[2]; }
-      const cands = [];
-      d.querySelectorAll('img').forEach(i => {
-        const s = i.currentSrc || i.src || i.dataset.src || i.dataset.lazy || i.getAttribute('data-original');
-        if (s && !/^data:|\.svg|logo|icon|banner|sprite|btn_|button/i.test(s) && !cands.some(x => x.s === s)) {
-          const fig = i.closest('figure,li,div');
-          const cap = (i.alt || i.title || (fig && fig.querySelector('figcaption,p,span') && fig.querySelector('figcaption,p,span').innerText) || '').trim().slice(0, 60);
-          cands.push({ el: i, s, a: cap });
-        }
-      });
-      // ブラウザはクリック直後しかコピーを許さないので、写真は並列で読み、最大2.5秒で打ち切る
-      const load = x => new Promise(r => {
-        if (x.el.complete && x.el.naturalWidth && x.el.currentSrc === x.s) return r(x.el);
-        const im = new Image();
-        try { if (new URL(x.s, location.href).origin !== location.origin) im.crossOrigin = 'anonymous'; } catch (e) { /* noop */ }
-        const t = setTimeout(() => r(null), 2500);
-        im.onload = () => { clearTimeout(t); r(im); };
-        im.onerror = () => { clearTimeout(t); r(null); };
-        im.src = x.s;
-      });
-      const loaded = await Promise.all(cands.slice(0, 16).map(load));
-      const images = [];
-      cands.slice(0, 16).forEach((x, k) => {
-        const im = loaded[k];
-        if (images.length >= 8 || !im || im.naturalWidth < 300 || im.naturalHeight < 200) return;
-        let data = null;
-        try {
-          const f = Math.min(1, 640 / im.naturalWidth);
-          const c = d.createElement('canvas');
-          c.width = Math.round(im.naturalWidth * f); c.height = Math.round(im.naturalHeight * f);
-          c.getContext('2d').drawImage(im, 0, 0, c.width, c.height);
-          data = c.toDataURL('image/jpeg', 0.8);
-        } catch (e) { /* 別ドメインの画像は URL のみ */ }
-        images.push({ src: new URL(x.s, location.href).href, data, caption: x.a });
-      });
-      const json = JSON.stringify({ v: 1, src: 'atinn-bookmarklet', url: location.href, title: d.title, h1: (d.querySelector('h1') || {}).innerText || '', text: d.body.innerText.slice(0, 80000), lat, lng, images, fetchedAt: new Date().toISOString() });
-      const info = '写真 ' + images.length + '枚' + (lat ? '・地図座標あり' : '・地図座標なし');
-      const copy = async () => {
-        try { await navigator.clipboard.writeText(json); return true; } catch (e) { /* 次の方法 */ }
-        try { const t = d.createElement('textarea'); t.value = json; t.style.cssText = 'position:fixed;left:-9999px'; d.body.appendChild(t); t.select(); const ok = d.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; }
-      };
-      const box = html => { const o = d.createElement('div'); o.innerHTML = html; d.body.appendChild(o.firstChild); return d.body.lastChild; };
-      if (await copy()) {
-        const o = box('<div style="position:fixed;right:20px;bottom:20px;z-index:2147483647;background:#0F7C7A;color:#fff;padding:14px 18px;border-radius:10px;font:14px/1.6 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25)"><b style="font-size:16px">✓ コピーしました</b><br>' + info + '<br>ツールに戻って Ctrl+V で貼り付けてください</div>');
-        setTimeout(() => o.remove(), 3500);
-        return;
-      }
-      // コピーが許可されなかったときだけボタンを出す
-      const o = box('<div style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif"><div style="background:#fff;color:#1E2B33;padding:24px;border-radius:12px;max-width:420px;text-align:center;line-height:1.6"><div style="font-size:17px;font-weight:bold;margin-bottom:6px">物件データを取得しました</div><div style="font-size:13px;color:#555;margin-bottom:16px">' + info + '<br>「コピーする」を押して、ツールの貼り付け欄に貼ってください。</div><button style="font-size:16px;padding:10px 22px;background:#0F7C7A;color:#fff;border:0;border-radius:8px;cursor:pointer">コピーする</button><button style="font-size:14px;padding:10px 14px;margin-left:8px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">閉じる</button></div></div>');
-      const bs = o.querySelectorAll('button');
-      bs[1].onclick = () => o.remove();
-      bs[0].onclick = async () => { await copy(); bs[0].textContent = 'コピーしました ✓'; setTimeout(() => o.remove(), 1200); };
-    })().catch(e => alert('取得に失敗しました: ' + e));
-  }
-  const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + bookmarkletMain.toString() + ')()');
+  // ブックマーク「アットイン取込」：本体は js/bm-atinn.js。「乗換取込」と同じく、公開ページから開いているときは本体を読み込むだけの短いコードにする。
+  const loaderFor = file => 'javascript:' + encodeURIComponent(`(function(){var s=document.createElement('script');s.src=${JSON.stringify(new URL(file, location.href).href)}+'?t='+Date.now();s.dataset.run='1';s.onerror=function(){alert('ブックマークの本体を読み込めませんでした。ネットワークを確認してください。')};document.body.appendChild(s)})()`);
+  const BOOKMARKLET = /^https?:$/.test(location.protocol)
+    ? loaderFor('js/bm-atinn.js')
+    : 'javascript:' + encodeURIComponent('(' + window.AtinnPlanBM.toString() + ')()');
 
   // ブックマーク「乗換取込」：本体は js/bm-transit.js。公開ページから開いているときは、
   // その本体を読み込むだけの短いコードにする（本体を直しても登録し直さなくてよい）。
@@ -349,15 +301,15 @@
 <div class="card-b">
 <ol class="howto">
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
-<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）を開き、登録したブックマーク「アットイン取込」をクリック（押すだけでコピーされます）。</li>
-<li>このツールの<b>貼り付け欄</b>に貼り付け（Ctrl+V）→「取り込む」。写真・料金・最寄駅・地図座標が入ります。</li>
+<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）で、登録したブックマーク「<b>アットイン取込</b>」をクリック。ツールのタブが開くので、<b>入れる物件（A〜C）を選ぶだけ</b>です（パターン1はそのまま入ります）。写真・料金・最寄駅・地図座標が入ります。</li>
+<li>ツールが開かないとき（ポップアップが止められたときなど）は、コピーはされているので、物件の<b>貼り付け欄</b>に Ctrl+V します。</li>
 <li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の「コピーした経路を読み込む」を押す）。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
 <div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">アットイン取込</a>
 <a class="bm" href="${esc(TRANSIT_BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">乗換取込</a>
 <span class="muted">← 2つともブックマークバーへドラッグ</span></div>
-<p class="muted" style="margin:0">2026年9月30日より前に「乗換取込」を登録した人は、一度だけ登録し直してください（古いほうを削除して、上のボタンを再ドラッグ）。以後はツールを直しても登録し直す必要はありません。</p>
+<p class="muted" style="margin:0">2026年9月30日より前に登録した人は、「アットイン取込」「乗換取込」とも一度だけ登録し直してください（古いほうを削除して、上のボタンを再ドラッグ）。以後はツールを直しても登録し直す必要はありません。</p>
 <p class="muted" style="margin:0">ブックマークレットが使えないときは、プランページで<b>全選択（Ctrl+A）→コピー（Ctrl+C）</b>して貼り付けても、料金・最寄駅などは取り込めます（写真・座標は除く。座標は住所から検索できます）。</p>
 </div></details>`;
   }
@@ -536,8 +488,10 @@ ${field('乗車駅／バス停<br><small>物件から歩いて乗る駅</small>'
 ${field('徒歩（分）<br><small>物件→乗車駅</small>', inp(`${path}.walk`, { type: 'number' }))}
 ${field('乗車（分）<br><small>電車・バス（乗換込み）</small>', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
 </div>
+<details class="sub" data-ui="legs-${esc(path)}" ${ui.open['legs-' + path] ? 'open' : ''}><summary>経路<span class="muted" style="margin-left:10px">${esc(legs.filter(l => l.line || l.to).map(l => `${l.line || '（路線未入力）'}${l.to ? '→' + l.to : ''}`).join('／') || '未入力')}</span></summary>
 <table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
 <div class="row"><button type="button" class="btn small" data-action="add-leg" data-path="${path}">＋ 乗換を追加</button></div>
+</details>
 <div class="grid g4 align-end">
 ${field('表示する分 <small>任意</small>', inp(`${path}.display`, { type: 'number', ph: String(info.total ?? '') }))}
 ${field('乗換回数 <small>任意</small>', inp(`${path}.transfers`, { type: 'number', ph: String(legs.length - 1) }))}
@@ -571,7 +525,7 @@ ${coordStatus(names)}
 <details class="card cond-card" id="sec-p1-cond" open><summary><span class="step">1</span>条件</summary>
 <div class="card-b">
 <div class="grid align-end">
-${field('チェックイン日<br><small>未入力なら翌月1日</small>', inp('p1.checkIn', { type: 'date' }))}
+${field('チェックイン日<br><small>未入力なら翌月1日</small>', dateInp('p1.checkIn', 'today'))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
 <p class="muted" style="margin:0">料金は、チェックイン日から「1か月」「3か月」の2通りを自動で出します。</p>
@@ -647,8 +601,8 @@ ${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https:/
 ${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('p2.customer', { ph: '山田' }), 'all')}
 </div>
 <div class="grid g3 align-end">
-${field('チェックイン<br><small>未入力なら翌月1日</small>', inp('p2.checkIn', { type: 'date' }))}
-${field('チェックアウト<br><small>未入力なら30日間</small>', inp('p2.checkOut', { type: 'date' }))}
+${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('p2.checkIn', 'today'))}
+${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('p2.checkOut', 'checkin'))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
 <div class="grid">
@@ -672,7 +626,7 @@ ${renderTextCard('p2', built.model)}`;
 ${field('見出し <small>空欄なら自動</small>', inp(`${pat}.headline`, { ph: model.title }), 'all')}
 ${field('サブ見出し', inp(`${pat}.subheadline`, { ph: model.sub }), 'all')}
 ${field('注記（最下行）', `<textarea data-bind="${pat}.note" rows="3" placeholder="${esc(model.note)}">${esc(state[pat].note || '')}</textarea>`, 'all')}
-${field('料金の基準日', inp('baseDate', { type: 'date' }))}
+${field('料金の基準日', dateInp('baseDate', ''))}
 </div></div></details>`;
   }
 
@@ -828,6 +782,17 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     }
     return el.value;
   }
+  // 手入力の日付：確定（Tab・Enter・欄の外へ移る）したときに読む。入力欄は作り直さない（Tab の移動先を保つ）
+  function onDateInput(el) {
+    const path = el.dataset.bind, kind = el.dataset.date;
+    const ref = kind === 'today' ? Calc.todayStr() : kind === 'checkin' ? (state.p2.checkIn || Calc.defaultCheckIn()) : '';
+    const v = el.value.trim();
+    const iso = v ? Calc.parseDateInput(v, ref || Calc.todayStr().slice(0, 4) + '-01-01') : '';
+    if (v && !iso) { toast(`「${v}」は日付として読めませんでした。10/5 や 2026/10/5 の形で入れてください`); el.value = Calc.showDate(getPath(path)); return; }
+    setPath(path, iso);
+    el.value = Calc.showDate(iso);
+    persist(); renderPreview(); renderProgress();
+  }
   function onBindInput(el, isChange) {
     const path = el.dataset.bind;
     // 緯度欄に「35.66, 139.72」やGoogleマップURLを貼ったら両方埋める
@@ -875,10 +840,11 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
 
   document.addEventListener('input', e => {
     const el = e.target;
-    if (el.dataset && el.dataset.bind && el.type !== 'checkbox' && el.tagName !== 'SELECT') onBindInput(el, false);
+    if (el.dataset && el.dataset.bind && el.dataset.date === undefined && el.type !== 'checkbox' && el.tagName !== 'SELECT') onBindInput(el, false);
   });
   document.addEventListener('change', e => {
     const el = e.target;
+    if (el.dataset && el.dataset.date !== undefined) { onDateInput(el); return; }
     if (el.dataset && el.dataset.bind) { onBindInput(el, true); return; }
     const act = el.dataset && el.dataset.action;
     if (act === 'load-json') loadJson(el);
@@ -1098,6 +1064,64 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     document.documentElement.style.setProperty('--topbar-h', h + 'px');
   }
   window.addEventListener('resize', () => { fitPreview(); syncTopbar(); });
+
+  // ---------- ブックマーク「アットイン取込」からの受け取り ----------
+  // ブックマークは名前「atinn-tool」のタブを開く。ブラウザがこのタブを見つけられればここに切り替わり、
+  // 見つけられなければ新しいタブで開く。新しいタブが開いたら、古いタブは役目を終える。
+  window.name = 'atinn-tool';
+  let channel = null;
+  try { channel = new BroadcastChannel('atinn-access-sheet'); } catch (e) { /* 古いブラウザ */ }
+  if (channel) {
+    channel.onmessage = e => {
+      if (!e.data || e.data.type !== 'takeover' || retired) return;
+      retired = true;
+      window.close(); // ブックマークが開いたタブなら閉じられる。閉じられなければ案内を出す
+      const o = document.createElement('div');
+      o.className = 'retired';
+      o.innerHTML = '<div><b>このタブは古くなりました</b><br>アットイン取込で開いた新しいタブで続きをしています。<br>このタブは閉じてください。</div>';
+      document.body.appendChild(o);
+    };
+    if (FROM_BM) channel.postMessage({ type: 'takeover' });
+  }
+  const isAtinnOrigin = o => { try { return /(^|\.)atinn\.jp$/.test(new URL(o).hostname) && new URL(o).protocol === 'https:'; } catch (e) { return false; } };
+  window.addEventListener('message', e => {
+    const d = e.data;
+    if (!d || d.src !== 'atinn-bm' || !isAtinnOrigin(e.origin) || retired) return;
+    const reply = type => { try { e.source.postMessage({ src: 'atinn-tool', type, id: d.id }, e.origin); } catch (er) { /* noop */ } };
+    if (d.type === 'ping') reply('ready');
+    if (d.type === 'data' && typeof d.json === 'string') { reply('ack'); chooseImportSlot(d.json); }
+  });
+  // どの物件に入れるかを選ぶ（パターン1は物件が1つなので、そのまま入れる）
+  function chooseImportSlot(json) {
+    let name = '';
+    try { name = Parse.parsePlan(json).name || ''; } catch (e) { /* 名前なしで続ける */ }
+    const old = $('#slot-pick'); if (old) old.remove();
+    if (state.pattern === 'p1') { importInto('p1.property', json); scrollToSlot('sec-p1-prop'); return; }
+    const props = state.p2.properties;
+    const first = props.findIndex(p => !p.name);
+    const o = document.createElement('div');
+    o.id = 'slot-pick'; o.className = 'slot-pick';
+    o.innerHTML = `<div class="slot-box" role="dialog" aria-label="取り込む物件を選ぶ">
+<div class="slot-t">${esc(name || 'アットインの物件')} を取り込みます</div>
+<div class="muted">どの物件に入れますか？</div>
+<div class="slot-btns">${props.map((p, i) => `<button type="button" class="slot-btn ${i === first ? 'first' : ''}" data-i="${i}" style="--pc:${COLORS[i]}"><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span><span>${p.name ? esc(p.name) + '<small>入力済み（上書き）</small>' : '空き'}</span></button>`).join('')}</div>
+<div class="row" style="justify-content:flex-end"><button type="button" class="btn small" data-cancel>やめる</button></div></div>`;
+    document.body.appendChild(o);
+    const btn = o.querySelector(`.slot-btn[data-i="${first < 0 ? 0 : first}"]`); if (btn) btn.focus();
+    o.addEventListener('click', ev => {
+      const b = ev.target.closest('.slot-btn');
+      if (b) {
+        const i = +b.dataset.i;
+        o.remove();
+        if (state.pattern !== 'p2') { state.pattern = 'p2'; }
+        importInto(`p2.properties.${i}`, json); scrollToSlot(`sec-p2-${i}`);
+        return;
+      }
+      if (ev.target.closest('[data-cancel]') || ev.target === o) { o.remove(); toast('取り込みをやめました（コピーは残っているので、あとで貼り付けても入れられます）'); }
+    });
+  }
+  function scrollToSlot(id) { const t = document.getElementById(id); if (t) { t.open = true; t.scrollIntoView({ block: 'start' }); } }
+
   renderForm();
   renderPreview();
   if (document.fonts) document.fonts.ready.then(renderPreview);

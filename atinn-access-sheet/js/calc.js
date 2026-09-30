@@ -87,7 +87,36 @@
 
   function yen(n) { return Math.round(n).toLocaleString('ja-JP'); }
 
-  const M = { parse, fmt, addDays, daysInclusive, addMonthsClamp, insuranceMonths, calcPrice, planOneThree, defaultCheckIn, todayStr, num, yen };
+  // 手入力の日付を YYYY-MM-DD にする。「10/5」「10月5日」「1005」「2026/10/5」「20261005」など。
+  // 年を省いたときは ref（YYYY-MM-DD）の年とし、ref より前になるなら翌年にする。読めなければ null。
+  function parseDateInput(v, ref) {
+    let t = String(v == null ? '' : v).replace(/[０-９／－．]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0))
+      .replace(/[（(].*?[）)]/g, '').replace(/日/g, '').replace(/[年月.\-]/g, '/').replace(/\s+/g, '').replace(/\/+$/, '');
+    if (!t) return null;
+    let y = null, m, d;
+    let r;
+    if ((r = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/.exec(t)) || (r = /^(\d{4})(\d{2})(\d{2})$/.exec(t))) { y = +r[1]; m = +r[2]; d = +r[3]; }
+    else if ((r = /^(\d{1,2})\/(\d{1,2})$/.exec(t)) || (r = /^(\d{2})(\d{2})$/.exec(t))) { m = +r[1]; d = +r[2]; }
+    else return null;
+    const make = yy => { const s2 = `${yy}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`; return fmt(parse(s2)) === s2 ? s2 : null; };
+    if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+    if (y !== null) return make(y);
+    const base = ref || todayStr();
+    const by = +base.slice(0, 4);
+    const cand = make(by);
+    if (cand && cand >= base) return cand;
+    return make(by + 1) || cand;
+  }
+  // 画面に出す形：2026/10/5（月）
+  function showDate(s) {
+    if (!s) return '';
+    const t = parse(s);
+    if (isNaN(t)) return s;
+    const dt = new Date(t);
+    return `${dt.getUTCFullYear()}/${dt.getUTCMonth() + 1}/${dt.getUTCDate()}（${'日月火水木金土'[dt.getUTCDay()]}）`;
+  }
+
+  const M = { parseDateInput, showDate, parse, fmt, addDays, daysInclusive, addMonthsClamp, insuranceMonths, calcPrice, planOneThree, defaultCheckIn, todayStr, num, yen };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnCalc = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
