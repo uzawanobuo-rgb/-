@@ -36,9 +36,18 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
 .card > summary, .card > .card-h { list-style: none; cursor: pointer; padding: 12px 14px; font-weight: 900; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-.card > summary::-webkit-details-marker { display: none; }
-.card > summary::before { content: "▸"; color: var(--gray); transition: transform .15s; }
-.card[open] > summary::before { transform: rotate(90deg); }
+/* 開閉できる見出し：大きめの矢印（閉＝›、開＝⌄）と、押せることがわかる背景 */
+.card > summary, details.more > summary, details.sub > summary { list-style: none; }
+.card > summary::-webkit-details-marker, details.more > summary::-webkit-details-marker, details.sub > summary::-webkit-details-marker { display: none; }
+.card > summary::before, details.more > summary::before, details.sub > summary::before {
+  content: ""; flex: 0 0 auto; width: 9px; height: 9px; margin: 0 8px 0 4px;
+  border-right: 3px solid var(--sub); border-bottom: 3px solid var(--sub);
+  transform: rotate(-45deg); transition: transform .15s; align-self: center;
+}
+.card[open] > summary::before, details.more[open] > summary::before, details.sub[open] > summary::before { transform: rotate(45deg) translate(-2px, -2px); }
+.card > summary:hover, details.more > summary:hover, details.sub > summary:hover { background-color: rgba(30,43,51,.04); }
+.card.prop-card > summary:hover { background-color: var(--pbg); filter: brightness(.97); }
+details.sub > summary { cursor: pointer; display: flex; align-items: center; font-size: 12px; color: var(--sub); padding: 4px 0; border-radius: 6px; }
 .card-b { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
 .step { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; background: var(--teal); color: #fff; font-size: 12px; }
 .badge { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: #EFEDE6; color: var(--sub); }
@@ -126,3 +135,4 @@ details.more .more-b { padding: 0 12px 12px; display: flex; flex-direction: colu
 .card.prop-card { border-left: 6px solid var(--pc); }
 .card.prop-card > summary { background: var(--pbg); border-radius: 6px 12px 0 0; margin-bottom: 10px; }
 .card.prop-card:not([open]) > summary { border-radius: 6px 12px 12px 6px; margin-bottom: 0; }
+details.more > summary { align-items: center; }
