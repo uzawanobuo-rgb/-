@@ -10,9 +10,8 @@
 
   function p1() {
     return {
-      v: 1, pattern: 'p1', persons: 1, baseDate: '2026-09-29',
+      v: 1, pattern: 'p1', persons: 1, baseDate: '2026-09-29', checkIn: '2026-10-01', checkOut: '2026-10-31',
       p1: {
-        checkIn: '2026-10-01',
         property: {
           planUrl: 'https://atinn.jp/plan/33705', planName: '（見本）アットイン六本木4', name: 'アットイン六本木4',
           address: '東京都港区西麻布2丁目', lat: 35.6598549, lng: 139.7218323,
@@ -32,10 +31,10 @@
 
   function p2() {
     return {
-      v: 1, pattern: 'p2', persons: 1, baseDate: '2026-09-29',
+      v: 1, pattern: 'p2', persons: 1, baseDate: '2026-09-29', checkIn: '2026-10-01', checkOut: '2026-10-30',
       p2: {
         destName: '大手町', destLabel: 'お勤め先', destAddress: '東京都千代田区大手町', destLat: 35.6862, destLng: 139.7660,
-        customer: '〇〇', checkIn: '2026-10-01', checkOut: '2026-10-30',
+        customer: '〇〇',
         properties: [
           { planUrl: 'https://atinn.jp/plan/33492', planName: '【3ヶ月以上～・ロングSALE】□アットインmini門前仲町5-1', name: 'アットインmini門前仲町5-1', address: '東京都江東区福住', lat: 35.676281, lng: 139.7924957, stations: [{ name: '門前仲町', line: '東京メトロ東西線', walk: 11 }], price: Object.assign({}, PRICE.monzen), photos: [] },
           { planUrl: 'https://atinn.jp/plan/27788', planName: '【スペシャルSALE】アットイン飯田橋5-1', name: 'アットイン飯田橋5-1', address: '東京都新宿区箪笥町', lat: 35.700489, lng: 139.7338257, stations: [{ name: '牛込神楽坂', line: '都営大江戸線', walk: 3 }, { name: '神楽坂', line: '東京メトロ東西線', walk: 6 }], price: Object.assign({}, PRICE.iidabashi), photos: [] },
