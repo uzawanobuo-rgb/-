@@ -98,6 +98,8 @@
     if (opts.cls) attrs.push(`class="${opts.cls}"`);
     return `<input ${attrs.join(' ')}>`;
   }
+  // 項目名を左、入力欄を右に1行で並べる（項目名の幅をそろえて縦位置を合わせる）
+  function inlineField(label, html) { return `<label class="f-inline all"><span>${label}</span>${html}</label>`; }
   function field(label, html, cls) { return `<label class="f ${cls || ''}"><span>${label}</span>${html}</label>`; }
   function numOrEmpty(v) { const n = Calc.num(v); return n === null ? '' : n; }
 
@@ -277,7 +279,7 @@
     if (parsed.fetchedAt) state.baseDate = Calc.todayStr(new Date(parsed.fetchedAt));
     const miss = [];
     if (!prop.name) miss.push('物件名');
-    if (prop.lat === '' || prop.lat == null) miss.push('座標');
+    if (prop.lat === '' || prop.lat == null) miss.push('地図の位置（「住所から検索」で入ります）');
     if (!prop.stations.length) miss.push('最寄駅');
     const pv = prop.price;
     if (!pv || (Calc.num(pv.dailyCampaign) ?? Calc.num(pv.dailyList)) === null) miss.push('料金');
@@ -311,7 +313,7 @@
     if (prop.lat !== '' && prop.lat != null) got.push('地図の位置');
     ui.imported = ui.imported || {};
     ui.imported[path] = { name: prop.name || '（物件名なし）', got: got.join('・'), miss, time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}` };
-    const ta = document.querySelector(`textarea[data-paste="${path}"]`);
+    const ta = document.querySelector(`[data-paste="${path}"]`);
     if (ta) ta.value = '';
     persist(); renderForm(); renderPreview(); autoResolveStations();
     toast(miss.length ? `取り込みました（未取得：${miss.join('・')} → 手入力してください）` : '取り込みました。内容を確認してください');
@@ -344,13 +346,14 @@
     if (opts.simple) {
       return `<div class="card-b" style="padding:0">
 <div class="import-box">
-<div class="f"><span>プランページでブックマーク「アットイン取込」を押す → ここに貼り付け（Ctrl+V）</span>
-<textarea class="paste" data-paste="${path}" placeholder="ここに Ctrl+V で貼り付けると取り込みます"></textarea></div>
+<div class="f"><span>プランページでブックマーク「アットイン取込」を押す → ここに Ctrl+V</span>
+<div class="row" style="flex-wrap:nowrap"><input type="text" data-paste="${path}" placeholder="ここに貼り付けると、物件名・住所・最寄駅・料金・写真が入ります">
+<button type="button" class="btn small" data-action="import-clip" data-path="${path}">クリップボードから</button></div></div>
 ${importedNote(path)}
 </div>
 <div class="grid">
-${field('物件名（シートに表示）', inp(`${path}.name`, { ph: 'アットイン六本木4' }), 'span2')}
-${field('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }), 'span2')}
+${inlineField('物件名', inp(`${path}.name`, { ph: 'アットイン六本木4' }))}
+${inlineField('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }))}
 </div>
 <div class="row">${hasCoord
   ? `<span class="muted">地図の位置：✓ 取得済み</span><a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>`
@@ -372,8 +375,8 @@ ${importedNote(path)}
 <p class="muted" style="margin:0">※URLを入れただけでは読み込めません（ブラウザの制限で、ほかのサイトのページを直接読めないため）。</p>
 </div>
 <div class="grid">
-${field('物件名（シートに表示）', inp(`${path}.name`, { ph: 'アットイン六本木4' }), 'span2')}
-${field('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }), 'span2')}
+${inlineField('物件名', inp(`${path}.name`, { ph: 'アットイン六本木4' }))}
+${inlineField('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }))}
 ${field('緯度', inp(`${path}.lat`, { ph: '35.6598' }))}
 ${field('経度', inp(`${path}.lng`, { ph: '139.7218' }))}
 </div>
@@ -387,7 +390,7 @@ ${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://
   function importedNote(path) {
     const r = ui.imported && ui.imported[path];
     if (!r) return '';
-    return `<div class="imported-note">✓ 取り込みました：<b>${esc(r.name)}</b>（${esc(r.got)}）<span class="muted">${esc(r.time)}</span>${r.miss.length ? `<br><span class="warn-t">未取得：${esc(r.miss.join('・'))} → 手入力してください</span>` : ''}</div>`;
+    return `<div class="muted">✓ ${esc(r.name)} を取り込み（${esc(r.got)}・${esc(r.time)}）${r.miss.length ? `<br><span class="warn-t">未取得：${esc(r.miss.join('・'))} → 手入力してください</span>` : ''}</div>`;
   }
 
   // 閉じた「料金・写真・強みタグ」の見出しに出す要約
@@ -794,7 +797,10 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
   // 貼り付け欄に貼ったら自動で取り込む
   document.addEventListener('paste', e => {
     const t = e.target;
-    if (t.dataset && t.dataset.paste) setTimeout(() => importInto(t.dataset.paste, t.value), 0);
+    if (t.dataset && t.dataset.paste) {
+      if (t.tagName === 'INPUT') { e.preventDefault(); importInto(t.dataset.paste, (e.clipboardData || window.clipboardData).getData('text')); }
+      else setTimeout(() => importInto(t.dataset.paste, t.value), 0);
+    }
     if (t.dataset && t.dataset.pasteRoute) {
       e.preventDefault();
       applyTransit(t.dataset.pasteRoute, (e.clipboardData || window.clipboardData).getData('text'), t.dataset.to);
@@ -864,8 +870,12 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
       case 'print': busy(b, doPrint); break;
       case 'import': { const t = $(`textarea[data-paste="${path}"]`); importInto(path, t && t.value); break; }
       case 'import-clip':
-        try { const txt = await navigator.clipboard.readText(); const t = $(`textarea[data-paste="${path}"]`); if (t) t.value = txt; importInto(path, txt); }
-        catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); }
+        {
+          let txt = null;
+          try { txt = await navigator.clipboard.readText(); }
+          catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); break; }
+          importInto(path, txt);
+        }
         break;
       case 'add-station': getPath(path).stations.push({ name: '', line: '', walk: '' }); persist(); renderForm(); break;
       case 'del-station': getPath(path).stations.splice(i, 1); persist(); renderForm(); renderPreview(); break;

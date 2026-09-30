@@ -75,3 +75,15 @@ test('既定のチェックイン日は翌月1日、既定のチェックアウ�
   assert.equal(Calc.defaultCheckIn(new Date(2026, 11, 5)), '2027-01-01');
   assert.equal(Calc.addDays('2026-10-01', 29), '2026-10-30');
 });
+
+test('パターン2：物件Aが空でもB・Cだけでシートを作れる', () => {
+  const Sheet = require('../js/sheet.js');
+  const Samples = require('../js/samples.js');
+  const st = Samples.p2();
+  st.p2.properties[0] = { name: '', planUrl: '', lat: '', stations: [], price: {}, photos: [] };
+  st.p2.routes[0] = {};
+  const r = Sheet.buildSheet(st);
+  assert.ok(r.html.includes('アットイン飯田橋5-1'));
+  assert.equal(r.model.tags[0].length, 0);
+  assert.ok(r.model.tags[1].length > 0);
+});

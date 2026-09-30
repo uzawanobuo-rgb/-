@@ -170,7 +170,8 @@
 
   // ================= パターン2：目的地 → 3物件 =================
   function autoTags(items) {
-    const tags = items.map(() => []);
+    // 物件A〜Cの位置（x.i）で持つ。A が空でも B・C のタグが正しい位置に入るように
+    const tags = [[], [], []];
     const withMin = items.filter(x => x.info.display !== null);
     if (withMin.length > 1) {
       const m = Math.min.apply(null, withMin.map(x => x.info.display));
@@ -258,7 +259,7 @@
       const st = x.r.station ? `${esc(x.r.station)}${/停|前$/.test(x.r.station) ? '' : '駅'} 徒歩${x.info.walk ?? '–'}分` : '';
       const lines = x.info.legs.map(l => shortLine(l.line)).filter(Boolean);
       const rideTxt = x.info.ride !== null ? `（${lines.length ? lines.join('・') : '乗車'}${x.info.ride}分）` : '';
-      const tagList = (p.tag != null && p.tag !== '' ? String(p.tag).split(/[、,]/).map(s => s.trim()).filter(Boolean) : tags[k]);
+      const tagList = (p.tag != null && p.tag !== '' ? String(p.tag).split(/[、,]/).map(s => s.trim()).filter(Boolean) : tags[x.i]);
       const pills = tagList.map(t => `<span style="padding:2px 8px;border-radius:999px;background:${col.fill};color:${TAG_TEXT[x.i % 3]};font-size:11px;font-weight:700;white-space:nowrap;">${esc(t)}</span>`).join('');
       const daily = x.price ? x.price.dailyApplied : null;
       return `<div style="display:flex;gap:12px;padding:12px;background:#FFFFFF;border:1px solid #E2DED3;border-top:5px solid ${col.line};border-radius:12px;min-width:0;">
