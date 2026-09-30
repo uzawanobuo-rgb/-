@@ -190,3 +190,11 @@ details.more > summary { align-items: center; }
 .menu-item small { font-weight: 400; font-size: 11px; color: var(--sub); }
 .menu-item:hover { background: #E4F2F1; }
 .copy-row { gap: 6px; } .copy-row .btn { gap: 5px; }
+/* 物件カードの見出し：物件名をタイトルに、右にアイコンリンク */
+.prop-title { font-size: 16px; font-weight: 900; color: var(--text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prop-title .prop-min { font-size: 14px; font-weight: 700; color: var(--sub); }
+.prop-title.muted-title { color: var(--sub); }
+.card.prop-card > summary .badge { margin-left: auto; }
+.card.prop-card > summary .sum-actions { margin-left: auto; flex-shrink: 0; }
+.icon-link { display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; background: #fff; border: 1px solid #9FD0CB; color: var(--teal-d); font-size: 11px; font-weight: 700; text-decoration: none; }
+.icon-link:hover { background: #DDEFED; }

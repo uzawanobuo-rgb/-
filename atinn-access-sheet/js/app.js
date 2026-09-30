@@ -398,8 +398,6 @@ ${importedNote(path)}
 ${inlineField('物件名', inp(`${path}.name`, { ph: 'アットイン六本木4' }))}
 ${inlineField('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }))}
 </div>
-${hasCoord || planUrl ? `<div class="row">${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>` : ''}
-${planUrl ? `<a class="btn small" href="${esc(planUrl)}" target="_blank" rel="noopener">プランページ ↗</a>` : ''}</div>` : ''}
 ` + renderPropRest(path, prop, opts);
     }
     return `<div class="card-b" style="padding:0">
@@ -434,6 +432,18 @@ ${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://
     return `<div class="muted">✓ ${esc(r.name)} を取り込み（${esc(r.got)}・${esc(r.time)}）${r.miss.length ? `<br><span class="warn-t">未取得：${esc(r.miss.join('・'))} → 手入力してください</span>` : ''}</div>`;
   }
 
+  // 物件カードの見出し：物件名（・約◯分）をタイトルにし、右に GMap／公式 のリンク
+  function propTitle(prop, fallback, minutes) {
+    if (!prop.name) return `<span class="prop-title muted-title">${esc(fallback)}</span><span class="badge ng">未入力</span>`;
+    const hasCoord = prop.lat !== '' && prop.lat != null && prop.lng !== '' && prop.lng != null;
+    const planUrl = /^https?:\/\//.test(prop.planUrl || '') ? prop.planUrl : '';
+    const links = [
+      hasCoord ? `<a class="icon-link" target="_blank" rel="noopener" title="Googleマップで確認" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>GMap</a>` : '',
+      planUrl ? `<a class="icon-link" target="_blank" rel="noopener" title="プランページ（公式）を開く" href="${esc(planUrl)}"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H5v12h12v-6h2v8H3V5h2z"/></svg>公式</a>` : '',
+    ].filter(Boolean).join('');
+    return `<span class="prop-title">${esc(prop.name)}${minutes != null ? `<span class="prop-min">・約${minutes}分</span>` : ''}</span>${links ? `<span class="sum-actions">${links}</span>` : ''}`;
+  }
+
   // 閉じた「料金・写真・強みタグ」の見出しに出す要約
   function propSummary(prop, opts) {
     const pv = prop.price || {}, yen = v => Calc.yen(v);
@@ -454,10 +464,15 @@ ${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://
       const changed = prop.imported && String(numOrEmpty(imp[k])) !== String(numOrEmpty(prop.price && prop.price[k]));
       return field(label, inp(`${path}.${pv}.${k}`, { type: 'number', cls: changed ? 'changed' : '' }));
     };
-    const stRows = (prop.stations || []).map((s, i) => `<tr>
+    const stRow = (s, i) => `<tr>
 <td>${inp(`${path}.stations.${i}.name`, { ph: '駅名' })}</td><td>${inp(`${path}.stations.${i}.line`, { ph: '路線' })}</td>
 <td class="num">${inp(`${path}.stations.${i}.walk`, { type: 'number', ph: '分' })}</td>
-<td class="act"><button type="button" class="x" data-action="del-station" data-path="${path}" data-i="${i}" title="削除">×</button></td></tr>`).join('');
+<td class="act"><button type="button" class="x" data-action="del-station" data-path="${path}" data-i="${i}" title="削除">×</button></td></tr>`;
+    const sts = prop.stations || [];
+    const stHead = '<thead><tr><th>駅名</th><th>路線</th><th>徒歩</th><th></th></tr></thead>';
+    const stTable = `<table class="mini">${stHead}<tbody>${sts.slice(0, 1).map((st, i) => stRow(st, i)).join('')}</tbody></table>`
+      + (sts.length > 1 ? `<details class="sub" data-ui="st-${path}" ${ui.open['st-' + path] ? 'open' : ''}><summary>ほかの駅（${sts.length - 1}件）</summary>
+<table class="mini"><tbody>${sts.slice(1).map((st, k) => stRow(st, k + 1)).join('')}</tbody></table></details>` : '');
     const photos = opts.photos ? `<div class="sub-h">写真（カードに表示）</div>
 <div class="photos">${(prop.photos || []).map((p, i) => `<button type="button" class="${!prop.photoCustom && (prop.photoIdx || 0) === i ? 'on' : ''}" style="background-image:url('${esc(p.data || p.src)}')" data-action="photo" data-path="${path}" data-i="${i}" title="${esc(p.caption || '')}"></button>`).join('')}
 ${prop.photoCustom ? `<button type="button" class="on" style="background-image:url('${esc(prop.photoCustom)}')" title="アップロードした写真"></button>` : ''}</div>
@@ -465,7 +480,7 @@ ${prop.photoCustom ? `<button type="button" class="on" style="background-image:u
 <label class="row muted"><input type="checkbox" data-bind="${path}.hidePhoto" ${prop.hidePhoto ? 'checked' : ''}> 写真を載せない</label>
 ${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真はありません</span>'}</div>` : '';
     return `<div class="sub-h">最寄駅</div>
-<table class="mini"><thead><tr><th>駅名</th><th>路線</th><th>徒歩</th><th></th></tr></thead><tbody>${stRows}</tbody></table>
+${stTable}
 <div class="row"><button type="button" class="btn small" data-action="add-station" data-path="${path}">＋ 駅を追加</button></div>
 <details class="more" data-ui="more-${path}" ${ui.open['more-' + path] ? 'open' : ''}><summary>料金・写真・強みタグ <span class="more-sum">${propSummary(prop, opts)}</span></summary>
 <div class="more-b">
@@ -583,7 +598,7 @@ ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
 <p class="muted" style="margin:0">料金は、チェックイン日から「1か月」「3か月」の2通りを自動で出します。</p>
 </div></details>
-<details class="card prop-card" style="--pc:${COLORS[0]};--pbg:${TINTS[0]}" id="sec-p1-prop" ${ui.open.p1prop === false ? '' : 'open'} data-ui="p1prop"><summary><span class="prop-letter" style="background:${COLORS[0]}">物</span>物件<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
+<details class="card prop-card" style="--pc:${COLORS[0]};--pbg:${TINTS[0]}" id="sec-p1-prop" ${ui.open.p1prop === false ? '' : 'open'} data-ui="p1prop"><summary><span class="prop-letter" style="background:${COLORS[0]}">物</span>${propTitle(prop, '物件', null)}</summary>
 <div class="card-b">
 ${renderPropEditor('p1.property', prop, { simple: true })}
 </div></details>
@@ -636,7 +651,7 @@ ${renderTextCard('p1', built.model)}`;
       const info = Sheet.routeInfo(r);
       const ok = prop.name && info.display !== null;
       const coord = prop.lat !== '' && prop.lat != null ? { lat: prop.lat, lng: prop.lng } : null;
-      return `<details class="card prop-card" style="--pc:${COLORS[i]};--pbg:${TINTS[i]}" ${ui.open['p2prop' + i] === false ? '' : 'open'} data-ui="p2prop${i}" id="sec-p2-${i}"><summary><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>物件${LETTERS[i]}<span class="badge ${ok ? 'ok' : 'ng'}">${prop.name ? esc(prop.name) : '未入力'}${info.display !== null ? `・約${info.display}分` : ''}</span></summary>
+      return `<details class="card prop-card" style="--pc:${COLORS[i]};--pbg:${TINTS[i]}" ${ui.open['p2prop' + i] === false ? '' : 'open'} data-ui="p2prop${i}" id="sec-p2-${i}"><summary><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>${propTitle(prop, '物件' + LETTERS[i], info.display)}</summary>
 <div class="card-b">
 ${renderPropEditor(`p2.properties.${i}`, prop, { simple: true, photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
 <div class="sub-h">${esc(p.destName || '目的地')}までの所要時間</div>
@@ -996,7 +1011,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
           importInto(path, txt);
         }
         break;
-      case 'add-station': getPath(path).stations.push({ name: '', line: '', walk: '' }); persist(); renderForm(); break;
+      case 'add-station': { const st = getPath(path).stations; st.push({ name: '', line: '', walk: '' }); if (st.length > 1) ui.open['st-' + path] = true; persist(); renderForm(); break; }
       case 'del-station': getPath(path).stations.splice(i, 1); persist(); renderForm(); renderPreview(); break;
       case 'add-leg': {
         const r = getPath(path);
