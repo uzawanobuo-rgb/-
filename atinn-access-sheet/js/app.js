@@ -302,7 +302,7 @@
 <ol class="howto">
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
 <li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）で、登録したブックマーク「<b>アットイン取込</b>」をクリック。ツールのタブが開くので、<b>入れる物件（A〜C）を選ぶだけ</b>です（パターン1はそのまま入ります）。写真・料金・最寄駅・地図座標が入ります。</li>
-<li>ツールが開かないとき（ポップアップが止められたときなど）は、コピーはされているので、物件の<b>貼り付け欄</b>に Ctrl+V します。</li>
+<li>ツールが開かないとき（ポップアップが止められたときなど）は、コピーはされているので、ツールの画面で <b>Ctrl+V</b>（または物件の欄の「コピーした物件を読み込む」）で入れます。</li>
 <li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の「コピーした経路を読み込む」を押す）。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
@@ -322,9 +322,8 @@
     if (opts.simple) {
       return `<div class="card-b" style="padding:0">
 <div class="import-box">
-<div class="f"><span>プランページでブックマーク「アットイン取込」を押す → ここに Ctrl+V</span>
-<div class="row" style="flex-wrap:nowrap"><input type="text" data-paste="${path}" placeholder="ここに貼り付けると、物件名・住所・最寄駅・料金・写真が入ります">
-<button type="button" class="btn small" data-action="import-clip" data-path="${path}">クリップボードから</button></div></div>
+<div class="row muted"><span>プランページでブックマーク「アットイン取込」を押すと、自動で入ります</span>
+<button type="button" class="linkish" data-action="import-clip" data-path="${path}" title="「アットイン取込」でコピーした物件を読み込みます">自動で入らないとき：コピーした物件を読み込む</button></div>
 ${copyRow(path)}
 ${importedNote(path)}
 </div>
@@ -857,6 +856,13 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   // 貼り付け欄に貼ったら自動で取り込む
   document.addEventListener('paste', e => {
     const t = e.target;
+    // 入力欄の外で Ctrl+V：アットイン取込のデータなら、入れる物件を選んで取り込む
+    if (!t.closest || !t.closest('input, textarea, select, [contenteditable]')) {
+      const txt = (e.clipboardData || window.clipboardData).getData('text');
+      let d = null;
+      try { d = /^\s*\{/.test(txt) ? JSON.parse(txt) : null; } catch (er) { /* JSONでなければ無視 */ }
+      if (d && (d.src === 'atinn-bookmarklet' || /atinn\.jp\/plan\//.test(d.url || ''))) { e.preventDefault(); chooseImportSlot(txt); return; }
+    }
     if (t.dataset && t.dataset.paste) {
       if (t.tagName === 'INPUT') { e.preventDefault(); importInto(t.dataset.paste, (e.clipboardData || window.clipboardData).getData('text')); }
       else setTimeout(() => importInto(t.dataset.paste, t.value), 0);
