@@ -552,10 +552,10 @@ ${field('禁煙/喫煙', inp(`${path}.smoking`))}${field('設定人数', inp(`${
 <button type="button" class="btn small" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}">クリップボードから</button></div></div>
 ${route.note && /Yahoo/.test(route.note) ? `<div class="muted">✓ ${esc(route.note)}</div>` : ''}
 </div>
-<div class="grid g4">
-${field('乗車駅／バス停 <small>物件から歩いて乗る駅</small>', `<input data-bind="${path}.station" type="text" value="${esc(route.station || '')}" list="dl-${o.id}" placeholder="${esc(stList[0] || '駅名')}"><datalist id="dl-${o.id}">${stList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`, 'span2')}
-${field('徒歩（分） <small>物件→乗車駅</small>', inp(`${path}.walk`, { type: 'number' }))}
-${field('乗車（分） <small>電車・バス</small>', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
+<div class="grid g4 align-end">
+${field('乗車駅／バス停<br><small>物件から歩いて乗る駅</small>', `<input data-bind="${path}.station" type="text" value="${esc(route.station || '')}" list="dl-${o.id}" placeholder="${esc(stList[0] || '駅名')}"><datalist id="dl-${o.id}">${stList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`, 'span2')}
+${field('徒歩（分）<br><small>物件→乗車駅</small>', inp(`${path}.walk`, { type: 'number' }))}
+${field('乗車（分）<br><small>電車・バス（乗換込み）</small>', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
 </div>
 <table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
 <div class="row"><button type="button" class="btn small" data-action="add-leg" data-path="${path}">＋ 乗換を追加</button></div>
@@ -655,7 +655,7 @@ ${renderTextCard('p1', built.model)}`;
 <div class="card-b">
 ${renderPropEditor(`p2.properties.${i}`, prop, { simple: true, photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
 <div class="sub-h">${esc(p.destName || '目的地')}までの所要時間</div>
-${renderRouteEditor(`p2.routes.${i}`, r, { id: 'p2-' + i, head: `<b>${LETTERS[i]} → ${esc(p.destName || '目的地')}</b>`, toName: p.destName, searchTo: destSearchName(), missing: '上の「1 目的地と条件」で目的地を入れると検索できます', stations: prop.stations, fromCoord: coord })}
+${renderRouteEditor(`p2.routes.${i}`, r, { id: 'p2-' + i, head: `<b>${LETTERS[i]}${prop.name ? ' ' + esc(prop.name) : ''} → ${esc(p.destName || '目的地')}</b>`, toName: p.destName, searchTo: destSearchName(), missing: '上の「1 目的地と条件」で目的地を入れると検索できます', stations: prop.stations, fromCoord: coord })}
 ${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row"><button type="button" class="btn small" data-action="clear-prop" data-i="${i}">この物件を空にする</button></div>` : ''}
 </div></details>`;
     }).join('');
