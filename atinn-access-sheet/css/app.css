@@ -122,3 +122,7 @@ details.more { border: 1px solid var(--line); border-radius: 10px; }
 details.more > summary { cursor: pointer; padding: 8px 12px; font-weight: 900; font-size: 13px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
 details.more > summary .more-sum { font-weight: 500; font-size: 12px; color: var(--sub); }
 details.more .more-b { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
+/* パターン2の物件A〜C：色帯と見出しの色で「① 目的地と条件」と区別する */
+.card.prop-card { border-left: 6px solid var(--pc); }
+.card.prop-card > summary { background: var(--pbg); border-radius: 6px 12px 0 0; margin-bottom: 10px; }
+.card.prop-card:not([open]) > summary { border-radius: 6px 12px 12px 6px; margin-bottom: 0; }

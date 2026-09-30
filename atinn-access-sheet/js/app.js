@@ -9,6 +9,7 @@
   const MAJOR = GEO.majorStations.map(s => s.name);
   const LETTERS = ['A', 'B', 'C'];
   const COLORS = ['#0F7C7A', '#E0662A', '#2F74B5'];
+  const TINTS = ['#E4F2F1', '#FCEDE4', '#E6EFF8'];
 
   // ---------- 状態 ----------
   function emptyProp() {
@@ -549,7 +550,7 @@ ${renderTextCard('p1', built.model)}`;
       const info = Sheet.routeInfo(r);
       const ok = prop.name && info.display !== null;
       const coord = prop.lat !== '' && prop.lat != null ? { lat: prop.lat, lng: prop.lng } : null;
-      return `<details class="card" ${ui.open['p2prop' + i] === false ? '' : 'open'} data-ui="p2prop${i}"><summary><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>物件${LETTERS[i]}<span class="badge ${ok ? 'ok' : 'ng'}">${prop.name ? esc(prop.name) : '未入力'}${info.display !== null ? `・約${info.display}分` : ''}</span></summary>
+      return `<details class="card prop-card" style="--pc:${COLORS[i]};--pbg:${TINTS[i]}" ${ui.open['p2prop' + i] === false ? '' : 'open'} data-ui="p2prop${i}"><summary><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>物件${LETTERS[i]}<span class="badge ${ok ? 'ok' : 'ng'}">${prop.name ? esc(prop.name) : '未入力'}${info.display !== null ? `・約${info.display}分` : ''}</span></summary>
 <div class="card-b">
 ${renderPropEditor(`p2.properties.${i}`, prop, { simple: true, photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
 <div class="sub-h">${esc(p.destName || '目的地')}までの所要時間</div>
