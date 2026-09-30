@@ -420,7 +420,7 @@ ${priceField('insurancePerMonth', '住宅保険/月')}
 ${photos}
 ${opts.tag ? `<div class="grid">${field('強みタグ <small>（空欄なら自動。「、」区切りで複数）</small>', inp(`${path}.tag`, { ph: opts.tagPh || '' }), 'all')}</div>` : ''}
 </div></details>
-<details><summary class="muted" style="cursor:pointer">物件の詳細（築年・構造など）</summary>
+<details class="sub"><summary>物件の詳細（築年・構造など）</summary>
 <div class="grid g3" style="margin-top:6px">
 ${field('築年月', inp(`${path}.built`, { ph: '2019年3月' }))}${field('構造', inp(`${path}.structure`))}${field('階建', inp(`${path}.floors`, { type: 'number' }))}
 ${field('禁煙/喫煙', inp(`${path}.smoking`))}${field('設定人数', inp(`${path}.capacity`, { type: 'number' }))}${field('プラン名', inp(`${path}.planName`))}
@@ -575,10 +575,14 @@ ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 <div class="grid">
 ${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
 ${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
+</div>
+<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・緯度・経度 <span class="more-sum">${destCoord ? '地図の位置：✓ 設定済み' : '<span class="warn-t">地図の位置：未設定（見出しの「住所・地名から座標を検索」で入ります）</span>'}</span></summary>
+<div class="more-b"><div class="grid">
 ${field('住所・地名（座標の検索用）', inp('p2.destAddress', { ph: '〇〇株式会社 本社の住所 など' }), 'all')}
 ${field('緯度', inp('p2.destLat', { ph: '35.6862' }))}
 ${field('経度', inp('p2.destLng', { ph: '139.7660' }))}
 </div></div></details>
+</div></details>
 ${propCards}
 ${renderTextCard('p2', built.model)}`;
   }
