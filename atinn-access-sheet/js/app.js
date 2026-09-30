@@ -18,7 +18,7 @@
   function emptyRoute() { return { station: '', walk: '', legs: [{ mode: 'train', line: '', to: '' }], ride: '', display: '', transfers: '', source: '', note: '', exclude: false }; }
   function defaultState() {
     return {
-      v: 1, pattern: 'p1', persons: 1, baseDate: Calc.todayStr(),
+      v: 1, pattern: 'p1', persons: 1, baseDate: Calc.todayStr(), checkIn: '', checkOut: '', // 利用期間はパターン1・2で共通
       p1: { checkIn: Calc.defaultCheckIn(), property: emptyProp(), routes: {}, headline: '', subheadline: '', note: '' },
       p2: { destName: '', destLabel: 'お勤め先', destAddress: '', destLat: '', destLng: '', customer: '', checkIn: '', checkOut: '', properties: [emptyProp(), emptyProp(), emptyProp()], routes: [emptyRoute(), emptyRoute(), emptyRoute()], headline: '', subheadline: '', note: '' },
       stationCoords: {},
@@ -34,6 +34,9 @@
     s.p2.routes = [0, 1, 2].map(i => Object.assign(emptyRoute(), (s.p2.routes || [])[i] || {}));
     Object.keys(s.p1.routes || {}).forEach(k => { s.p1.routes[k] = Object.assign(emptyRoute(), s.p1.routes[k]); });
     s.stationCoords = s.stationCoords || {};
+    // 以前はパターンごとに持っていた利用期間を、共通の欄に移す
+    if (!s.checkIn && s.p2.checkIn) s.checkIn = s.p2.checkIn;
+    if (!s.checkOut && s.p2.checkOut) s.checkOut = s.p2.checkOut;
     return s;
   }
 
@@ -583,11 +586,12 @@ ${coordStatus(names)}
     return `
 <details class="card cond-card" id="sec-p1-cond" open><summary><span class="step">1</span>条件</summary>
 <div class="card-b">
-<div class="grid align-end">
-${field('チェックイン日<br><small>未入力なら翌月1日</small>', dateInp('p1.checkIn', 'today'))}
+<div class="grid g3 align-end">
+${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('checkIn', 'today'))}
+${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('checkOut', 'checkin'))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
-<p class="muted" style="margin:0">料金は、チェックイン日から「1か月」「3か月」の2通りを自動で出します。</p>
+<p class="muted" style="margin:0">料金は、この利用期間の総額を出します。利用期間はパターン2と共通です。</p>
 </div></details>
 <details class="card prop-card" style="--pc:${COLORS[0]};--pbg:${TINTS[0]}" id="sec-p1-prop" ${ui.open.p1prop === false ? '' : 'open'} data-ui="p1prop"><summary><span class="prop-letter" style="background:${COLORS[0]}">物</span>${propTitle(prop, '物件', null)}</summary>
 <div class="card-b">
@@ -678,8 +682,8 @@ ${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https:/
 ${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('p2.customer', { ph: '山田' }), 'all')}
 </div>
 <div class="grid g3 align-end">
-${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('p2.checkIn', 'today'))}
-${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('p2.checkOut', 'checkin'))}
+${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('checkIn', 'today'))}
+${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('checkOut', 'checkin'))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
 <div class="grid">
@@ -884,7 +888,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   // 手入力の日付：確定（Tab・Enter・欄の外へ移る）したときに読む。入力欄は作り直さない（Tab の移動先を保つ）
   function onDateInput(el) {
     const path = el.dataset.bind, kind = el.dataset.date;
-    const ref = kind === 'today' ? Calc.todayStr() : kind === 'checkin' ? (state.p2.checkIn || Calc.defaultCheckIn()) : '';
+    const ref = kind === 'today' ? Calc.todayStr() : kind === 'checkin' ? (state.checkIn || Calc.defaultCheckIn()) : '';
     const v = el.value.trim();
     const iso = v ? Calc.parseDateInput(v, ref || Calc.todayStr().slice(0, 4) + '-01-01') : '';
     if (v && !iso) { toast(`「${v}」は日付として読めませんでした。10/5 や 2026/10/5 の形で入れてください`); el.value = Calc.showDate(getPath(path)); return; }
@@ -1097,7 +1101,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         const pat = state.pattern, old = normalize(v);
         state[pat] = old[pat];
         state.stationCoords = Object.assign({}, old.stationCoords, state.stationCoords);
-        if (!hasPatternContent(state, pat === 'p1' ? 'p2' : 'p1')) { state.persons = old.persons; state.baseDate = old.baseDate; }
+        if (!hasPatternContent(state, pat === 'p1' ? 'p2' : 'p1')) { state.persons = old.persons; state.baseDate = old.baseDate; state.checkIn = old.checkIn; state.checkOut = old.checkOut; }
         persist(); renderForm(); renderPreview(); autoResolveStations(); toast(`前回の${pat === 'p1' ? 'パターン1' : 'パターン2'}の入力を復元しました`);
         break;
       }

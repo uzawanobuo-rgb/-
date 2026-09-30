@@ -13,15 +13,11 @@
     return `${d.getUTCFullYear()}/${p(d.getUTCMonth() + 1)}/${p(d.getUTCDate())}(${'日月火水木金土'[d.getUTCDay()]})`;
   }
 
-  // 期間：パターン2は入力の期間（未入力なら翌月1日から30日間）、パターン1は1か月プランの期間
+  // 期間：パターン1・2共通の利用期間（未入力なら翌月1日から30日間）
   function period(state) {
-    if (state.pattern === 'p2') {
-      const ci = state.p2.checkIn || Calc.defaultCheckIn();
-      const co = state.p2.checkOut || Calc.addDays(ci, 29);
-      return { ci, co };
-    }
-    const ci = state.p1.checkIn || Calc.defaultCheckIn();
-    return { ci, co: Calc.addDays(Calc.addMonthsClamp(ci, 1), -1) };
+    const ci = state.checkIn || Calc.defaultCheckIn();
+    const co = state.checkOut || Calc.addDays(ci, 29);
+    return { ci, co };
   }
 
   function block(prop, ci, co, persons) {

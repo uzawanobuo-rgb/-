@@ -109,7 +109,8 @@
     const p1 = state.p1 || {};
     const prop = p1.property || {};
     const resolve = makeResolver(state);
-    const ci = p1.checkIn || Calc.defaultCheckIn();
+    const ci = state.checkIn || Calc.defaultCheckIn();
+    const co = state.checkOut || Calc.addDays(ci, 29);
 
     // 主要駅の選定：上限（初期値30分）を超える駅を外し、短い順に3つ
     const limit = n(p1.maxMin) || 30;
@@ -157,11 +158,11 @@
     // 料金
     let bottom;
     const pv = prop.price || {};
-    let priceInfo = null;
-    try { priceInfo = Calc.planOneThree(pv, ci); } catch (e) { warnings.push('チェックイン日が不正です'); }
-    const hasPrice = priceInfo && (n(pv.dailyCampaign) ?? n(pv.dailyList)) !== null;
+    // 入力した利用期間の実際の金額
+    let price = null;
+    try { price = Calc.calcPrice(pv, ci, co); } catch (e) { warnings.push('利用期間の日付が不正です'); }
+    const hasPrice = price && (n(pv.dailyCampaign) ?? n(pv.dailyList)) !== null;
     if (!hasPrice) warnings.push('料金（利用料・清掃費・住宅保険）が未入力です');
-    const one = priceInfo && priceInfo.one, three = priceInfo && priceInfo.three;
     const strengths = `<div style="display:flex;flex-direction:column;gap:8px;padding:12px 18px;background:#1E2B33;color:#FFFFFF;border-radius:12px;">
 <div style="font-size:15px;font-weight:900;">家賃以外、ほぼかかりません</div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;font-size:12px;line-height:1.4;">
@@ -171,26 +172,26 @@
 <div style="display:flex;flex-direction:column;"><span style="font-size:18px;font-weight:900;color:#7FD1CB;">込み</span><span>水道光熱費・家具家電</span></div>
 </div></div>`;
     const v = x => hasPrice ? yen(x) : '—';
-    const oneBox = `<div style="display:flex;flex-direction:column;justify-content:space-between;gap:6px;padding:12px 18px;background:#FFFFFF;border:1px solid #E2DED3;border-radius:12px;">
-<div style="display:flex;justify-content:space-between;align-items:center;"><div style="font-size:15px;font-weight:900;">1か月プラン</div><div style="font-size:11px;color:#5B6770;">${one ? one.days : '–'}日間</div></div>
-<div style="display:flex;align-items:baseline;gap:4px;"><span style="font-size:13px;font-weight:700;color:#5B6770;">総額</span><span style="font-size:34px;font-weight:900;line-height:1;">${one ? v(one.total) : '—'}</span><span style="font-size:14px;font-weight:700;">円</span></div>
-<div style="font-size:12px;line-height:1.5;color:#5B6770;">利用料 ${one ? v(one.usageFee) : '—'}円 ＋ 清掃費 ${one ? v(one.cleaning) : '—'}円 ＋ 保険 ${one ? v(one.insurance) : '—'}円<br>1日あたり 約${one ? v(roundTo(one.total / one.days, 100)) : '—'}円</div></div>`;
-    const saving = priceInfo ? priceInfo.savingPerMonth : 0;
-    const badge = hasPrice && saving > 0
-      ? `<div style="padding:3px 10px;border-radius:999px;background:#C4531A;color:#FFFFFF;font-size:11px;font-weight:700;white-space:nowrap;">月あたり 約${saving >= 10000 ? (Math.round(saving / 1000) / 10) + '万' : yen(roundTo(saving, 100))}円おトク</div>` : '';
-    const threeBox = `<div style="position:relative;display:flex;flex-direction:column;justify-content:space-between;gap:6px;padding:12px 18px;background:#FFF8F1;border:2px solid #E0662A;border-radius:12px;">
-<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;"><div style="font-size:15px;font-weight:900;">3か月プラン</div>${badge}</div>
-<div style="display:flex;align-items:baseline;gap:4px;"><span style="font-size:13px;font-weight:700;color:#5B6770;">総額</span><span style="font-size:34px;font-weight:900;line-height:1;color:#C4531A;">${three ? v(three.total) : '—'}</span><span style="font-size:14px;font-weight:700;color:#C4531A;">円</span></div>
-<div style="font-size:12px;line-height:1.5;color:#5B6770;">利用料 ${three ? v(three.usageFee) : '—'}円 ＋ 清掃費 ${three ? v(three.cleaning) : '—'}円 ＋ 保険 ${three ? v(three.insurance) : '—'}円<br>1か月あたり 約${three ? v(roundTo(three.perMonth, 1000)) : '—'}円（1日あたり 約${three ? v(roundTo(three.perDay, 100)) : '—'}円）</div></div>`;
-    bottom = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;flex-grow:1;min-height:0;">${strengths}${oneBox}${threeBox}</div>`;
+    const md = s => { const d = new Date(Calc.parse(s)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日月火水木金土'[d.getUTCDay()]}）`; };
+    const perMonth = price && price.days >= 28 ? roundTo(price.total / price.days * 30, 1000) : null;
+    const priceBox = `<div style="grid-column:span 2;display:flex;justify-content:space-between;align-items:stretch;gap:18px;padding:12px 20px;background:#FFF8F1;border:2px solid #E0662A;border-radius:12px;">
+<div style="display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0;">
+<div style="display:flex;align-items:baseline;gap:10px;"><div style="font-size:15px;font-weight:900;">ご利用期間の総額</div><div style="font-size:13px;font-weight:700;color:#5B6770;">${price ? `${md(ci)}〜${md(co)}・${price.days}日間` : '—'}</div></div>
+<div style="display:flex;align-items:baseline;gap:4px;"><span style="font-size:13px;font-weight:700;color:#5B6770;">総額</span><span style="font-size:40px;font-weight:900;line-height:1;color:#C4531A;">${price ? v(price.total) : '—'}</span><span style="font-size:15px;font-weight:700;color:#C4531A;">円</span></div>
+<div style="font-size:12px;line-height:1.5;color:#5B6770;">利用料 ${price ? v(price.usageFee) : '—'}円（1日 ${price ? v(price.dailyApplied) : '—'}円 × ${price ? price.days : '–'}日）＋ 清掃費 ${price ? v(price.cleaning) : '—'}円 ＋ 保険 ${price ? v(price.insurance) : '—'}円</div></div>
+<div style="display:flex;flex-direction:column;justify-content:center;gap:8px;padding-left:18px;border-left:1px solid #F1C9AE;flex-shrink:0;">
+<div style="display:flex;flex-direction:column;"><span style="font-size:11px;color:#5B6770;">1日あたり</span><span style="font-size:20px;font-weight:900;">約${price ? v(roundTo(price.total / price.days, 100)) : '—'}<span style="font-size:12px;">円</span></span></div>
+${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span style="font-size:11px;color:#5B6770;">1か月（30日）あたり</span><span style="font-size:20px;font-weight:900;">約${v(perMonth)}<span style="font-size:12px;">円</span></span></div>` : ''}
+</div></div>`;
+    bottom = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;flex-grow:1;min-height:0;">${strengths}${priceBox}</div>`;
 
     const base = state.baseDate || Calc.todayStr();
     const campaign = n(pv.dailyCampaign) !== null ? 'キャンペーン価格' : '定価';
-    const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の${campaign}・${state.persons || 1}名・${jpDate(ci)}チェックインの税込総額（利用料＋清掃費＋住宅保険。保険は応当日で月数を計算）です。空室状況・時期により変動します。`;
+    const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の${campaign}・${state.persons || 1}名・${jpDate(ci)}〜${jpDate(co)}の税込総額（利用料＋清掃費＋住宅保険。保険は応当日で月数を計算）です。空室状況・時期により変動します。`;
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
 
     const html = frame(header(title, sub, right) + panel(svg, 468, '物件') + bottom + note);
-    return { html, warnings, model: { title: autoTitle, sub: `${prop.name || '物件'}から主要駅へのアクセス概要図`, note: autoNote, selected: selected.map(x => x.ms.name), priceInfo } };
+    return { html, warnings, model: { title: autoTitle, sub: `${prop.name || '物件'}から主要駅へのアクセス概要図`, note: autoNote, selected: selected.map(x => x.ms.name), price } };
   }
 
   // ================= パターン2：目的地 → 3物件 =================
@@ -226,8 +227,8 @@
     const resolve = makeResolver(state);
     const destName = p2.destName || '目的地';
     const label = p2.destLabel || 'お勤め先';
-    const ci = p2.checkIn || Calc.defaultCheckIn();
-    const co = p2.checkOut || Calc.addDays(ci, 29);
+    const ci = state.checkIn || Calc.defaultCheckIn();
+    const co = state.checkOut || Calc.addDays(ci, 29);
     const props = (p2.properties || []).filter(p => p && (p.name || p.planUrl || p.lat));
     const letters = ['A', 'B', 'C'];
 

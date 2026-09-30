@@ -10,7 +10,7 @@ const plan = P.parsePlan(fs.readFileSync(path.join(__dirname, '../testdata/plan_
 const prop = { name: plan.name, planName: plan.planName, planUrl: 'https://atinn.jp/plan/30877', price: plan.price, smoking: plan.smoking };
 
 test('メール用テキスト：Excelの見本（平塚・10/1〜10/31・1名）と同じ', () => {
-  const st = { pattern: 'p2', persons: 1, p1: {}, p2: { checkIn: '2026-10-01', checkOut: '2026-10-31', properties: [prop] } };
+  const st = { pattern: 'p2', persons: 1, checkIn: '2026-10-01', checkOut: '2026-10-31', p1: {}, p2: { properties: [prop] } };
   const t = M.buildMailText(st, '2026-09-29');
   assert.equal(t, [
     '◯ご利用期間',
@@ -35,7 +35,7 @@ test('メール用テキスト：Excelの見本（平塚・10/1〜10/31・1名�
 });
 
 test('メール用テキスト：2名なら 1,100円/日 のオプション料金を足す', () => {
-  const st = { pattern: 'p2', persons: 2, p1: {}, p2: { checkIn: '2026-10-01', checkOut: '2026-10-31', properties: [prop] } };
+  const st = { pattern: 'p2', persons: 2, checkIn: '2026-10-01', checkOut: '2026-10-31', p1: {}, p2: { properties: [prop] } };
   const t = M.buildMailText(st, '2026-09-29');
   assert.ok(t.includes('　オプション料金：　　　　1,100円/日（2名様入居）'));
   assert.ok(t.includes('：149,010円（1室2名様利用）')); // 114,910 + 1,100×31

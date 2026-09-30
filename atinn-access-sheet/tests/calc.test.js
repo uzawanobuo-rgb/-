@@ -113,3 +113,16 @@ test('目的地を変えたのに経路が前の目的地までのままなら�
   assert.ok(g.km > 5);
   assert.equal(Sheet.buildSheet(st).warnings.filter(w => /検索し直して/.test(w)).length, 3);
 });
+
+test('パターン1：利用期間（パターン2と共通）の実際の総額を出す', () => {
+  const Sheet = require('../js/sheet.js');
+  const Samples = require('../js/samples.js');
+  const st = Samples.p1();
+  st.checkIn = '2026-10-01'; st.checkOut = '2026-11-15';
+  const r = Sheet.buildSheet(st);
+  const exp = Calc.calcPrice(st.p1.property.price, '2026-10-01', '2026-11-15');
+  assert.equal(r.model.price.total, exp.total);
+  assert.equal(r.model.price.days, 46);
+  assert.ok(r.html.includes(exp.total.toLocaleString('ja-JP')));
+  assert.ok(r.html.includes('10/1（木）〜11/15（日）・46日間'));
+});
