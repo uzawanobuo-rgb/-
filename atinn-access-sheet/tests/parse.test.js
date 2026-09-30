@@ -142,3 +142,11 @@ test('交通：ページ内の別物件のおすすめ一覧（同じ書式）�
     assert.deepEqual(r.stations.map(s => [s.name, s.walk]), [['平塚', 8]]);
   }
 });
+
+test('GoogleマップのURL：場所の名前と、選んだ場所の位置（@ の画面中心ではない）', () => {
+  const u = 'https://www.google.com/maps/place/%E5%8F%A4%E6%9C%AC%E5%B8%82%E5%A0%B4%E6%96%B0%E5%B0%8F%E5%B2%A9%E5%BA%97/@35.7169,139.8549251,17z/data=!4m12!1m5!3m4!2zMzXCsDQzJzAwLjgiTiAxMznCsDUxJzI3LjAiRQ!8m2!3d35.7169!4d139.8575!3m5!1s0x60188604ceb9b76d:0x52b9201e34fd1097!8m2!3d35.7152863!4d139.8614197!16s%2Fg%2F1tpc7yx3?entry=ttu';
+  assert.deepEqual(P.parseGmapPlace(u), { name: '古本市場新小岩店', lat: 35.7152863, lng: 139.8614197 });
+  const pin = "https://www.google.com/maps/place/35%C2%B043'00.8%22N+139%C2%B051'27.0%22E/@35.7169,139.8549,17z/data=!3m1!4b1!4m4!3m3!8m2!3d35.7169!4d139.8575";
+  assert.deepEqual(P.parseGmapPlace(pin), { name: '', lat: 35.7169, lng: 139.8575 });
+  assert.equal(P.parseGmapPlace('https://maps.app.goo.gl/abc'), null);
+});

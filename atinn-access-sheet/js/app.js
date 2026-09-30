@@ -608,9 +608,10 @@ ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 ${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
 ${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
 </div>
-<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・緯度・経度 <span class="more-sum">${destCoord ? '地図の位置：✓ 設定済み' : '<span class="warn-t">地図の位置：未設定（見出しの「住所・地名から座標を検索」で入ります）</span>'}</span></summary>
+<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・GoogleマップURL・緯度経度 <span class="more-sum">${destCoord ? '地図の位置：✓ 設定済み' : '<span class="warn-t">地図の位置：未設定（見出しの「住所・地名から座標を検索」で入ります）</span>'}</span></summary>
 <div class="more-b"><div class="grid">
 ${field('住所・地名（座標の検索用）', inp('p2.destAddress', { ph: '〇〇株式会社 本社の住所 など' }), 'all')}
+${field('GoogleマップのURL<br><small>Googleマップで場所を開き、アドレスバーのURLを貼ると、その場所を目的地の位置にします</small>', `<input type="text" data-gmap="1" placeholder="https://www.google.com/maps/place/…">`, 'all')}
 ${field('緯度', inp('p2.destLat', { ph: '35.6862' }))}
 ${field('経度', inp('p2.destLng', { ph: '139.7660' }))}
 </div></div></details>
@@ -844,6 +845,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   document.addEventListener('change', e => {
     const el = e.target;
     if (el.dataset && el.dataset.date !== undefined) { onDateInput(el); return; }
+    if (el.dataset && el.dataset.gmap) { if (el.value.trim()) applyGmap(el.value); return; }
     if (el.dataset && el.dataset.bind) { onBindInput(el, true); return; }
     const act = el.dataset && el.dataset.action;
     if (act === 'load-json') loadJson(el);
@@ -856,6 +858,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   // 貼り付け欄に貼ったら自動で取り込む
   document.addEventListener('paste', e => {
     const t = e.target;
+    if (t.dataset && t.dataset.gmap) { e.preventDefault(); applyGmap((e.clipboardData || window.clipboardData).getData('text')); return; }
     // 入力欄の外で Ctrl+V：アットイン取込のデータなら、入れる物件を選んで取り込む
     if (!t.closest || !t.closest('input, textarea, select, [contenteditable]')) {
       const txt = (e.clipboardData || window.clipboardData).getData('text');
@@ -887,6 +890,20 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     const msg = applyTransit(path, JSON.stringify(payload), m[2], pat);
     reply(!!msg, msg || '経路を読み取れませんでした');
   });
+
+  // GoogleマップのURLから、目的地の位置（と、未入力なら目的地の名前）を入れる
+  function applyGmap(txt) {
+    const r = Parse.parseGmapPlace(txt);
+    if (!r) {
+      toast(/goo\.gl/.test(txt) ? '短縮URL（maps.app.goo.gl）は読めません。Googleマップで開いて、アドレスバーのURLを貼ってください' : 'GoogleマップのURLから位置を読めませんでした。場所を開いたときのアドレスバーのURLを貼ってください');
+      return;
+    }
+    const p2 = state.p2;
+    p2.destLat = r.lat; p2.destLng = r.lng; p2.destAuto = false;
+    if (!p2.destName && r.name) p2.destName = r.name;
+    persist(); renderForm(); renderPreview();
+    toast(`目的地の位置を${r.name ? `「${r.name}」` : 'ピンの場所'}にしました（${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}）`);
+  }
 
   // 乗換取込の結果を経路に入れる
   function propForRoute(path) {

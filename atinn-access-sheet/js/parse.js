@@ -94,7 +94,9 @@
 
   function parseCoords(s) {
     const t = String(s || '');
-    let m = /maps\.google\.[a-z.]+\/maps\?[^"'\s<>]*?[?&;]q=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i.exec(t)
+    // Googleマップの場所のURL：data の最後の !3d緯度!4d経度 が、選んだ場所の位置（@ のあとは画面の中心）
+    const pl = [...t.matchAll(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/g)].pop();
+    let m = pl || /maps\.google\.[a-z.]+\/maps\?[^"'\s<>]*?[?&;]q=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i.exec(t)
       || /google\.[a-z.]+\/maps[^"'\s<>]*?[?&;](?:q|ll|center)=(-?\d+\.\d+)(?:,|%2C)\s*(-?\d+\.\d+)/i.exec(t)
       || /@(-?\d{2}\.\d+),(-?\d{3}\.\d+)/.exec(t)
       || /^\s*(-?\d{2}\.\d+)\s*[,，\s]\s*(-?\d{3}\.\d+)\s*$/.exec(t);
@@ -102,6 +104,21 @@
     const lat = Number(m[1]), lng = Number(m[2]);
     if (!(lat > 20 && lat < 50 && lng > 120 && lng < 155)) return null;
     return { lat, lng };
+  }
+
+  // GoogleマップのURL（場所・ピン）から、場所の名前と位置を読む。読めなければ null
+  function parseGmapPlace(s) {
+    const t = String(s || '').trim();
+    if (!/google\.[a-z.]+\/maps/i.test(t)) return null;
+    const c = parseCoords(t);
+    if (!c) return null;
+    let name = '';
+    const m = /\/maps\/place\/([^/@?]+)/.exec(t);
+    if (m) {
+      try { name = decodeURIComponent(m[1].replace(/\+/g, ' ')).trim(); } catch (e) { name = ''; }
+      if (/^[-\d.,\s°'"NSEWnsew]+$/.test(name)) name = ''; // 座標だけのピン
+    }
+    return { name, lat: c.lat, lng: c.lng };
   }
 
   function parseAddress(text) {
@@ -288,7 +305,7 @@
     return Object.assign({ url: p.url || '', routes }, best);
   }
 
-  const M = { htmlToText, normalizeTransitText, cleanLine, cleanStation, parseTransitRoutes, parseTransit, toHalf, stripBrackets, parsePrice, parseStations, parseCoords, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
+  const M = { htmlToText, normalizeTransitText, cleanLine, cleanStation, parseTransitRoutes, parseTransit, toHalf, stripBrackets, parsePrice, parseStations, parseCoords, parseGmapPlace, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnParse = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
