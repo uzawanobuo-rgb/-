@@ -165,12 +165,28 @@
     return { lat: +best.y, lng: +best.x, src: 'HeartRails Express', line: best.line };
   }
   // 住所・地名 → 座標（国土地理院 住所検索）
+  // 国土地理院の住所検索。住所・地名向けなので、店名などでは一文字だけ合う別の場所を返すことがある
+  // （例：「名代 亀戸餃子 本店」→ 埼玉県羽生市名）。入力と結果の地名が十分に重ならなければ採らない
   async function geocode(q) {
     const r = await fetch('https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(q));
     const a = await r.json();
     if (!Array.isArray(a) || !a.length) return null;
+    const title = (a[0].properties && a[0].properties.title) || '';
+    if (commonRun(q, title) < Math.min(4, normPlace(q).length)) return null;
     const c = a[0].geometry.coordinates;
-    return { lat: +c[1], lng: +c[0], title: a[0].properties && a[0].properties.title };
+    return { lat: +c[1], lng: +c[0], title };
+  }
+  function normPlace(v) { return Parse.toHalf(String(v || '')).replace(/[\s　]/g, '').replace(/[一二三四五六七八九十]+丁目/g, '').replace(/丁目/g, ''); }
+  // 2つの文字列に共通する、いちばん長い連続部分の長さ
+  function commonRun(a, b) {
+    a = normPlace(a); b = normPlace(b);
+    let best = 0;
+    for (let i = 0; i < a.length; i++) for (let j = 0; j < b.length; j++) {
+      let k = 0;
+      while (a[i + k] && a[i + k] === b[j + k]) k++;
+      if (k > best) best = k;
+    }
+    return best;
   }
 
   const tried = new Set();
@@ -562,7 +578,13 @@ ${renderTextCard('p1', built.model)}`;
       try { r = await geocode(q); } catch (er) { if (!quiet) toast('検索できませんでした。「住所・緯度・経度」を開いて入力してください'); return; }
       if (my !== destSeq) return; // 入力が変わった
       if (!r && st) r = { lat: +st[0], lng: +st[1], title: name + '駅' };
-      if (!r) { toast('目的地の場所が見つかりませんでした。住所を入れるか、見出しの「住所・地名から座標を検索」を押してください'); return; }
+      if (!r) {
+        // 自動で入れた位置が前の目的地のままにならないように消す
+        if (p2.destAuto) { p2.destLat = ''; p2.destLng = ''; persist(); }
+        ui.open['dest-geo'] = true; renderForm(); renderPreview();
+        toast(`「${q}」の場所を特定できませんでした。店名・施設名なら、Googleマップでその場所を開いてURLを「GoogleマップのURL」に貼ってください`);
+        return;
+      }
     }
     p2.destLat = r.lat; p2.destLng = r.lng; p2.destAuto = true;
     persist(); renderForm(); renderPreview(); autoResolveStations();
@@ -620,12 +642,10 @@ ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 ${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
 ${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
 </div>
-<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・GoogleマップURL・緯度経度 <span class="more-sum">${destCoord ? '地図の位置：✓ 設定済み' : '<span class="warn-t">地図の位置：未設定（見出しの「住所・地名から座標を検索」で入ります）</span>'}</span></summary>
+<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・GoogleマップURL <span class="more-sum">${destCoord ? '地図の位置：✓ 設定済み' : '<span class="warn-t">地図の位置：未設定（住所を入れるか、GoogleマップのURLを貼ってください）</span>'}</span></summary>
 <div class="more-b"><div class="grid">
 ${field('住所・地名（座標の検索用）', inp('p2.destAddress', { ph: '〇〇株式会社 本社の住所 など' }), 'all')}
-${field('GoogleマップのURL<br><small>Googleマップで場所を開き、アドレスバーのURLを貼ると、その場所を目的地の位置にします</small>', `<input type="text" data-gmap="1" placeholder="https://www.google.com/maps/place/…">`, 'all')}
-${field('緯度', inp('p2.destLat', { ph: '35.6862' }))}
-${field('経度', inp('p2.destLng', { ph: '139.7660' }))}
+${field('GoogleマップのURL<br><small>Googleマップで場所を開き、アドレスバーのURLを貼ると、その場所を目的地の位置にします（店名・施設名のときはこちら）</small>', `<input type="text" data-gmap="1" placeholder="https://www.google.com/maps/place/…">`, 'all')}
 </div></div></details>
 </div></details>
 ${propCards}
@@ -905,7 +925,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
 
   // GoogleマップのURLから、目的地の位置（と、未入力なら目的地の名前）を入れる
   function applyGmap(txt) {
-    const r = Parse.parseGmapPlace(txt);
+    const r = Parse.parseGmapPlace(txt) || (c => c && { name: '', lat: c.lat, lng: c.lng })(Parse.parseCoords(txt));
     if (!r) {
       toast(/goo\.gl/.test(txt) ? '短縮URL（maps.app.goo.gl）は読めません。Googleマップで開いて、アドレスバーのURLを貼ってください' : 'GoogleマップのURLから位置を読めませんでした。場所を開いたときのアドレスバーのURLを貼ってください');
       return;
