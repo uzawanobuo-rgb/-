@@ -364,8 +364,8 @@
 <li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の「コピーした経路を読み込む」を押す）。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
-<div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">プラン取込</a>
-<a class="bm" href="${esc(TRANSIT_BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">乗換取込</a>
+<div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">🏠プラン取込</a>
+<a class="bm" href="${esc(TRANSIT_BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">🚃乗換取込</a>
 <span class="muted">← 2つともブックマークバーへドラッグ</span></div>
 <p class="muted" style="margin:0">2026年9月30日より前に登録した人は、「プラン取込」「乗換取込」とも一度だけ登録し直してください（古いほうを削除して、上のボタンを再ドラッグ）。以後はツールを直しても登録し直す必要はありません。</p>
 <p class="muted" style="margin:0">ブックマークレットが使えないときは、プランページで<b>全選択（Ctrl+A）→コピー（Ctrl+C）</b>して貼り付けても、料金・最寄駅などは取り込めます（写真・座標は除く。座標は住所から検索できます）。</p>
