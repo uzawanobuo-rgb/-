@@ -495,7 +495,7 @@ ${field('乗車（分）<br><small>電車・バス（乗換込み）</small>', i
 <div class="grid g4 align-end">
 ${field('表示する分 <small>任意</small>', inp(`${path}.display`, { type: 'number', ph: String(info.total ?? '') }))}
 ${field('乗換回数 <small>任意</small>', inp(`${path}.transfers`, { type: 'number', ph: String(legs.length - 1) }))}
-${src || gmap ? `<div class="f span2"><span>出典・確認</span><div class="row" style="flex-wrap:nowrap">${src ? `<a class="btn small" href="${esc(src)}" target="_blank" rel="noopener">${/transit\.yahoo\.co\.jp/.test(src) ? 'Y!乗換案内' : '出典ページ'} ↗</a>` : ''}${gmap ? `<a class="btn small" href="${esc(gmap)}" target="_blank" rel="noopener">GMap確認 ↗</a>` : ''}</div></div>` : ''}
+${src || gmap ? `<div class="f span2"><span>出典・確認</span><div class="row" style="flex-wrap:nowrap">${src ? `<a class="icon-link" href="${esc(src)}" target="_blank" rel="noopener" title="調べた経路のページを開く"><svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M14 3h7v7h-2V6.4l-9.3 9.3-1.4-1.4L17.6 5H14V3zM5 5h6v2H5v12h12v-6h2v8H3V5h2z"/></svg>${/transit\.yahoo\.co\.jp/.test(src) ? 'Y!乗換案内' : '出典ページ'}</a>` : ''}${gmap ? `<a class="icon-link" href="${esc(gmap)}" target="_blank" rel="noopener" title="Googleマップで経路を確認"><svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path fill="currentColor" d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z"/></svg>GMap確認</a>` : ''}</div></div>` : ''}
 </div>
 ${o.excludable ? `<label class="row muted"><input type="checkbox" data-bind="${path}.exclude" ${route.exclude ? 'checked' : ''}> この駅はシートに載せない</label>` : ''}
 ${coordStatus(names)}
