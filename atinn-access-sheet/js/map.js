@@ -421,7 +421,9 @@
       for (const x of xs) for (const y of ys) {
         const rr = { x0: x, y0: y, x1: x + legendW, y1: y + legendH };
         const edgeD = Math.min(x - 12, W - 12 - legendW - x) + Math.min(y - 12, H - 26 - legendH - y);
-        const cost = L.cost(rr, { segWeight: 300, margin: 4, bottom: 20 }) + edgeD * 0.3;
+        // 空いている場所が複数あるときは右下を優先（見出し・吹き出しが集まりやすい左上を避ける）
+        const cornerD = (W - 12 - rr.x1) + (H - 26 - rr.y1);
+        const cost = L.cost(rr, { segWeight: 300, margin: 4, bottom: 20 }) + edgeD * 0.3 + cornerD * 0.05;
         if (cost < bc) { bc = cost; legendPos = { x, y }; }
       }
       bad += Math.max(0, bc - 200);
