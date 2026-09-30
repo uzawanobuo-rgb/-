@@ -180,31 +180,12 @@
   }
   const BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + bookmarkletMain.toString() + ')()');
 
-  // Yahoo!乗換案内の検索結果ページで実行し、経路の本文をコピーする。解析はツール側（parse.js の parseTransit）。
-  function transitBookmarkletMain() {
-    (async () => {
-      const d = document;
-      if (!/transit\.yahoo\.co\.jp$/.test(location.hostname) && !confirm('Yahoo!乗換案内のページではないようです。続けますか？')) return;
-      const n = (d.body.innerText.match(/\d{1,2}:\d{2}\s*発\s*→/g) || []).length;
-      const box = html => { const o = d.createElement('div'); o.innerHTML = html; d.body.appendChild(o.firstChild); return d.body.lastChild; };
-      const toast = (html, bg, ms) => { const o = box('<div style="position:fixed;right:20px;bottom:20px;z-index:2147483647;background:' + bg + ';color:#fff;padding:14px 18px;border-radius:10px;font:14px/1.6 sans-serif;box-shadow:0 4px 16px rgba(0,0,0,.25)">' + html + '</div>'); setTimeout(() => o.remove(), ms); };
-      if (!n) { toast('<b>経路が見つかりません</b><br>検索結果のページで押してください', '#B45309', 3500); return; }
-      // 経路部分のHTMLも送る（画面の見た目に左右されずに読めるように）
-      const area = d.querySelector('#srline') || d.querySelector('main') || d.body;
-      const json = JSON.stringify({ v: 2, src: 'yahoo-transit', url: location.href, html: area.outerHTML.slice(0, 600000), text: d.body.innerText.slice(0, 120000), fetchedAt: new Date().toISOString() });
-      const copy = async () => {
-        try { await navigator.clipboard.writeText(json); return true; } catch (e) { /* 次の方法 */ }
-        try { const t = d.createElement('textarea'); t.value = json; t.style.cssText = 'position:fixed;left:-9999px'; d.body.appendChild(t); t.select(); const ok = d.execCommand('copy'); t.remove(); return ok; } catch (e) { return false; }
-      };
-      if (await copy()) { toast('<b style="font-size:16px">✓ コピーしました</b><br>経路 ' + n + ' 件（乗車時間がいちばん短いものが入ります）<br>ツールに戻って Ctrl+V で貼り付けてください', '#0F7C7A', 3500); return; }
-      // コピーが許可されなかったときだけボタンを出す
-      const o = box('<div style="position:fixed;inset:0;z-index:2147483647;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;font-family:sans-serif"><div style="background:#fff;color:#1E2B33;padding:24px;border-radius:12px;max-width:420px;text-align:center;line-height:1.6"><div style="font-size:17px;font-weight:bold;margin-bottom:6px">経路を ' + n + ' 件読み取りました</div><div style="font-size:13px;color:#555;margin-bottom:16px">「コピーする」を押して、ツールの経路の貼り付け欄に貼ってください。</div><button style="font-size:16px;padding:10px 22px;background:#0F7C7A;color:#fff;border:0;border-radius:8px;cursor:pointer">コピーする</button><button style="font-size:14px;padding:10px 14px;margin-left:8px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">閉じる</button></div></div>');
-      const bs = o.querySelectorAll('button');
-      bs[1].onclick = () => o.remove();
-      bs[0].onclick = async () => { await copy(); bs[0].textContent = 'コピーしました ✓'; setTimeout(() => o.remove(), 1200); };
-    })().catch(e => alert('取得に失敗しました: ' + e));
-  }
-  const TRANSIT_BOOKMARKLET = 'javascript:' + encodeURIComponent('(' + transitBookmarkletMain.toString() + ')()');
+  // ブックマーク「乗換取込」：本体は js/bm-transit.js。公開ページから開いているときは、
+  // その本体を読み込むだけの短いコードにする（本体を直しても登録し直さなくてよい）。
+  // ファイルを直接開いているときは読み込めないので、本体をそのまま埋め込む。
+  const TRANSIT_BOOKMARKLET = /^https?:$/.test(location.protocol)
+    ? 'javascript:' + encodeURIComponent(`(function(){var s=document.createElement('script');s.src=${JSON.stringify(new URL('js/bm-transit.js', location.href).href)}+'?t='+Date.now();s.dataset.run='1';s.onerror=function(){alert('乗換取込を読み込めませんでした。ネットワークを確認してください。')};document.body.appendChild(s)})()`)
+    : 'javascript:' + encodeURIComponent('(' + window.AtinnTransitBM.toString() + ')()');
 
   // ---------- 外部サービス（座標） ----------
   function jsonp(url, timeout) {
@@ -370,12 +351,13 @@
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
 <li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）を開き、登録したブックマーク「アットイン取込」をクリック（押すだけでコピーされます）。</li>
 <li>このツールの<b>貼り付け欄</b>に貼り付け（Ctrl+V）→「取り込む」。写真・料金・最寄駅・地図座標が入ります。</li>
-<li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内</b>」で検索 → 結果のページでブックマーク「<b>乗換取込</b>」をクリック（押すだけでコピー）→ 枠の貼り付け欄に Ctrl+V。乗車時間・乗換・路線がまとめて入ります。</li>
+<li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の貼り付け欄に Ctrl+V）。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
 </ol>
 <div class="row"><a class="bm" href="${esc(BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">アットイン取込</a>
 <a class="bm" href="${esc(TRANSIT_BOOKMARKLET)}" onclick="event.preventDefault();alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。');">乗換取込</a>
 <span class="muted">← 2つともブックマークバーへドラッグ</span></div>
+<p class="muted" style="margin:0">2026年9月30日より前に「乗換取込」を登録した人は、一度だけ登録し直してください（古いほうを削除して、上のボタンを再ドラッグ）。以後はツールを直しても登録し直す必要はありません。</p>
 <p class="muted" style="margin:0">ブックマークレットが使えないときは、プランページで<b>全選択（Ctrl+A）→コピー（Ctrl+C）</b>して貼り付けても、料金・最寄駅などは取り込めます（写真・座標は除く。座標は住所から検索できます）。</p>
 </div></details>`;
   }
@@ -518,10 +500,10 @@ ${stTable}
     const st = (n, force) => /駅$|バス|〔/.test(n) ? n : (force || isStation(n)) ? n + '駅' : n;
     return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(st(fromName, true))}&to=${encodeURIComponent(st(toName))}&y=${d.getUTCFullYear()}&m=${pad(d.getUTCMonth() + 1)}&d=${pad(d.getUTCDate())}&hh=10&m1=0&m2=0&type=1&ticket=ic&expkind=1&ws=3&s=0&al=0&shin=0&ex=0&hb=0&lb=1&sr=1`;
   }
-  function searchLinks(fromName, toName, fromCoord, missing) {
+  function searchLinks(fromName, toName, fromCoord, missing, path) {
     const links = [];
     if (fromName && toName) {
-      links.push(`<a class="btn primary small" target="_blank" rel="noopener" href="${esc(yahooUrl(fromName, toName))}">① Yahoo!乗換案内で検索</a>`);
+      links.push(`<a class="btn primary small" target="_blank" href="${esc(yahooUrl(fromName, toName))}" data-action="yahoo" data-path="${esc(path || '')}" data-to="${esc(toName)}">① Yahoo!乗換案内で検索</a>`);
     } else {
       // ボタンは消さずに、足りないものを示す
       const why = !toName ? (missing || '行き先を入れると検索できます') : '乗車駅を入れると検索できます';
@@ -545,8 +527,8 @@ ${stTable}
 <div class="route-h">${o.head}
 <span class="total">合計 <b>${info.total ?? '–'}</b>分${info.display !== null && info.display !== info.total ? `（表示 ${info.display}分）` : ''}・${info.transfers === 0 ? '乗換なし' : info.transfers != null ? `乗換${info.transfers}回` : '–'}</span></div>
 <div class="transit-box">
-<div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.fromCoord, o.missing)}</div>
-<div class="f"><span>② 検索結果のページでブックマーク「乗換取込」を押す → ここに Ctrl+V</span>
+<div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.fromCoord, o.missing, path)}</div>
+<div class="f"><span>② 検索結果のページでブックマーク「乗換取込」を押す → 自動でここに入ります<small class="muted">（入らないときは、ここに Ctrl+V）</small></span>
 <div class="row" style="flex-wrap:nowrap"><input type="text" data-paste-route="${path}" data-to="${esc(o.searchTo || o.toName || '')}" placeholder="ここに貼り付けると、乗車時間・乗換・路線が入ります">
 <button type="button" class="btn small" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}">クリップボードから</button></div></div>
 ${route.note && /Yahoo/.test(route.note) ? `<div class="muted">✓ ${esc(route.note)}</div>` : ''}
@@ -922,13 +904,29 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     }
   });
 
+  // ツールから開いた Yahoo!乗換案内のタブから、乗換取込の結果が直接届く
+  window.addEventListener('message', e => {
+    const d = e.data;
+    if (e.origin !== 'https://transit.yahoo.co.jp' || !d || d.src !== 'yahoo-transit') return;
+    const m = String(d.name || '').match(/^atinn-yahoo\|(p1\.routes\.[^|]+|p2\.routes\.[0-2])\|(.*)$/);
+    const reply = (ok, msg) => { try { e.source.postMessage({ src: 'atinn-tool', ok, msg }, e.origin); } catch (er) { /* noop */ } };
+    if (!m) { reply(false, 'どの経路の結果か分かりませんでした。ツールの「Yahoo!乗換案内で検索」から開き直してください'); return; }
+    const path = m[1], pat = path.slice(0, 2);
+    const route = pat === 'p1' ? p1Route(path.slice('p1.routes.'.length)) : getPath(path);
+    if (!route) { reply(false, 'ツール側にこの経路の欄がありません。ツールの画面を確認してください'); return; }
+    const payload = Object.assign({}, d); delete payload.name;
+    const msg = applyTransit(path, JSON.stringify(payload), m[2], pat);
+    reply(!!msg, msg || '経路を読み取れませんでした');
+  });
+
   // 乗換取込の結果を経路に入れる
   function propForRoute(path) {
     return path.startsWith('p1.') ? state.p1.property : state.p2.properties[+path.split('.')[2]];
   }
-  function applyTransit(path, text, toName) {
+  function applyTransit(path, text, toName, pat) {
     const r = Parse.parseTransit(text || '');
-    if (!r) { toast('経路を読み取れませんでした。ブックマーク「乗換取込」を登録し直して（使い方の欄から再ドラッグ）、検索結果のページでもう一度押してください'); return; }
+    if (!r) { toast('経路を読み取れませんでした。ブックマーク「乗換取込」を登録し直して（使い方の欄から再ドラッグ）、検索結果のページでもう一度押してください'); return null; }
+    if (pat && state.pattern !== pat) state.pattern = pat; // 別のパターンを見ていたら、その経路のパターンに切り替える
     const route = getPath(path);
     const prop = propForRoute(path);
     const near = (prop.stations || []).find(s => s.name === r.from);
@@ -946,7 +944,13 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     const msgs = [`${r.from} → ${r.to}：乗車${r.ride}分・乗換${r.transfers === 0 ? 'なし' : r.transfers + '回'}を入れました`];
     if (want && r.to !== want && !r.to.startsWith(want)) msgs.push(`（行き先が「${r.to}」です。${want}の検索結果か確認してください）`);
     if (route.walk === '') msgs.push(`「${r.from}」は物件の最寄駅にないので、徒歩（分）を入れてください`);
+    // 古いブックマーク（貼り付け式）からの取込なら、新しいブックマークを案内する
+    if (!pat && !/"bm":\s*3/.test(text)) msgs.push('　※ブックマーク「乗換取込」を登録し直すと、貼り付けなしで自動で入るようになります（使い方の欄から再ドラッグ）');
     toast(msgs.join(''));
+    // 取り込んだ経路の欄を見える位置に出す
+    const el = document.querySelector(`[data-paste-route="${CSS.escape(path)}"]`);
+    if (pat && el) el.closest('.route').scrollIntoView({ block: 'center' });
+    return msgs[0];
   }
 
   // 「その他」メニュー：項目を選ぶか、外側を押したら閉じる
@@ -978,6 +982,11 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         break;
       }
       case 'copy-prop': copyProp(b.dataset.from, path); break;
+      case 'yahoo':
+        // 名前つきのタブで開く（乗換取込がこの名前から、どの経路の結果かを返す）。opener を残すため noopener にしない
+        e.preventDefault();
+        window.open(b.href, 'atinn-yahoo|' + path + '|' + (b.dataset.to || ''));
+        break;
       case 'transit-clip':
         try { applyTransit(path, await navigator.clipboard.readText(), b.dataset.to); }
         catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); }
