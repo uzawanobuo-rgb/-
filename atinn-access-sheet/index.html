@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=202609300139">
+<link rel="stylesheet" href="css/app.css?v=202609300146">
 </head>
 <body>
 <header class="topbar">
@@ -16,11 +16,17 @@
     <button type="button" role="tab" data-action="pattern" data-value="p1">パターン1　物件 → 主要駅</button>
     <button type="button" role="tab" data-action="pattern" data-value="p2">パターン2　目的地 → 3物件</button>
   </nav>
+  <div class="progress" id="progress" aria-label="入力の進み具合"></div>
   <div class="top-actions">
-    <button type="button" class="btn ghost" data-action="sample">見本を読み込む</button>
     <button type="button" class="btn ghost" data-action="reset">新規</button>
-    <button type="button" class="btn ghost" data-action="save-json">データ保存</button>
-    <label class="btn ghost file-btn">データ読込<input type="file" accept="application/json,.json" data-action="load-json" hidden></label>
+    <details class="menu" id="menu">
+      <summary class="btn ghost">その他 ▾</summary>
+      <div class="menu-pop" role="menu">
+        <button type="button" class="menu-item" data-action="save-json">データ保存<small>入力内容をファイルに保存</small></button>
+        <label class="menu-item file-btn">データ読込<small>保存したファイルから再開</small><input type="file" accept="application/json,.json" data-action="load-json" hidden></label>
+        <button type="button" class="menu-item" data-action="sample">見本を読み込む<small>操作の確認用</small></button>
+      </div>
+    </details>
   </div>
 </header>
 
@@ -44,16 +50,16 @@
 <div id="export-root" aria-hidden="true"></div>
 <div id="toast" role="status"></div>
 
-<script src="vendor/html-to-image.js?v=202609300139"></script>
-<script src="vendor/jspdf.umd.min.js?v=202609300139"></script>
-<script src="js/calc.js?v=202609300139"></script>
-<script src="js/geo.js?v=202609300139"></script>
-<script src="js/data.js?v=202609300139"></script>
-<script src="js/icons.js?v=202609300139"></script>
-<script src="js/parse.js?v=202609300139"></script>
-<script src="js/map.js?v=202609300139"></script>
-<script src="js/sheet.js?v=202609300139"></script>
-<script src="js/samples.js?v=202609300139"></script>
-<script src="js/app.js?v=202609300139"></script>
+<script src="vendor/html-to-image.js?v=202609300146"></script>
+<script src="vendor/jspdf.umd.min.js?v=202609300146"></script>
+<script src="js/calc.js?v=202609300146"></script>
+<script src="js/geo.js?v=202609300146"></script>
+<script src="js/data.js?v=202609300146"></script>
+<script src="js/icons.js?v=202609300146"></script>
+<script src="js/parse.js?v=202609300146"></script>
+<script src="js/map.js?v=202609300146"></script>
+<script src="js/sheet.js?v=202609300146"></script>
+<script src="js/samples.js?v=202609300146"></script>
+<script src="js/app.js?v=202609300146"></script>
 </body>
 </html>
