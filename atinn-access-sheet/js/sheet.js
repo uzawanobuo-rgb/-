@@ -75,9 +75,12 @@
   }
 
   function header(title, sub, right) {
+    // 長い見出し（目的地がビル名など）は、1行に収まるよう文字を小さくする
+    const maxW = right ? 800 : 1030;
+    const fs = Math.max(22, Math.min(38, Math.floor(38 * maxW / Math.max(1, MapM.textW(title, 38) * 1.04))));
     return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;">
 <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
-<h1 style="margin:0;font-size:38px;font-weight:900;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;">${esc(title)}</h1>
+<h1 style="margin:0;font-size:${fs}px;font-weight:900;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;">${esc(title)}</h1>
 <div style="font-size:16px;color:#5B6770;font-weight:500;">${esc(sub)}</div>
 </div>${right || ''}</div>`;
   }
