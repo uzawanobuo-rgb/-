@@ -519,11 +519,14 @@
       s.push(`<g><rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${h}" rx="12" fill="${col.fill}" stroke="${col.line}" stroke-width="1.5"/>`);
       if (mode === 'p2') {
         s.push(`<text x="${r1(x + 14)}" y="${r1(y + 21)}" font-size="13" font-weight="700" fill="${C.sub}">${esc(co.title)}</text>`);
-        s.push(`<text x="${r1(x + 14)}" y="${r1(y + 51)}" font-size="14" font-weight="700" fill="${col.text}">約<tspan font-size="28" font-weight="900">${esc(mins)}</tspan>分</text>`);
+        // 時間は、右の「乗換〇回」より左の空いている部分の真ん中に置く
+        const freeR = x + w - 14 - (tr ? textW(tr, 12) + 10 : 0);
+        s.push(`<text x="${r1((x + 14 + freeR) / 2)}" y="${r1(y + 51)}" text-anchor="middle" font-size="14" font-weight="700" fill="${col.text}">約<tspan font-size="28" font-weight="900">${esc(mins)}</tspan>分</text>`);
         s.push(`<text x="${r1(x + w - 14)}" y="${r1(y + 51)}" text-anchor="end" font-size="12" font-weight="700" fill="${col.text}">${tr}</text></g>`);
       } else {
         s.push(`<text x="${r1(x + 16)}" y="${r1(y + 30)}" font-size="22" font-weight="900" fill="${C.text}">${esc(co.title)}</text>`);
-        s.push(`<text x="${r1(x + 16)}" y="${r1(y + 59)}" font-size="14" font-weight="700" fill="${col.text}">約<tspan font-size="26" font-weight="900">${esc(mins)}</tspan>分</text>`);
+        const freeR = x + w - 14 - (tr ? textW(tr, 11) + 10 : 0);
+        s.push(`<text x="${r1((x + 16 + freeR) / 2)}" y="${r1(y + 59)}" text-anchor="middle" font-size="14" font-weight="700" fill="${col.text}">約<tspan font-size="26" font-weight="900">${esc(mins)}</tspan>分</text>`);
         s.push(`<text x="${r1(x + w - 14)}" y="${r1(y + 59)}" text-anchor="end" font-size="11" font-weight="700" fill="${col.text}">${tr}</text></g>`);
       }
     });
