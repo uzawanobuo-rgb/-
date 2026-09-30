@@ -294,18 +294,48 @@
       route.legs = [{ mode: 'train', line: route.station === s.name ? (s.line || '') : '', to: route.legs && route.legs[0] && route.legs[0].to || toName || '' }];
     }
   }
+  // 別の物件を入れたら、前の物件の乗車駅・所要時間は消してから、新しい物件の最寄駅で初期値を入れる
+  function resetRoutesFor(path) {
+    const prop = getPath(path);
+    if (path === 'p1.property') { state.p1.routes = {}; MAJOR.forEach(name => fillRouteDefaults(p1Route(name), prop, name)); }
+    else { const i = +path.split('.')[2]; state.p2.routes[i] = emptyRoute(); fillRouteDefaults(state.p2.routes[i], prop, state.p2.destName); }
+  }
+
+  // もう一方のパターンで取り込んだ物件をそのまま使う（写真・料金も含めて丸ごと写す）
+  function copyProp(from, to) {
+    const src = getPath(from);
+    if (!src || !src.name) return;
+    const dst = getPath(to);
+    if (dst && dst.name && dst.name !== src.name && !confirm(`「${dst.name}」を「${src.name}」に置き換えます。よろしいですか？`)) return;
+    setPath(to, Object.assign(emptyProp(), JSON.parse(JSON.stringify(src))));
+    resetRoutesFor(to);
+    const now = new Date();
+    ui.imported = ui.imported || {};
+    const where = from === 'p1.property' ? 'パターン1の物件' : `パターン2の物件${LETTERS[+from.split('.')[2]]}`;
+    ui.imported[to] = { name: src.name, got: `${where}から`, miss: [], time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}` };
+    persist(); renderForm(); renderPreview(); autoResolveStations();
+    toast(`${where}「${src.name}」を使いました`);
+  }
+  // 「ほかのパターンの物件から使う」ボタン（入力済みの物件だけ）
+  function copyRow(path) {
+    let label, btns = [];
+    if (path === 'p1.property') {
+      label = 'パターン2の物件から使う';
+      state.p2.properties.forEach((p, i) => { if (p && p.name) btns.push(`<button type="button" class="btn small" data-action="copy-prop" data-from="p2.properties.${i}" data-path="${path}"><span class="prop-letter" style="background:${COLORS[i]};width:18px;height:18px;font-size:10px">${LETTERS[i]}</span>${esc(p.name)}</button>`); });
+    } else {
+      label = 'パターン1の物件を使う';
+      const p = state.p1.property;
+      if (p && p.name) btns.push(`<button type="button" class="btn small" data-action="copy-prop" data-from="p1.property" data-path="${path}">${esc(p.name)}</button>`);
+    }
+    if (!btns.length) return '';
+    return `<div class="row copy-row"><span class="muted">または ${label}：</span>${btns.join('')}</div>`;
+  }
+
   function importInto(path, text) {
     if (!text || !text.trim()) { toast('貼り付け欄が空です'); return; }
     const parsed = Parse.parsePlan(text);
     const prop = getPath(path);
-    let defaults = null;
-    // 別の物件を取り込んだら、前の物件の乗車駅・所要時間は消してから初期値を入れる
-    if (path === 'p1.property') defaults = () => { state.p1.routes = {}; MAJOR.forEach(name => fillRouteDefaults(p1Route(name), prop, name)); };
-    else {
-      const i = +path.split('.')[2];
-      defaults = () => { state.p2.routes[i] = emptyRoute(); fillRouteDefaults(state.p2.routes[i], prop, state.p2.destName); };
-    }
-    const miss = applyImport(prop, parsed, defaults);
+    const miss = applyImport(prop, parsed, () => resetRoutesFor(path));
     const now = new Date();
     const got = [`最寄駅${(prop.stations || []).length}件`];
     if ((Calc.num((prop.price || {}).dailyCampaign) ?? Calc.num((prop.price || {}).dailyList)) !== null) got.push('料金');
@@ -349,6 +379,7 @@
 <div class="f"><span>プランページでブックマーク「アットイン取込」を押す → ここに Ctrl+V</span>
 <div class="row" style="flex-wrap:nowrap"><input type="text" data-paste="${path}" placeholder="ここに貼り付けると、物件名・住所・最寄駅・料金・写真が入ります">
 <button type="button" class="btn small" data-action="import-clip" data-path="${path}">クリップボードから</button></div></div>
+${copyRow(path)}
 ${importedNote(path)}
 </div>
 <div class="grid">
@@ -888,6 +919,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         if (t) { if (t.tagName === 'DETAILS') t.open = true; t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
         break;
       }
+      case 'copy-prop': copyProp(b.dataset.from, path); break;
       case 'transit-clip':
         try { applyTransit(path, await navigator.clipboard.readText(), b.dataset.to); }
         catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); }
