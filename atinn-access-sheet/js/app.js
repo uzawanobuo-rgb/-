@@ -152,6 +152,48 @@
       document.head.appendChild(s);
     });
   }
+  // 目的地の最寄駅（HeartRails Express。つながらなければ、ツールに入っている主な駅から直線距離で）
+  // 結果は ui.destNear = { key, list:[{ name, lines:[], m }] }。徒歩は直線距離×1.25 を分速80mで割った目安
+  let destNearPending = '';
+  function destNearKey() {
+    const p = state.p2;
+    return p.destLat === '' || p.destLat == null || p.destLng === '' || p.destLng == null ? '' : `${(+p.destLat).toFixed(5)},${(+p.destLng).toFixed(5)}`;
+  }
+  function meters(a, b) {
+    const dy = (a.lat - b.lat) * 111000, dx = (a.lng - b.lng) * 111000 * Math.cos(a.lat * Math.PI / 180);
+    return Math.round(Math.hypot(dx, dy));
+  }
+  function walkMin(m) { return Math.max(1, Math.ceil(m * 1.25 / 80)); }
+  async function refreshDestNear() {
+    const key = destNearKey();
+    if (!key || (ui.destNear && ui.destNear.key === key) || destNearPending === key) return;
+    destNearPending = key;
+    const c = { lat: +state.p2.destLat, lng: +state.p2.destLng };
+    const byName = {};
+    const add = (name, line, m) => {
+      name = String(name || '').replace(/駅$/, '');
+      if (!name) return;
+      const e = byName[name] || (byName[name] = { name, lines: [], m });
+      if (line && !e.lines.includes(line)) e.lines.push(line);
+      e.m = Math.min(e.m, m);
+    };
+    try {
+      const d = await jsonp(`https://express.heartrails.com/api/json?method=getStations&x=${c.lng}&y=${c.lat}`);
+      ((d && d.response && d.response.station) || []).forEach(st => add(st.name, st.line, meters(c, { lat: +st.y, lng: +st.x })));
+    } catch (e) { /* つながらないときは下の主な駅から */ }
+    if (!Object.keys(byName).length) Object.keys(GEO.stations).forEach(n => add(n, '', meters(c, { lat: GEO.stations[n][0], lng: GEO.stations[n][1] })));
+    destNearPending = '';
+    if (key !== destNearKey()) return; // 待っている間に目的地が変わった
+    ui.destNear = { key, list: Object.values(byName).sort((a, b) => a.m - b.m).slice(0, 3) };
+    if (state.pattern === 'p2') renderForm();
+  }
+  function destNearText(full) {
+    const n = ui.destNear;
+    if (!n || n.key !== destNearKey() || !n.list.length) return '';
+    const one = e => `${esc(e.name)}${full && e.lines.length ? `（${esc(e.lines.join('・'))}）` : ''} 徒歩約${walkMin(e.m)}分${full ? `（直線${e.m >= 1000 ? (e.m / 1000).toFixed(1) + 'km' : e.m + 'm'}）` : ''}`;
+    return full ? n.list.map(one).join('／') : one(n.list[0]);
+  }
+
   // 駅名 → 座標（HeartRails Express）。near に近いものを選ぶ。
   async function lookupStation(name, near) {
     const d = await jsonp('https://express.heartrails.com/api/json?method=getStations&name=' + encodeURIComponent(name));
@@ -607,6 +649,7 @@ ${renderTextCard('p1', built.model)}`;
     return { lat: p.destLat, lng: p.destLng };
   }
   function renderP2() {
+    setTimeout(refreshDestNear, 0);
     const p = state.p2;
     const built = Sheet.buildP2(viewState());
     const destOk = p.destName && p.destLat !== '' && p.destLat != null;
@@ -642,11 +685,13 @@ ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 ${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
 ${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
 </div>
-<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・GoogleマップURL <span class="more-sum">${destCoord ? '地図の位置：✓ 設定済み' : '<span class="warn-t">地図の位置：未設定（住所を入れるか、GoogleマップのURLを貼ってください）</span>'}</span></summary>
+<details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・GoogleマップURL <span class="more-sum">${destCoord ? `地図の位置：✓ 設定済み${destNearText(false) ? `・最寄駅 ${destNearText(false)}` : ''}` : '<span class="warn-t">地図の位置：未設定（住所を入れるか、GoogleマップのURLを貼ってください）</span>'}</span></summary>
 <div class="more-b"><div class="grid">
 ${field('住所・地名（座標の検索用）', inp('p2.destAddress', { ph: '〇〇株式会社 本社の住所 など' }), 'all')}
 ${field('GoogleマップのURL<br><small>Googleマップで場所を開き、アドレスバーのURLを貼ると、その場所を目的地の位置にします（店名・施設名のときはこちら）</small>', `<input type="text" data-gmap="1" placeholder="https://www.google.com/maps/place/…">`, 'all')}
-</div></div></details>
+</div>
+${destCoord && destNearText(true) ? `<div class="muted">最寄駅：${destNearText(true)}</div>` : ''}
+</div></details>
 </div></details>
 ${propCards}
 ${renderTextCard('p2', built.model)}`;
