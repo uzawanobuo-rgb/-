@@ -601,7 +601,8 @@ ${renderPropEditor('p1.property', prop, { simple: true })}
 <p class="muted" style="margin:0;align-self:end">郊外の物件は 60分・90分 などに広げてください。</p></div>
 ${routes}
 </div></details>
-${renderTextCard('p1', built.model)}`;
+${renderTextCard('p1', built.model)}
+${renderMailCard('p1')}`;
   }
 
   // 目的地の検索語：駅名ならそのまま、そうでなければ住所・地名欄を優先
@@ -694,7 +695,8 @@ ${destCoord && destNearText(true) ? `<div class="muted">最寄駅：${destNearTe
 </div></details>
 </div></details>
 ${propCards}
-${renderTextCard('p2', built.model)}`;
+${renderTextCard('p2', built.model)}
+${renderMailCard('p2')}`;
   }
 
   function renderTextCard(pat, model) {
@@ -705,6 +707,18 @@ ${field('サブ見出し', inp(`${pat}.subheadline`, { ph: model.sub }), 'all')}
 ${field('注記（最下行）', `<textarea data-bind="${pat}.note" rows="3" placeholder="${esc(model.note)}">${esc(state[pat].note || '')}</textarea>`, 'all')}
 ${field('料金の基準日', dateInp('baseDate', ''))}
 </div></div></details>`;
+  }
+
+  // メール本文に貼る見積りテキスト（見積りExcel【一般用】と同じ書式）
+  function renderMailCard(pat) {
+    let txt = '';
+    try { txt = window.AtinnMailText.buildMailText(Object.assign({}, state, { pattern: pat })); } catch (e) { txt = '（テキストを作れませんでした：' + (e && e.message || e) + '）'; }
+    const rows = Math.min(40, txt.split('\n').length + 1);
+    return `<details class="card" data-ui="mail-${pat}" ${ui.open['mail-' + pat] ? 'open' : ''}><summary><span class="step">✉</span>メール用テキスト<span class="muted" style="margin-left:8px;font-size:12px;font-weight:500">見積りをメール本文に貼る</span></summary>
+<div class="card-b">
+<div class="row" style="justify-content:space-between"><span class="muted">${pat === 'p1' ? '1か月プランの期間' : '入力した利用期間'}・人数で作ります。確かめてからコピーしてください</span><button type="button" class="btn small primary" data-action="copy-mail" data-pat="${pat}">コピー</button></div>
+<textarea class="mailtext" readonly rows="${rows}" data-mail="${pat}">${esc(txt)}</textarea>
+</div></details>`;
   }
 
   function stationDatalist() {
@@ -1052,6 +1066,13 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         break;
       }
       case 'copy-prop': copyProp(b.dataset.from, path); break;
+      case 'copy-mail': {
+        const ta = $(`textarea[data-mail="${b.dataset.pat}"]`);
+        if (!ta) break;
+        try { await navigator.clipboard.writeText(ta.value); toast('メール用テキストをコピーしました'); }
+        catch (er) { ta.select(); document.execCommand('copy'); toast('メール用テキストをコピーしました'); }
+        break;
+      }
       case 'yahoo':
         // 名前つきのタブで開く（乗換取込がこの名前から、どの経路の結果かを返す）。opener を残すため noopener にしない
         e.preventDefault();
