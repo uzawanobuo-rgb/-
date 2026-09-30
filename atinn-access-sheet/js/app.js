@@ -530,12 +530,6 @@ ${field('禁煙/喫煙', inp(`${path}.smoking`))}${field('設定人数', inp(`${
     return `<div class="route ${o.selected ? 'sel' : ''} ${route.exclude ? 'off' : ''}">
 <div class="route-h">${o.head}
 <span class="total">合計 <b>${info.total ?? '–'}</b>分${info.display !== null && info.display !== info.total ? `（表示 ${info.display}分）` : ''}・${info.transfers === 0 ? '乗換なし' : info.transfers != null ? `乗換${info.transfers}回` : '–'}</span></div>
-<div class="grid g4">
-${field('乗車駅／バス停 <small>物件から歩いて乗る駅</small>', `<input data-bind="${path}.station" type="text" value="${esc(route.station || '')}" list="dl-${o.id}" placeholder="${esc(stList[0] || '駅名')}"><datalist id="dl-${o.id}">${stList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`, 'span2')}
-${field('徒歩（分） <small>物件→乗車駅</small>', inp(`${path}.walk`, { type: 'number' }))}
-${field('乗車（分） <small>電車・バス</small>', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
-</div>
-<table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
 <div class="transit-box">
 <div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.fromCoord, o.missing)}</div>
 <div class="f"><span>② 検索結果のページでブックマーク「乗換取込」を押す → ここに Ctrl+V</span>
@@ -543,6 +537,12 @@ ${field('乗車（分） <small>電車・バス</small>', inp(`${path}.ride`, { 
 <button type="button" class="btn small" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}">クリップボードから</button></div></div>
 ${route.note && /Yahoo/.test(route.note) ? `<div class="muted">✓ ${esc(route.note)}</div>` : ''}
 </div>
+<div class="grid g4">
+${field('乗車駅／バス停 <small>物件から歩いて乗る駅</small>', `<input data-bind="${path}.station" type="text" value="${esc(route.station || '')}" list="dl-${o.id}" placeholder="${esc(stList[0] || '駅名')}"><datalist id="dl-${o.id}">${stList.map(s => `<option value="${esc(s)}">`).join('')}</datalist>`, 'span2')}
+${field('徒歩（分） <small>物件→乗車駅</small>', inp(`${path}.walk`, { type: 'number' }))}
+${field('乗車（分） <small>電車・バス</small>', inp(`${path}.ride`, { type: 'number', ph: '乗換込み' }))}
+</div>
+<table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
 <div class="row"><button type="button" class="btn small" data-action="add-leg" data-path="${path}">＋ 乗換を追加</button></div>
 <div class="grid g4">
 ${field('表示する分 <small>任意</small>', inp(`${path}.display`, { type: 'number', ph: String(info.total ?? '') }))}
