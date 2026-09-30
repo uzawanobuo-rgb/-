@@ -212,3 +212,4 @@ details.more > summary { align-items: center; }
 .slot-btn:hover, .slot-btn:focus { border-color: var(--pc); outline: none; background: #F7FBFB; }
 .slot-btn.first { border-color: var(--pc); }
 .retired { position: fixed; inset: 0; z-index: 70; background: rgba(247,246,242,.94); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 16px; line-height: 1.8; }
+.mailtext { width: 100%; font-size: 13px; line-height: 1.6; background: #fff; resize: vertical; }
