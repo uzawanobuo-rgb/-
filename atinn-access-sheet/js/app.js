@@ -860,6 +860,13 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     toast(msgs.join(''));
   }
 
+  // 「その他」メニュー：項目を選ぶか、外側を押したら閉じる
+  document.addEventListener('click', e => {
+    const m = $('#menu');
+    if (!m || !m.open) return;
+    if (!m.contains(e.target) || e.target.closest('.menu-item')) setTimeout(() => { m.open = false; }, 0);
+  }, true);
+
   document.addEventListener('click', async e => {
     if (e.target.closest('summary .sum-actions')) {
       const a = e.target.closest('a');

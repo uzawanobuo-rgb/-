@@ -181,3 +181,11 @@ details.more > summary { align-items: center; }
 @media (max-width: 1250px) { .tabs button { padding: 7px 9px; } }
 @media (min-width: 1001px) { .preview-col { top: calc(var(--topbar-h, 64px) + 12px); } }
 .card[id] { scroll-margin-top: calc(var(--topbar-h, 64px) + 12px); }
+/* 「その他」メニュー */
+.menu { position: relative; }
+.menu > summary { list-style: none; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu-pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 30; min-width: 220px; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(30,43,51,.16); padding: 6px; display: flex; flex-direction: column; }
+.menu-item { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; text-align: left; border: 0; background: transparent; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--text); }
+.menu-item small { font-weight: 400; font-size: 11px; color: var(--sub); }
+.menu-item:hover { background: #E4F2F1; }
