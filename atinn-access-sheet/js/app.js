@@ -534,7 +534,7 @@ ${coordStatus(names)}
     }).join('');
     const propOk = prop.name && prop.lat !== '' && prop.lat != null;
     return `
-<details class="card" open><summary><span class="step">1</span>物件を入力<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
+<details class="card cond-card" open><summary><span class="step">1</span>物件を入力<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
 <div class="card-b">
 <div class="grid align-end">
 ${field('チェックイン日<br><small>未入力なら翌月1日</small>', inp('p1.checkIn', { type: 'date' }))}
