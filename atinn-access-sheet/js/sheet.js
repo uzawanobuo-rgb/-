@@ -6,6 +6,7 @@
   const Parse = req ? require('./parse.js') : root.AtinnParse;
   const MapM = req ? require('./map.js') : root.AtinnMap;
   const GEO = req ? require('./data.js') : root.AtinnGeoData;
+  const LOGO = req ? require('./logo.js') : root.AtinnLogo;
 
   const esc = MapM.esc;
   const yen = Calc.yen;
@@ -82,7 +83,7 @@
 <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
 <h1 style="margin:0;font-size:${fs}px;font-weight:900;letter-spacing:0.02em;line-height:1.2;white-space:nowrap;">${esc(title)}</h1>
 <div style="font-size:16px;color:#5B6770;font-weight:500;">${esc(sub)}</div>
-</div>${right || ''}</div>`;
+</div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><img src="${LOGO.src}" alt="アットイン" style="height:30px;display:block;">${right || ''}</div></div>`;
   }
   function frame(inner) {
     return `<div class="atinn-sheet" style="width:1123px;height:794px;box-sizing:border-box;border-top:10px solid #0F7C7A;padding:18px 40px 16px;display:flex;flex-direction:column;gap:12px;background:#F7F6F2;color:#1E2B33;font-family:'M PLUS 1p','Hiragino Sans',sans-serif;overflow:hidden;">${inner}</div>`;

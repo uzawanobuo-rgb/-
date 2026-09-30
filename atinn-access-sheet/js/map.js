@@ -190,7 +190,7 @@
         }
         let pts = (lg._ring && ringIdx[lg._from] != null) ? ringPath(lg._from, lg.to.name) : Geo.octiSegment(prevP, toP, cP);
         if (!pts.length) pts = [prevP, toP];
-        drawn.push({ pts, style: lg.mode === 'bus' ? 'bus' : 'train', color: col.line, ring: !!lg._ring });
+        drawn.push({ pts, style: lg.mode === 'bus' ? 'bus' : 'train', color: col.line, ring: !!lg._ring, rid: r.idx });
         legLabels.push({ pts, text: lg.line || '', color: col.text, bus: lg.mode === 'bus', ring: !!lg._ring });
         if (!last) stationMarks.push({ p: toP, name: lg.to.name, color: col.line, kind: 'transfer' });
         if (extraWalk) {
@@ -203,7 +203,7 @@
       if (mode === 'p2') ends.push({ r, p: start });
       if (mode === 'p1' && !r.legs.some(lg => lg.to) && r.target) {
         const tp = P(r.target);
-        drawn.push({ pts: Geo.octiSegment(prevP, tp, cP), style: 'train', color: col.line });
+        drawn.push({ pts: Geo.octiSegment(prevP, tp, cP), style: 'train', color: col.line, rid: r.idx });
         ends.push({ r, p: tp });
       }
     });
@@ -487,9 +487,10 @@
     if (ringName) s.push(`<text x="${r1(ringName.x)}" y="${r1(ringName.y)}" text-anchor="middle" font-size="12" font-weight="700" fill="${C.gray}">JR山手線</text>`);
     // 線：徒歩→バス→電車の順
     drawn.filter(d => d.style === 'walk').forEach(d => s.push(`<path d="${pathD(d.pts)}" fill="none" stroke="${d.color}" stroke-width="4" stroke-dasharray="2 8" stroke-linecap="round"/>`));
+    const lanes = laneOffsets(drawn.filter(d => d.style !== 'walk'));
     drawn.filter(d => d.style !== 'walk').forEach(d => {
       const dash = d.style === 'bus' ? ' stroke-dasharray="15 9"' : '';
-      s.push(`<path d="${pathD(d.pts)}" fill="none" stroke="${d.color}" stroke-width="${d.ring ? 12 : 8}"${dash} stroke-linecap="round" stroke-linejoin="round"/>`);
+      s.push(`<path d="${pathD(lanes.get(d) || d.pts)}" fill="none" stroke="${d.color}" stroke-width="${d.ring ? 12 : 8}"${dash} stroke-linecap="round" stroke-linejoin="round"/>`);
     });
     // 路線名
     lineLabels.forEach(({ ll, c, size }) => {
@@ -589,6 +590,58 @@
     }
     s.push('</svg>');
     return { bad, svg: s.join('\n') };
+  }
+
+  // 別のルートと同じ線路（同じ向きで重なる区間）を通るところは、実際の路線図のように少しずらして並べる。
+  // 区間ごとに、重なっているルートの数と順番で横にずらし、つなぎ目は2本の線の交点でつなぐ。
+  function laneOffsets(list) {
+    const GAP = 8;
+    const segs = [];
+    list.forEach(d => {
+      for (let i = 1; i < d.pts.length; i++) {
+        const p = d.pts[i - 1], q = d.pts[i];
+        const len = Math.hypot(q.x - p.x, q.y - p.y);
+        if (len < 1) continue;
+        let ux = (q.x - p.x) / len, uy = (q.y - p.y) / len;
+        if (ux < -1e-6 || (Math.abs(ux) < 1e-6 && uy < 0)) { ux = -ux; uy = -uy; } // 向きをそろえる
+        segs.push({ d, i, p, q, ux, uy, len });
+      }
+    });
+    const overlaps = (a, b) => {
+      if (Math.abs(a.ux * b.uy - a.uy * b.ux) > 0.01) return false; // 平行でない
+      const perp = Math.abs((b.p.x - a.p.x) * -a.uy + (b.p.y - a.p.y) * a.ux);
+      if (perp > 2) return false; // 同じ直線上にない
+      const t = v => (v.x - a.p.x) * a.ux + (v.y - a.p.y) * a.uy;
+      const a0 = Math.min(t(a.p), t(a.q)), a1 = Math.max(t(a.p), t(a.q));
+      const b0 = Math.min(t(b.p), t(b.q)), b1 = Math.max(t(b.p), t(b.q));
+      return Math.min(a1, b1) - Math.max(a0, b0) > 10;
+    };
+    segs.forEach(a => {
+      const rids = new Set([a.d.rid]);
+      segs.forEach(b => { if (b.d.rid !== a.d.rid && overlaps(a, b)) rids.add(b.d.rid); });
+      const order = [...rids].sort((x, y) => x - y);
+      a.off = order.length > 1 ? (order.indexOf(a.d.rid) - (order.length - 1) / 2) * GAP : 0;
+    });
+    const out = new Map();
+    list.forEach(d => {
+      const ss = segs.filter(x => x.d === d).sort((x, y) => x.i - y.i);
+      if (!ss.length || ss.every(x => !x.off)) return;
+      // 各区間をずらした直線（点 + 向き）
+      const lines = ss.map(x => ({ x0: x.p.x - x.uy * x.off, y0: x.p.y + x.ux * x.off, x1: x.q.x - x.uy * x.off, y1: x.q.y + x.ux * x.off }));
+      const pts = [{ x: lines[0].x0, y: lines[0].y0 }];
+      for (let k = 1; k < lines.length; k++) {
+        const A = lines[k - 1], B = lines[k];
+        const d1x = A.x1 - A.x0, d1y = A.y1 - A.y0, d2x = B.x1 - B.x0, d2y = B.y1 - B.y0;
+        const den = d1x * d2y - d1y * d2x;
+        if (Math.abs(den) < 1e-6) { pts.push({ x: A.x1, y: A.y1 }, { x: B.x0, y: B.y0 }); continue; } // 平行：段差でつなぐ
+        const t = ((B.x0 - A.x0) * d2y - (B.y0 - A.y0) * d2x) / den;
+        pts.push({ x: A.x0 + d1x * t, y: A.y0 + d1y * t });
+      }
+      const L = lines[lines.length - 1];
+      pts.push({ x: L.x1, y: L.y1 });
+      out.set(d, pts);
+    });
+    return out;
   }
 
   function isYamanote(lg) { return lg && lg.mode !== 'bus' && /山手線/.test(lg.line || ''); }
