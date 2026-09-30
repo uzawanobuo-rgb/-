@@ -798,9 +798,17 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
 
   // ---------- 出力 ----------
   function fileBase() {
-    const d = state.baseDate || Calc.todayStr();
-    const name = state.pattern === 'p1' ? (state.p1.property.name || '物件') : `${state.p2.destName || '目的地'}_3物件`;
-    return `アクセス案内_${name}_${d}`.replace(/[\\/:*?"<>|\s]/g, '_');
+    const safe = v => String(v || '').replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, ' ').trim();
+    if (state.pattern === 'p1') {
+      const d = state.baseDate || Calc.todayStr();
+      return `アクセス案内_${state.p1.property.name || '物件'}_${d}`.replace(/[\\/:*?"<>|\s]/g, '_');
+    }
+    // パターン2：「お名前 様_目的地_ご提案３物件_2026-09-30」（お名前がなければ先頭を省く。日付は作った日）
+    const p2 = state.p2;
+    const n = p2.properties.filter(p => p && p.name).length || 3;
+    const cust = safe(p2.customer).replace(/\s*様$/, '');
+    const parts = [cust ? `${cust} 様` : '', safe(p2.destName) || '目的地', `ご提案${String(n).replace(/\d/g, c => String.fromCharCode(c.charCodeAt(0) + 0xFEE0))}物件`, Calc.todayStr()];
+    return parts.filter(Boolean).join('_');
   }
   function download(url, name) {
     const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
