@@ -599,6 +599,28 @@ ${renderTextCard('p1', built.model)}`;
   }
 
   // 目的地の検索語：駅名ならそのまま、そうでなければ住所・地名欄を優先
+  // 目的地の地図の位置：駅名なら駅データから、そうでなければ住所・地名で検索する
+  let destSeq = 0;
+  async function resolveDest(quiet) {
+    const p2 = state.p2;
+    const name = String(p2.destName || '').replace(/駅$/, '').trim();
+    const st = name && (GEO.stations[name] || (state.stationCoords[name] && [state.stationCoords[name].lat, state.stationCoords[name].lng]));
+    let r = null;
+    if (st && !(p2.destAddress && !quiet)) r = { lat: +st[0], lng: +st[1], title: name + '駅' };
+    else {
+      const q = p2.destAddress || p2.destName;
+      if (!q) { if (!quiet) toast('住所か目的地名を入力してください'); return; }
+      const my = ++destSeq;
+      try { r = await geocode(q); } catch (er) { if (!quiet) toast('検索できませんでした。「住所・緯度・経度」を開いて入力してください'); return; }
+      if (my !== destSeq) return; // 入力が変わった
+      if (!r && st) r = { lat: +st[0], lng: +st[1], title: name + '駅' };
+      if (!r) { toast('目的地の場所が見つかりませんでした。住所を入れるか、見出しの「住所・地名から座標を検索」を押してください'); return; }
+    }
+    p2.destLat = r.lat; p2.destLng = r.lng; p2.destAuto = true;
+    persist(); renderForm(); renderPreview(); autoResolveStations();
+    toast('目的地の地図の位置を入れました：' + (r.title || ''));
+  }
+
   function destSearchName() {
     const p = state.p2, n = String(p.destName || '').replace(/駅$/, '');
     if (n && (GEO.stations[n] || state.stationCoords[n])) return n;
@@ -835,6 +857,12 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
       if (s) { route.walk = s.walk; if (route.legs && route.legs[0] && !route.legs[0].line) route.legs[0].line = s.line || ''; }
     }
     persist();
+    // 目的地の名前・住所を入れたら、地図の位置を自動で入れる（手で緯度・経度を入れたら自動はやめる）
+    if (/^p2\.dest(Lat|Lng)$/.test(path)) state.p2.destAuto = false;
+    if (isChange && /^p2\.dest(Name|Address)$/.test(path)) {
+      const p2 = state.p2, empty = p2.destLat === '' || p2.destLat == null;
+      if (empty || p2.destAuto) resolveDest(true);
+    }
     if (isChange) { requestFormRender(); autoResolveStations(); }
     schedulePreview();
   }
@@ -995,16 +1023,7 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         catch (er) { toast('検索できませんでした。Googleマップで座標を調べて入力してください'); }
         break;
       }
-      case 'geocode-dest': {
-        const q = state.p2.destAddress || state.p2.destName;
-        if (!q) { toast('住所か目的地名を入力してください'); return; }
-        try {
-          let r = GEO.stations[q.replace(/駅$/, '')] ? { lat: GEO.stations[q.replace(/駅$/, '')][0], lng: GEO.stations[q.replace(/駅$/, '')][1], title: q + '駅' } : await geocode(q);
-          if (!r) { toast('見つかりませんでした'); return; }
-          state.p2.destLat = r.lat; state.p2.destLng = r.lng; persist(); renderForm(); renderPreview(); autoResolveStations(); toast('座標を入れました：' + (r.title || ''));
-        } catch (er) { toast('検索できませんでした。Googleマップで座標を調べて入力してください'); }
-        break;
-      }
+      case 'geocode-dest': await resolveDest(false); break;
       case 'coord': {
         const name = b.dataset.name;
         let near = nearPoint(), r = null;
