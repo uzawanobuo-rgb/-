@@ -291,7 +291,7 @@
     if (parsed.fetchedAt) state.baseDate = Calc.todayStr(new Date(parsed.fetchedAt));
     const miss = [];
     if (!prop.name) miss.push('物件名');
-    if (prop.lat === '' || prop.lat == null) miss.push('地図の位置（「住所から検索」で入ります）');
+    if (prop.lat === '' || prop.lat == null) miss.push('地図の位置（プランページで「アットイン取込」から取り込み直してください）');
     if (!prop.stations.length) miss.push('最寄駅');
     const pv = prop.price;
     if (!pv || (Calc.num(pv.dailyCampaign) ?? Calc.num(pv.dailyList)) === null) miss.push('料金');
@@ -398,10 +398,8 @@ ${importedNote(path)}
 ${inlineField('物件名', inp(`${path}.name`, { ph: 'アットイン六本木4' }))}
 ${inlineField('住所', inp(`${path}.address`, { ph: '東京都港区西麻布2丁目…' }))}
 </div>
-<div class="row">${hasCoord
-  ? `<span class="muted">地図の位置：✓ 取得済み</span><a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>`
-  : `<span class="warn-t">地図の位置：未取得</span><button type="button" class="btn small" data-action="geocode-prop" data-path="${path}">住所から検索</button>`}
-${planUrl ? `<a class="btn small" href="${esc(planUrl)}" target="_blank" rel="noopener">プランページ ↗</a>` : ''}</div>
+${hasCoord || planUrl ? `<div class="row">${hasCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(prop.lat)},${esc(prop.lng)}">Googleマップで確認</a>` : ''}
+${planUrl ? `<a class="btn small" href="${esc(planUrl)}" target="_blank" rel="noopener">プランページ ↗</a>` : ''}</div>` : ''}
 ` + renderPropRest(path, prop, opts);
     }
     return `<div class="card-b" style="padding:0">
