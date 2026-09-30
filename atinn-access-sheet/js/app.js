@@ -534,7 +534,7 @@ ${coordStatus(names)}
     }).join('');
     const propOk = prop.name && prop.lat !== '' && prop.lat != null;
     return `
-<details class="card cond-card" open><summary><span class="step">1</span>物件を入力<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
+<details class="card cond-card" id="sec-p1-prop" open><summary><span class="step">1</span>物件を入力<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
 <div class="card-b">
 <div class="grid align-end">
 ${field('チェックイン日<br><small>未入力なら翌月1日</small>', inp('p1.checkIn', { type: 'date' }))}
@@ -542,7 +542,7 @@ ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
 ${renderPropEditor('p1.property', prop, { simple: true })}
 </div></details>
-<details class="card" open><summary><span class="step">2</span>主要駅までの所要時間<span class="badge ${sel.length ? 'ok' : 'ng'}">${sel.length ? `${sel.length}駅を表示` : '未入力'}</span></summary>
+<details class="card" id="sec-p1-routes" open><summary><span class="step">2</span>主要駅までの所要時間<span class="badge ${sel.length ? 'ok' : 'ng'}">${sel.length ? `${sel.length}駅を表示` : '未入力'}</span></summary>
 <div class="card-b">
 <p class="muted" style="margin:0">所要時間＝<b>物件から乗車駅までの徒歩</b>＋<b>乗車時間</b>（乗換の歩き・待ちを含む。日中・平日の目安）。<b>「乗車（分）」を入れた駅</b>のうち、上限以内の駅から短い順に3つがシートに載ります。</p>
 <div class="row"><button type="button" class="btn small" data-action="clear-routes">所要時間をすべてクリア</button><span class="muted">乗車駅は物件の最寄駅に戻ります</span></div>
@@ -569,7 +569,7 @@ ${renderTextCard('p1', built.model)}`;
       const info = Sheet.routeInfo(r);
       const ok = prop.name && info.display !== null;
       const coord = prop.lat !== '' && prop.lat != null ? { lat: prop.lat, lng: prop.lng } : null;
-      return `<details class="card prop-card" style="--pc:${COLORS[i]};--pbg:${TINTS[i]}" ${ui.open['p2prop' + i] === false ? '' : 'open'} data-ui="p2prop${i}"><summary><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>物件${LETTERS[i]}<span class="badge ${ok ? 'ok' : 'ng'}">${prop.name ? esc(prop.name) : '未入力'}${info.display !== null ? `・約${info.display}分` : ''}</span></summary>
+      return `<details class="card prop-card" style="--pc:${COLORS[i]};--pbg:${TINTS[i]}" ${ui.open['p2prop' + i] === false ? '' : 'open'} data-ui="p2prop${i}" id="sec-p2-${i}"><summary><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>物件${LETTERS[i]}<span class="badge ${ok ? 'ok' : 'ng'}">${prop.name ? esc(prop.name) : '未入力'}${info.display !== null ? `・約${info.display}分` : ''}</span></summary>
 <div class="card-b">
 ${renderPropEditor(`p2.properties.${i}`, prop, { simple: true, photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
 <div class="sub-h">${esc(p.destName || '目的地')}までの所要時間</div>
@@ -578,7 +578,7 @@ ${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row"><button t
 </div></details>`;
     }).join('');
     return `
-<details class="card cond-card" open><summary><span class="step">1</span>目的地と条件
+<details class="card cond-card" id="sec-p2-dest" open><summary><span class="step">1</span>目的地と条件
 <span class="sum-actions"><button type="button" class="btn small" data-action="geocode-dest">住所・地名から座標を検索</button>
 ${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(p.destLat)},${esc(p.destLng)}">Googleマップで確認</a>` : ''}</span>
 <span class="badge ${destOk ? 'ok' : 'ng'}">${destOk ? esc(p.destName) : '未入力'}</span></summary>
@@ -648,7 +648,33 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     return Object.assign({}, state, { headline: state[pat].headline, subheadline: state[pat].subheadline, note: state[pat].note });
   }
   let lastBuilt = null;
+  // 画面上部の進み具合（✓ 済 / ○ まだ）。押すとその欄へ移動する
+  function renderProgress() {
+    const el = $('#progress');
+    if (!el) return;
+    const has = v => v !== '' && v != null;
+    const item = (ok, label, target, title) => `<button type="button" class="pg ${ok ? 'done' : 'todo'}" data-action="goto" data-target="${target}" title="${esc(title || '')}"><span class="pg-mark">${ok ? '✓' : '○'}</span>${label}</button>`;
+    let html = '';
+    if (state.pattern === 'p2') {
+      const p = state.p2;
+      html += `<span class="pg-group">${item(p.destName && has(p.destLat) && has(p.destLng), '目的地', 'sec-p2-dest', '目的地の名前と地図の位置')}</span>`;
+      p.properties.forEach((prop, i) => {
+        const info = Sheet.routeInfo(p.routes[i]);
+        const propOk = !!prop.name && has(prop.lat) && has(prop.lng);
+        html += `<span class="pg-group"><span class="pg-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span>${item(propOk, '物件', 'sec-p2-' + i, '物件名と地図の位置')}${item(info.display !== null, '乗換', 'sec-p2-' + i, '目的地までの所要時間')}</span>`;
+      });
+    } else {
+      const prop = state.p1.property;
+      const sel = Sheet.buildP1(viewState()).model.selected;
+      html += `<span class="pg-group">${item(!!prop.name && has(prop.lat) && has(prop.lng), '物件', 'sec-p1-prop', '物件名と地図の位置')}</span>`;
+      html += `<span class="pg-group">${item(sel.length > 0, sel.length ? `主要駅 ${sel.length}駅` : '主要駅', 'sec-p1-routes', 'シートに載る主要駅')}</span>`;
+    }
+    el.innerHTML = html;
+    syncTopbar();
+  }
+
   function renderPreview() {
+    renderProgress();
     lastBuilt = Sheet.buildSheet(viewState());
     $('#sheet').innerHTML = lastBuilt.html;
     $('#warnings').innerHTML = Array.from(new Set(lastBuilt.warnings)).map(w => `<div>⚠ ${esc(w)}</div>`).join('');
@@ -850,6 +876,11 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
         state = normalize(Object.assign(Samples[state.pattern](), { pattern: state.pattern }));
         if (state.pattern === 'p1') state.p2 = defaultState().p2; else state.p1 = defaultState().p1;
         persist(); renderForm(); renderPreview(); break;
+      case 'goto': {
+        const t = document.getElementById(b.dataset.target);
+        if (t) { if (t.tagName === 'DETAILS') t.open = true; t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+        break;
+      }
       case 'transit-clip':
         try { applyTransit(path, await navigator.clipboard.readText(), b.dataset.to); }
         catch (er) { toast('クリップボードを読めませんでした。貼り付け欄に Ctrl+V で貼ってください'); }
@@ -962,7 +993,12 @@ ${field('料金の基準日', inp('baseDate', { type: 'date' }))}
     img.src = url;
   }
 
-  window.addEventListener('resize', fitPreview);
+  // 上部バーの高さ（進み具合で変わる）に合わせて、右のプレビューの固定位置と移動先をずらす
+  function syncTopbar() {
+    const h = ($('.topbar') || { offsetHeight: 64 }).offsetHeight;
+    document.documentElement.style.setProperty('--topbar-h', h + 'px');
+  }
+  window.addEventListener('resize', () => { fitPreview(); syncTopbar(); });
   renderForm();
   renderPreview();
   if (document.fonts) document.fonts.ready.then(renderPreview);
