@@ -176,7 +176,17 @@
         if (mode === 'p2' && last) {
           // 降りた駅が目的地そのもの（80m以内）なら目的地に直接つなぐ。離れていれば駅を描き、目的地まで徒歩の点線
           if (kmDist(lg.to, center) < 0.08) toP = cP;
-          else extraWalk = [toP, cP];
+          else {
+            // 駅が目的地に近すぎて印が重なるときは、同じ向き（45度単位）に少し離して描く
+            const MIN = 64;
+            let vx = toP.x - cP.x, vy = toP.y - cP.y, d = Math.hypot(vx, vy);
+            if (d < MIN) {
+              if (d < 1) { vx = prevP.x - cP.x; vy = prevP.y - cP.y; }
+              const ang = Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) * (Math.PI / 4);
+              toP = { x: cP.x + Math.cos(ang) * MIN, y: cP.y + Math.sin(ang) * MIN };
+            }
+            extraWalk = [toP, cP];
+          }
         }
         let pts = (lg._ring && ringIdx[lg._from] != null) ? ringPath(lg._from, lg.to.name) : Geo.octiSegment(prevP, toP, cP);
         if (!pts.length) pts = [prevP, toP];
