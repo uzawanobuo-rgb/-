@@ -203,3 +203,12 @@ details.more > summary { align-items: center; }
 .trash { border: 1px solid var(--line); background: #fff; color: var(--gray); border-radius: 8px; padding: 5px 7px; cursor: pointer; display: inline-flex; }
 .trash:hover { color: var(--warn); border-color: var(--warn); }
 .linkish { border: 0; background: none; padding: 0; color: var(--teal); text-decoration: underline; cursor: pointer; font: inherit; font-size: 12px; margin-left: auto; }
+.slot-pick { position: fixed; inset: 0; z-index: 60; background: rgba(30,43,51,.45); display: flex; align-items: center; justify-content: center; padding: 16px; }
+.slot-box { background: #fff; border-radius: 14px; padding: 20px 22px; width: min(520px, 100%); display: flex; flex-direction: column; gap: 10px; box-shadow: 0 10px 40px rgba(0,0,0,.25); }
+.slot-t { font-size: 17px; font-weight: 700; }
+.slot-btns { display: flex; flex-direction: column; gap: 8px; }
+.slot-btn { display: flex; align-items: center; gap: 12px; text-align: left; padding: 10px 12px; border: 2px solid var(--line); border-left: 6px solid var(--pc); border-radius: 10px; background: #fff; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700; color: var(--text); }
+.slot-btn small { display: block; font-size: 11px; font-weight: 500; color: var(--sub); }
+.slot-btn:hover, .slot-btn:focus { border-color: var(--pc); outline: none; background: #F7FBFB; }
+.slot-btn.first { border-color: var(--pc); }
+.retired { position: fixed; inset: 0; z-index: 70; background: rgba(247,246,242,.94); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 16px; line-height: 1.8; }

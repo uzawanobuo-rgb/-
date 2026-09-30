@@ -87,3 +87,17 @@ test('パターン2：物件Aが空でもB・Cだけでシートを作れる', (
   assert.equal(r.model.tags[0].length, 0);
   assert.ok(r.model.tags[1].length > 0);
 });
+
+test('日付の手入力：年を省いたら基準日以降でいちばん近い日', () => {
+  assert.equal(Calc.parseDateInput('10/5', '2026-09-30'), '2026-10-05');
+  assert.equal(Calc.parseDateInput('11/15', '2026-10-05'), '2026-11-15');
+  assert.equal(Calc.parseDateInput('1/10', '2026-12-20'), '2027-01-10');
+  assert.equal(Calc.parseDateInput('1005', '2026-09-30'), '2026-10-05');
+  assert.equal(Calc.parseDateInput('10月5日', '2026-09-30'), '2026-10-05');
+  assert.equal(Calc.parseDateInput('１０／５', '2026-09-30'), '2026-10-05');
+  assert.equal(Calc.parseDateInput('2026/10/5（月）', '2026-09-30'), '2026-10-05');
+  assert.equal(Calc.parseDateInput('20261005'), '2026-10-05');
+  assert.equal(Calc.parseDateInput('2/30', '2026-09-30'), null);
+  assert.equal(Calc.parseDateInput('abc'), null);
+  assert.equal(Calc.showDate('2026-10-05'), '2026/10/5（月）');
+});
