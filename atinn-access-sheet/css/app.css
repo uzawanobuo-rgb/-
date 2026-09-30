@@ -134,9 +134,9 @@ details.more > summary { cursor: pointer; padding: 8px 12px; font-weight: 900; f
 details.more > summary .more-sum { font-weight: 500; font-size: 12px; color: var(--sub); }
 details.more .more-b { padding: 0 12px 12px; display: flex; flex-direction: column; gap: 10px; }
 /* パターン2の物件A〜C：色帯と見出しの色で「① 目的地と条件」と区別する */
-.card.prop-card { border: 3px solid var(--pc); }
-.card.prop-card > summary { background: var(--pbg); border-radius: 9px 9px 0 0; margin-bottom: 10px; }
-.card.prop-card:not([open]) > summary { border-radius: 9px; margin-bottom: 0; }
+.card.prop-card { border-left: 6px solid var(--pc); }
+.card.prop-card > summary { background: var(--pbg); border-radius: 6px 12px 0 0; margin-bottom: 10px; }
+.card.prop-card:not([open]) > summary { border-radius: 6px 12px 12px 6px; margin-bottom: 0; }
 details.more > summary { align-items: center; }
 .imported-note { font-size: 13px; color: var(--teal-d); background: #fff; border: 1px solid #B8D9D6; border-radius: 6px; padding: 6px 10px; animation: flashIn .6s ease-out; }
 @keyframes flashIn { from { background: #CFEDEA; } to { background: #fff; } }
