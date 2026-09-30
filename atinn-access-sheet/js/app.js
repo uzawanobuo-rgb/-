@@ -578,7 +578,7 @@ ${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row"><button t
 </div></details>`;
     }).join('');
     return `
-<details class="card" open><summary><span class="step">1</span>目的地と条件
+<details class="card cond-card" open><summary><span class="step">1</span>目的地と条件
 <span class="sum-actions"><button type="button" class="btn small" data-action="geocode-dest">住所・地名から座標を検索</button>
 ${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https://www.google.com/maps?q=${esc(p.destLat)},${esc(p.destLng)}">Googleマップで確認</a>` : ''}</span>
 <span class="badge ${destOk ? 'ok' : 'ng'}">${destOk ? esc(p.destName) : '未入力'}</span></summary>
