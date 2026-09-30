@@ -157,10 +157,10 @@ details.more > summary { align-items: center; }
 .pg-letter { display: inline-flex; width: 20px; height: 20px; border-radius: 50%; color: #fff; font-size: 11px; font-weight: 900; align-items: center; justify-content: center; }
 .pg { display: inline-flex; align-items: center; gap: 3px; border: 0; border-radius: 999px; padding: 3px 9px 3px 6px; font-size: 12px; font-weight: 700; cursor: pointer; }
 .pg .pg-mark { display: inline-flex; width: 16px; height: 16px; border-radius: 50%; align-items: center; justify-content: center; font-size: 11px; }
-.pg.done { background: #E4F2F1; color: var(--teal-d); }
-.pg.done .pg-mark { background: var(--teal); color: #fff; }
-.pg.todo { background: var(--warn-bg); color: var(--warn); }
-.pg.todo .pg-mark { border: 1.5px solid var(--warn); }
+.pg.done { background: #E6F5E9; color: #1F7A37; }
+.pg.done .pg-mark { background: #2FA24F; color: #fff; }
+.pg.todo { background: #F1F1EE; color: #A3A9AD; font-weight: 500; }
+.pg.todo .pg-mark { border: 1.5px dashed #BFC4C7; color: transparent; }
 .pg:hover { filter: brightness(.96); }
 .card[id] { scroll-margin-top: 90px; }
 /* 進み具合を詰めて1行に収める */
