@@ -577,12 +577,16 @@ ${coordStatus(names)}
     }).join('');
     const propOk = prop.name && prop.lat !== '' && prop.lat != null;
     return `
-<details class="card cond-card" id="sec-p1-prop" open><summary><span class="step">1</span>物件を入力<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
+<details class="card cond-card" id="sec-p1-cond" open><summary><span class="step">1</span>条件</summary>
 <div class="card-b">
 <div class="grid align-end">
 ${field('チェックイン日<br><small>未入力なら翌月1日</small>', inp('p1.checkIn', { type: 'date' }))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
+<p class="muted" style="margin:0">料金は、チェックイン日から「1か月」「3か月」の2通りを自動で出します。</p>
+</div></details>
+<details class="card prop-card" style="--pc:${COLORS[0]};--pbg:${TINTS[0]}" id="sec-p1-prop" ${ui.open.p1prop === false ? '' : 'open'} data-ui="p1prop"><summary><span class="prop-letter" style="background:${COLORS[0]}">物</span>物件<span class="badge ${propOk ? 'ok' : 'ng'}">${propOk ? esc(prop.name) : '未入力'}</span></summary>
+<div class="card-b">
 ${renderPropEditor('p1.property', prop, { simple: true })}
 </div></details>
 <details class="card" id="sec-p1-routes" open><summary><span class="step">2</span>主要駅までの所要時間<span class="badge ${sel.length ? 'ok' : 'ng'}">${sel.length ? `${sel.length}駅を表示` : '未入力'}</span></summary>
