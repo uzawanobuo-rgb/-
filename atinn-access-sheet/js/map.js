@@ -73,8 +73,25 @@
   //              callout:{ title, minutes, transfers } }],
   //   landmarks: true|false, yamanote: true|false
   // }
+  // 何通りかの拡大率で配置してみて、ラベルの重なりが増えない範囲でいちばん大きく描く
   function renderMap(spec) {
+    let best = null;
+    // 縦が窮屈なときは、横だけ少し広げてもよい（最大1.3倍。東西・南北の向きは変わらない）
+    for (const k of [1, 1.12, 1.25, 1.4, 1.55, 1.7, 1.85, 2]) {
+      for (const f of [1, 1.15, 1.3]) {
+        const r = renderMapOnce(spec, k * f, k);
+        if (r.bad >= 1e5) continue; // 線や駅が枠からはみ出す
+        // 拡大するほど見やすいので、拡大の分だけ少しの重なりは許す。横だけの引き伸ばしは控えめに評価
+        const score = r.bad - (k - 1) * 1500 - (f - 1) * 900;
+        if (!best || score < best.score) best = { score, svg: r.svg };
+      }
+    }
+    return best ? best.svg : renderMapOnce(spec, 1, 1).svg;
+  }
+
+  function renderMapOnce(spec, zoomX, zoomY) {
     const W = spec.width || 1043, H = spec.height || 468;
+    let bad = 0; // 配置の悪さ（重なり・線とのかぶり）
     const mode = spec.mode;
     const center = spec.center;
     const routes = (spec.routes || []).map((r, i) => Object.assign({ color: ROUTE_COLORS[i % 3], idx: i }, r));
@@ -90,7 +107,18 @@
     const mx = mode === 'p2' ? 150 : 130;
     const box = { x0: mx, y0: 70, x1: W - mx, y1: H - 60 };
     const proj = Geo.makeProjection(center, fitPts.length ? fitPts : [{ lat: center.lat + 0.01, lng: center.lng + 0.01 }], box, { maxA: 110 });
-    const P = p => proj.project(p);
+    // 拡大：物件・駅の範囲の中心を基準に広げ、はみ出したら枠内へずらす
+    const P0 = p => proj.project(p);
+    const fp0 = [P0(center)].concat(fitPts.map(P0));
+    const bx0 = Math.min.apply(null, fp0.map(q => q.x)), bx1 = Math.max.apply(null, fp0.map(q => q.x));
+    const by0 = Math.min.apply(null, fp0.map(q => q.y)), by1 = Math.max.apply(null, fp0.map(q => q.y));
+    const zx = (bx0 + bx1) / 2, zy = (by0 + by1) / 2;
+    const edge = { x: 40, top: 40, bottom: 44 };
+    const fit = (lo, hi, min, max) => (hi - lo > max - min ? null : lo < min ? min - lo : hi > max ? max - hi : 0);
+    const sx = fit(zx + (bx0 - zx) * zoomX, zx + (bx1 - zx) * zoomX, edge.x, W - edge.x);
+    const sy = fit(zy + (by0 - zy) * zoomY, zy + (by1 - zy) * zoomY, edge.top, H - edge.bottom);
+    if (sx === null || sy === null) return { bad: 1e9, svg: '' };
+    const P = p => { const q = P0(p); return { x: zx + (q.x - zx) * zoomX + sx, y: zy + (q.y - zy) * zoomY + sy }; };
     const cP = P(center);
 
     // 2. 山手線の輪
@@ -169,6 +197,8 @@
       }
     });
     drawn.forEach(d => L.addPath(d.pts));
+    // 線が枠の外に出る配置（山手線まわりの区間など）は避ける
+    drawn.forEach(d => d.pts.forEach(q => { if (q.x < 10 || q.x > W - 10 || q.y < 10 || q.y > H - 10) bad += 2000; }));
 
     // 4. 固定の占有領域（中心・駅・物件マーカー）
     const cMarkR = mode === 'p2' ? 20 : 16;
@@ -179,19 +209,8 @@
     // 北矢印・凡例（点の少ない隅に置く）
     const hasBus = routes.some(r => r.legs.some(l => l.mode === 'bus'));
     const legRows = hasBus ? ['train', 'bus', 'walk'] : ['train', 'walk'];
-    const legendH = legRows.length * 22 + 10, legendW = 94;
-    const northR = { x0: W - 48, y0: 20, x1: W - 16, y1: 76 };
-    L.add(northR, 2);
-    const legendCands = [
-      { x: W - 60 - legendW, y: 14 }, { x: W - 16 - legendW, y: H - 30 - legendH }, { x: 16, y: 14 }, { x: 16, y: H - 30 - legendH },
-    ];
-    let legendPos = legendCands[0], best = Infinity;
-    for (const c of legendCands) {
-      const rr = { x0: c.x, y0: c.y, x1: c.x + legendW, y1: c.y + legendH };
-      const cost = L.cost(rr, { segWeight: 300 });
-      if (cost < best) { best = cost; legendPos = c; }
-    }
-    L.add({ x0: legendPos.x, y0: legendPos.y, x1: legendPos.x + legendW, y1: legendPos.y + legendH }, 2);
+    // 凡例と北の矢印は1つの箱にまとめ、ラベルを置いたあとで空いている場所に置く（下の 9.5）
+    const legendH = Math.max(legRows.length * 22 + 10, 60), legendW = 128;
 
     // 5. 中心のラベル（物件名／目的地）
     const cName = center.name || '';
@@ -217,6 +236,7 @@
         const cost = L.cost(rr, { segWeight: 250 });
         if (cost < bc) { bc = cost; cLabel = Object.assign({ w, h }, c); }
       }
+      bad += bc * 2;
       L.add({ x0: cLabel.x, y0: cLabel.y, x1: cLabel.x + w, y1: cLabel.y + h }, 3);
     }
 
@@ -224,8 +244,8 @@
     const callouts = [];
     ends.forEach(e => {
       const co = e.r.callout || {};
-      const w = mode === 'p2' ? Math.max(250, textW(co.title, 13) + 40) : Math.max(170, textW(co.title, 22) + 110);
-      const h = mode === 'p2' ? 76 : 70;
+      const w = mode === 'p2' ? Math.max(180, textW(co.title, 13) + 30) : Math.max(170, textW(co.title, 22) + 110);
+      const h = mode === 'p2' ? 62 : 70;
       const out = { x: e.p.x - cP.x, y: e.p.y - cP.y };
       const ol = Math.hypot(out.x, out.y) || 1;
       let bestC = null, bcost = Infinity;
@@ -241,7 +261,11 @@
           if (cost < bcost) { bcost = cost; bestC = rr; }
         }
       }
+      bad += L.cost(bestC, { segWeight: 500 }) * 2;
       L.add(bestC, 3);
+      // 引き出し線も、あとから置く駅名などが避けるようにする
+      const nx = Math.max(bestC.x0, Math.min(e.p.x, bestC.x1)), ny = Math.max(bestC.y0, Math.min(e.p.y, bestC.y1));
+      if (Math.hypot(nx - e.p.x, ny - e.p.y) > 16) L.segs.push({ p: e.p, q: { x: nx, y: ny } });
       callouts.push({ e, rect: bestC, co, w, h });
     });
 
@@ -262,14 +286,22 @@
         { x: s.p.x, y: s.p.y - 16, anchor: 'middle' },
         { x: s.p.x + 12, y: s.p.y + 24, anchor: 'start' },
         { x: s.p.x - 12, y: s.p.y - 14, anchor: 'end' },
+        // 物件マーカーなどが近くて置けないときの、少し離れた位置
+        { x: s.p.x + 30, y: s.p.y + size * 0.35, anchor: 'start', far: 1 },
+        { x: s.p.x - 30, y: s.p.y + size * 0.35, anchor: 'end', far: 1 },
+        { x: s.p.x, y: s.p.y + 42, anchor: 'middle', far: 1 },
+        { x: s.p.x, y: s.p.y - 32, anchor: 'middle', far: 1 },
+        { x: s.p.x + 22, y: s.p.y + 36, anchor: 'start', far: 1 },
+        { x: s.p.x - 22, y: s.p.y - 26, anchor: 'end', far: 1 },
       ];
       let bl = null, bc = Infinity;
       for (const c of cands) {
         const x0 = c.anchor === 'start' ? c.x : c.anchor === 'end' ? c.x - w : c.x - w / 2;
         const rr = { x0, y0: c.y - size, x1: x0 + w, y1: c.y + 3 };
-        const cost = L.cost(rr, { segWeight: 120, bottom: 4, margin: 2 });
+        const cost = L.cost(rr, { segWeight: 120, bottom: 4, margin: 2 }) + (c.far ? 60 : 0);
         if (cost < bc) { bc = cost; bl = { c, rr }; }
       }
+      bad += bc;
       L.add(bl.rr, 2);
       stLabels.push({ s, size, pos: bl.c });
     });
@@ -326,7 +358,8 @@
         }
       }
       }
-      if (bestL && (bc < 1000 || ll.bus)) { L.add(bestL.rr, 1); lineLabels.push({ ll, c: bestL, size }); }
+      if (bestL && (bc < 1000 || ll.bus)) { bad += bc; L.add(bestL.rr, 1); lineLabels.push({ ll, c: bestL, size }); }
+      else bad += 400; // 路線名を書けなかった
     });
 
     // 9. 山手線の駅名（グレー）
@@ -374,6 +407,25 @@
           if (L.cost(rr, { segWeight: 0, bottom: 4 }) === 0) { L.add(rr, 1); ringName = { x, y }; break outer; }
         }
       }
+    }
+
+    // 9.5 凡例と北（線や文字のない場所。四隅を少し優先）
+    let legendPos = null;
+    {
+      let bc = Infinity;
+      const xs = [], ys = [];
+      for (let x = 12; x <= W - 12 - legendW; x += 24) xs.push(x);
+      xs.push(W - 12 - legendW);
+      for (let y = 12; y <= H - 26 - legendH; y += 20) ys.push(y);
+      ys.push(H - 26 - legendH);
+      for (const x of xs) for (const y of ys) {
+        const rr = { x0: x, y0: y, x1: x + legendW, y1: y + legendH };
+        const edgeD = Math.min(x - 12, W - 12 - legendW - x) + Math.min(y - 12, H - 26 - legendH - y);
+        const cost = L.cost(rr, { segWeight: 300, margin: 4, bottom: 20 }) + edgeD * 0.3;
+        if (cost < bc) { bc = cost; legendPos = { x, y }; }
+      }
+      bad += Math.max(0, bc - 200);
+      L.add({ x0: legendPos.x, y0: legendPos.y, x1: legendPos.x + legendW, y1: legendPos.y + legendH }, 2);
     }
 
     // 10. ランドマーク（低優先。重なるものは外す）
@@ -464,9 +516,9 @@
       const mins = co.minutes != null && co.minutes !== '' ? co.minutes : '–';
       s.push(`<g><rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${h}" rx="12" fill="${col.fill}" stroke="${col.line}" stroke-width="1.5"/>`);
       if (mode === 'p2') {
-        s.push(`<text x="${r1(x + 16)}" y="${r1(y + 26)}" font-size="13" font-weight="700" fill="${C.sub}">${esc(co.title)}</text>`);
-        s.push(`<text x="${r1(x + 16)}" y="${r1(y + 60)}" font-size="14" font-weight="700" fill="${col.text}">約<tspan font-size="28" font-weight="900">${esc(mins)}</tspan>分</text>`);
-        s.push(`<text x="${r1(x + w - 14)}" y="${r1(y + 60)}" text-anchor="end" font-size="11" font-weight="700" fill="${col.text}">${tr}</text></g>`);
+        s.push(`<text x="${r1(x + 14)}" y="${r1(y + 21)}" font-size="13" font-weight="700" fill="${C.sub}">${esc(co.title)}</text>`);
+        s.push(`<text x="${r1(x + 14)}" y="${r1(y + 51)}" font-size="14" font-weight="700" fill="${col.text}">約<tspan font-size="28" font-weight="900">${esc(mins)}</tspan>分</text>`);
+        s.push(`<text x="${r1(x + w - 14)}" y="${r1(y + 51)}" text-anchor="end" font-size="12" font-weight="700" fill="${col.text}">${tr}</text></g>`);
       } else {
         s.push(`<text x="${r1(x + 16)}" y="${r1(y + 30)}" font-size="22" font-weight="900" fill="${C.text}">${esc(co.title)}</text>`);
         s.push(`<text x="${r1(x + 16)}" y="${r1(y + 59)}" font-size="14" font-weight="700" fill="${col.text}">約<tspan font-size="26" font-weight="900">${esc(mins)}</tspan>分</text>`);
@@ -516,10 +568,11 @@
         s.push(`<line x1="0" y1="${y}" x2="34" y2="${y}" stroke="${C.sub}" ${st} stroke-linecap="round"/><text x="44" y="${y + 4}">${k === 'train' ? '電車' : k === 'bus' ? 'バス' : '徒歩'}</text>`);
       });
       s.push(`</g>`);
-      s.push(`<g transform="translate(${W - 33},40)" fill="none" stroke="${C.gray}" stroke-width="1.5"><line x1="0" y1="14" x2="0" y2="-12"/><polyline points="-6,-4 0,-12 6,-4"/></g><text x="${W - 33}" y="70" text-anchor="middle" font-size="11" fill="${C.gray}">N</text>`);
+      const nx = lx + legendW - 22, ny = ly + legendH / 2 - 6;
+      s.push(`<g transform="translate(${r1(nx)},${r1(ny)})" fill="none" stroke="${C.gray}" stroke-width="1.5"><line x1="0" y1="12" x2="0" y2="-14"/><polyline points="-6,-6 0,-14 6,-6"/></g><text x="${r1(nx)}" y="${r1(ny + 27)}" text-anchor="middle" font-size="11" fill="${C.gray}">N</text>`);
     }
     s.push('</svg>');
-    return s.join('\n');
+    return { bad, svg: s.join('\n') };
   }
 
   function isYamanote(lg) { return lg && lg.mode !== 'bus' && /山手線/.test(lg.line || ''); }

@@ -467,7 +467,7 @@ ${(prop.photos || []).length ? '' : '<span class="muted">取り込んだ写真�
 <div class="grid g4">
 ${priceField('dailyList', '利用料/日（定価）')}${priceField('dailyCampaign', 'キャンペーン/日')}
 ${priceField('rentList', '賃料/日')}${priceField('utilities', '水道光熱費/日')}
-${priceField('cleaningList', '清掃料（定価）')}${priceField('cleaningCampaign', '清掃キャンペーン')}
+${priceField('cleaningList', '清掃費（定価）')}${priceField('cleaningCampaign', '清掃キャンペーン')}
 ${priceField('insurancePerMonth', '住宅保険/月')}
 </div>
 <p class="muted" style="margin:0">キャンペーン価格があればそれを使います（期間表記はチェックしません）。</p>
@@ -540,12 +540,11 @@ ${field('乗車（分）<br><small>電車・バス（乗換込み）</small>', i
 </div>
 <table class="mini"><thead><tr><th>手段</th><th>路線</th><th>降車駅（乗換駅）</th><th></th></tr></thead><tbody>${legRows}</tbody></table>
 <div class="row"><button type="button" class="btn small" data-action="add-leg" data-path="${path}">＋ 乗換を追加</button></div>
-<div class="grid g4">
+<div class="grid g4 align-end">
 ${field('表示する分 <small>任意</small>', inp(`${path}.display`, { type: 'number', ph: String(info.total ?? '') }))}
 ${field('乗換回数 <small>任意</small>', inp(`${path}.transfers`, { type: 'number', ph: String(legs.length - 1) }))}
-${field('出典URL', inp(`${path}.source`, { type: 'url', ph: '調べたページのURL' }), 'span2')}
+${/^https?:\/\//.test(route.source || '') ? `<div class="f span2"><span>出典</span><div class="row"><a class="btn small" href="${esc(route.source)}" target="_blank" rel="noopener">${/transit\.yahoo\.co\.jp/.test(route.source) ? 'Yahoo!乗換案内' : '出典ページ'} ↗</a></div></div>` : ''}
 </div>
-${route.source ? `<div class="row"><a class="muted" href="${esc(route.source)}" target="_blank" rel="noopener">出典を開く ↗</a></div>` : ''}
 ${o.excludable ? `<label class="row muted"><input type="checkbox" data-bind="${path}.exclude" ${route.exclude ? 'checked' : ''}> この駅はシートに載せない</label>` : ''}
 ${coordStatus(names)}
 </div>`;
@@ -637,7 +636,7 @@ ${renderTextCard('p1', built.model)}`;
 ${renderPropEditor(`p2.properties.${i}`, prop, { simple: true, photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
 <div class="sub-h">${esc(p.destName || '目的地')}までの所要時間</div>
 ${renderRouteEditor(`p2.routes.${i}`, r, { id: 'p2-' + i, head: `<b>${LETTERS[i]}${prop.name ? ' ' + esc(prop.name) : ''} → ${esc(p.destName || '目的地')}</b>`, toName: p.destName, searchTo: destSearchName(), missing: '上の「1 目的地と条件」で目的地を入れると検索できます', stations: prop.stations, fromCoord: coord })}
-${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row"><button type="button" class="btn small" data-action="clear-prop" data-i="${i}">この物件を空にする</button></div>` : ''}
+${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row trash-row"><button type="button" class="trash" data-action="clear-prop" data-i="${i}" title="この物件を空にする" aria-label="この物件を空にする"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg></button></div>` : ''}
 </div></details>`;
     }).join('');
     return `
