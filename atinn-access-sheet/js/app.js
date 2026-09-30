@@ -540,7 +540,7 @@ ${coordStatus(names)}
 ${field('チェックイン日<br><small>未入力なら翌月1日</small>', inp('p1.checkIn', { type: 'date' }))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
-${renderPropEditor('p1.property', prop, {})}
+${renderPropEditor('p1.property', prop, { simple: true })}
 </div></details>
 <details class="card" open><summary><span class="step">2</span>主要駅までの所要時間<span class="badge ${sel.length ? 'ok' : 'ng'}">${sel.length ? `${sel.length}駅を表示` : '未入力'}</span></summary>
 <div class="card-b">
