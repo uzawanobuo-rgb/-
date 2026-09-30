@@ -442,18 +442,19 @@ ${stTable}
   }
 
   // 平日（翌月1日以降の最初の平日）10:00発、有料特急・新幹線・高速バス・飛行機なし
-  function yahooUrl(fromName, toName) {
+  // toCoord があれば、行き先をその位置に固定する（名前だけだと同じ名前の別の場所になることがある）
+  function yahooUrl(fromName, toName, toCoord) {
     let t = Calc.parse(Calc.defaultCheckIn());
     while ([0, 6].includes(new Date(t).getUTCDay())) t += 86400000;
     const d = new Date(t), pad = n => String(n).padStart(2, '0');
     // 駅名なら「〇〇駅」で検索（同名の地名と区別）。住所・施設名はそのまま
     const isStation = n => !!(GEO.stations[n] || state.stationCoords[n]);
     const st = (n, force) => /駅$|バス|〔/.test(n) ? n : (force || isStation(n)) ? n + '駅' : n;
-    return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(st(fromName, true))}&to=${encodeURIComponent(st(toName))}&y=${d.getUTCFullYear()}&m=${pad(d.getUTCMonth() + 1)}&d=${pad(d.getUTCDate())}&hh=10&m1=0&m2=0&type=1&ticket=ic&expkind=1&ws=3&s=0&al=0&shin=0&ex=0&hb=0&lb=1&sr=1`;
+    return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(st(fromName, true))}&to=${encodeURIComponent(st(toName))}&y=${d.getUTCFullYear()}&m=${pad(d.getUTCMonth() + 1)}&d=${pad(d.getUTCDate())}&hh=10&m1=0&m2=0&type=1&ticket=ic&expkind=1&ws=3&s=0&al=0&shin=0&ex=0&hb=0&lb=1&sr=1${toCoord ? `&tlatlon=${toCoord.lat},${toCoord.lng}` : ''}`;
   }
-  function searchLinks(fromName, toName, missing, path) {
+  function searchLinks(fromName, toName, missing, path, toCoord) {
     if (fromName && toName) {
-      return `<a class="btn primary small" target="_blank" href="${esc(yahooUrl(fromName, toName))}" data-action="yahoo" data-path="${esc(path || '')}" data-to="${esc(toName)}">Yahoo!乗換案内で検索</a>
+      return `<a class="btn primary small" target="_blank" href="${esc(yahooUrl(fromName, toName, toCoord))}" data-action="yahoo" data-path="${esc(path || '')}" data-to="${esc(toName)}">Yahoo!乗換案内で検索</a>
 <span class="muted">結果のページでブックマーク「乗換取込」を押すと、自動で入ります</span>`;
     }
     // ボタンは消さずに、足りないものを示す
@@ -478,7 +479,7 @@ ${stTable}
 <div class="route-h">${o.head}
 <span class="total">合計 <b>${info.total ?? '–'}</b>分${info.display !== null && info.display !== info.total ? `（表示 ${info.display}分）` : ''}・${info.transfers === 0 ? '乗換なし' : info.transfers != null ? `乗換${info.transfers}回` : '–'}</span></div>
 <div class="transit-box">
-<div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.missing, path)}</div>
+<div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.missing, path, o.searchCoord)}</div>
 <div class="row muted">${route.note && /Yahoo/.test(route.note) ? `<span>✓ ${esc(route.note)}</span>` : ''}
 ${(() => { const g = path.startsWith('p2.') && Sheet.routeEndGap(state, route); return g ? `<span class="warn-t">経路が「${esc(g.name)}」までのままです（目的地から約${g.km.toFixed(1)}km）→ 検索し直してください</span>` : ''; })()}
 <button type="button" class="linkish" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}" title="「乗換取込」でコピーした経路を読み込みます">自動で入らないとき：コピーした経路を読み込む</button></div>
@@ -575,6 +576,14 @@ ${renderTextCard('p1', built.model)}`;
     if (n && (GEO.stations[n] || state.stationCoords[n])) return n;
     return p.destName || '';
   }
+  // 検索先が駅ではない（住所・場所の名前）ときは、目的地の位置で行き先を固定する
+  function destSearchCoord() {
+    const p = state.p2;
+    if (p.destLat === '' || p.destLat == null || p.destLng === '' || p.destLng == null) return null;
+    const n = destSearchName().replace(/駅$/, '');
+    if (GEO.stations[n] || state.stationCoords[n]) return null;
+    return { lat: p.destLat, lng: p.destLng };
+  }
   function renderP2() {
     const p = state.p2;
     const built = Sheet.buildP2(viewState());
@@ -589,7 +598,7 @@ ${renderTextCard('p1', built.model)}`;
 <div class="card-b">
 ${renderPropEditor(`p2.properties.${i}`, prop, { simple: true, photos: true, tag: true, tagPh: (built.model.tags[i] || []).join('、') || '例：運河沿い・11階建' })}
 <div class="sub-h">${esc(p.destName || '目的地')}までの所要時間</div>
-${renderRouteEditor(`p2.routes.${i}`, r, { id: 'p2-' + i, head: `<b>${LETTERS[i]}${prop.name ? ' ' + esc(prop.name) : ''} → ${esc(p.destName || '目的地')}</b>`, toName: p.destName, searchTo: destSearchName(), missing: '上の「1 目的地と条件」で目的地を入れると検索できます', stations: prop.stations, fromCoord: coord })}
+${renderRouteEditor(`p2.routes.${i}`, r, { id: 'p2-' + i, head: `<b>${LETTERS[i]}${prop.name ? ' ' + esc(prop.name) : ''} → ${esc(p.destName || '目的地')}</b>`, toName: p.destName, searchTo: destSearchName(), searchCoord: destSearchCoord(), missing: '上の「1 目的地と条件」で目的地を入れると検索できます', stations: prop.stations, fromCoord: coord })}
 ${i > 0 || p.properties.filter(x => x.name).length ? `<div class="row trash-row"><button type="button" class="trash" data-action="clear-prop" data-i="${i}" title="この物件を空にする" aria-label="この物件を空にする"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"/></svg></button></div>` : ''}
 </div></details>`;
     }).join('');
