@@ -480,6 +480,7 @@ ${stTable}
 <div class="transit-box">
 <div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.missing, path)}</div>
 <div class="row muted">${route.note && /Yahoo/.test(route.note) ? `<span>✓ ${esc(route.note)}</span>` : ''}
+${(() => { const g = path.startsWith('p2.') && Sheet.routeEndGap(state, route); return g ? `<span class="warn-t">経路が「${esc(g.name)}」までのままです（目的地から約${g.km.toFixed(1)}km）→ 検索し直してください</span>` : ''; })()}
 <button type="button" class="linkish" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}" title="「乗換取込」でコピーした経路を読み込みます">自動で入らないとき：コピーした経路を読み込む</button></div>
 </div>
 <div class="grid g4 align-end">
@@ -567,10 +568,12 @@ ${renderTextCard('p1', built.model)}`;
     toast('目的地の地図の位置を入れました：' + (r.title || ''));
   }
 
+  // 検索先：住所・地名（GoogleマップのURLで入れた場所の名前など）があればそれ。駅から先の徒歩も所要時間に入る
   function destSearchName() {
     const p = state.p2, n = String(p.destName || '').replace(/駅$/, '');
+    if (String(p.destAddress || '').trim()) return p.destAddress.trim();
     if (n && (GEO.stations[n] || state.stationCoords[n])) return n;
-    return p.destAddress || p.destName || '';
+    return p.destName || '';
   }
   function renderP2() {
     const p = state.p2;
@@ -900,9 +903,11 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     }
     const p2 = state.p2;
     p2.destLat = r.lat; p2.destLng = r.lng; p2.destAuto = false;
+    if (r.name) p2.destAddress = r.name; // 経路の検索先もこの場所にする
     if (!p2.destName && r.name) p2.destName = r.name;
     persist(); renderForm(); renderPreview();
-    toast(`目的地の位置を${r.name ? `「${r.name}」` : 'ピンの場所'}にしました（${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}）`);
+    const stale = p2.routes.some(rt => Sheet.routeEndGap(state, rt));
+    toast(`目的地の位置${r.name ? `と検索先を「${r.name}」` : 'をピンの場所'}にしました（${r.lat.toFixed(5)}, ${r.lng.toFixed(5)}）${stale ? '。経路が前の目的地のままの物件は、検索し直してください' : ''}`);
   }
 
   // 乗換取込の結果を経路に入れる
@@ -926,9 +931,10 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     route.source = r.url || route.source;
     route.note = `Yahoo!乗換案内から取込（${r.dep}発・乗車${r.ride}分・乗換${r.transfers}回）`;
     persist(); renderForm(); renderPreview(); autoResolveStations();
-    const want = String(toName || '').replace(/駅$/, '');
+    const sp = v => String(v || '').replace(/[\s　]/g, '');
+    const want = sp(toName).replace(/駅$/, '');
     const msgs = [`${r.from} → ${r.to}：乗車${r.ride}分・乗換${r.transfers === 0 ? 'なし' : r.transfers + '回'}を入れました`];
-    if (want && r.to !== want && !r.to.startsWith(want)) msgs.push(`（行き先が「${r.to}」です。${want}の検索結果か確認してください）`);
+    if (want && sp(r.to) !== want && !sp(r.to).startsWith(want)) msgs.push(`（行き先が「${r.to}」です。${want}の検索結果か確認してください）`);
     if (route.walk === '') msgs.push(`「${r.from}」は物件の最寄駅にないので、徒歩（分）を入れてください`);
     // 古いブックマーク（貼り付け式）からの取込なら、新しいブックマークを案内する
     if (!pat && !/"bm":\s*3/.test(text)) msgs.push('　※ブックマーク「乗換取込」を登録し直すと、貼り付けなしで自動で入るようになります（使い方の欄から再ドラッグ）');

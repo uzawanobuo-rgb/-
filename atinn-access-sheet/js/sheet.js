@@ -59,6 +59,21 @@
     return out;
   }
 
+  // 経路の終わりの駅が目的地から離れすぎていないか（目的地を変えたのに経路が古いまま、など）
+  // 離れていれば { name, km } を返す。駅から歩ける範囲（1.2km）なら null
+  function routeEndGap(state, r) {
+    const p2 = state.p2 || {};
+    if (!r || p2.destLat === '' || p2.destLat == null || p2.destLng === '' || p2.destLng == null) return null;
+    const legs = (r.legs || []).filter(l => l && l.to);
+    if (!legs.length) return null;
+    const name = legs[legs.length - 1].to;
+    const c = makeResolver(state)(name);
+    if (!c) return null;
+    const dy = (c.lat - p2.destLat) * 111, dx = (c.lng - p2.destLng) * 111 * Math.cos(p2.destLat * Math.PI / 180);
+    const km = Math.hypot(dx, dy);
+    return km > 1.2 ? { name: c.name, km } : null;
+  }
+
   function header(title, sub, right) {
     return `<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;">
 <div style="display:flex;flex-direction:column;gap:2px;min-width:0;">
@@ -226,6 +241,8 @@
     let svg;
     if (dest) {
       const routes = items.map(x => {
+        const gap = routeEndGap(state, x.r);
+        if (gap) warnings.push(`${x.letter}：経路が「${gap.name}」までで、目的地から約${gap.km.toFixed(1)}km離れています。目的地を変えたときは、Yahoo!乗換案内で検索し直してください`);
         const mr = x.prop.lat != null && x.prop.lat !== '' ? mapRoute(x.r, x.info, resolve, x.r.alight || destName, dest, warnings, x.letter) : { legs: [] };
         if (x.prop.lat == null || x.prop.lat === '') { warnings.push(`${x.letter}：物件の座標が未入力です`); return null; }
         mr.origin = { lat: +x.prop.lat, lng: +x.prop.lng, name: x.prop.name, letter: x.letter };
@@ -294,7 +311,7 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     return state.pattern === 'p2' ? buildP2(state) : buildP1(state);
   }
 
-  const M = { buildSheet, buildP1, buildP2, routeInfo, makeResolver, autoTags, shortLine };
+  const M = { buildSheet, buildP1, buildP2, routeInfo, makeResolver, routeEndGap, autoTags, shortLine };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnSheet = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
