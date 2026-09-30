@@ -174,7 +174,8 @@
         let toP = P(lg.to);
         let extraWalk = null;
         if (mode === 'p2' && last) {
-          if (kmDist(lg.to, center) < 0.35) toP = cP;
+          // 降りた駅が目的地そのもの（80m以内）なら目的地に直接つなぐ。離れていれば駅を描き、目的地まで徒歩の点線
+          if (kmDist(lg.to, center) < 0.08) toP = cP;
           else extraWalk = [toP, cP];
         }
         let pts = (lg._ring && ringIdx[lg._from] != null) ? ringPath(lg._from, lg.to.name) : Geo.octiSegment(prevP, toP, cP);
