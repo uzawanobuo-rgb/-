@@ -59,3 +59,25 @@ test('画面表示で要約が2行に分かれていても読める', () => {
   const t = page('hiroo-shinagawa.txt').replace(/着(\d+分（乗車)/g, '着\n$1');
   assert.equal(P.parseTransit(t).ride, 22);
 });
+
+test('乗換取込：到着地点・乗車地点の位置を地図リンクから読む（行き先が想定の場所かの確認用）', () => {
+  const fs = require('node:fs');
+  const html = fs.readFileSync(require('node:path').join(__dirname, '../testdata/transit_pages/hiroo-shinagawa.srline.html'), 'utf8');
+  const r = require('../js/parse.js').parseTransit(JSON.stringify({ v: 2, html, text: '' }));
+  assert.equal(r.to, '品川');
+  assert.ok(Math.abs(r.toCoord.lat - 35.6285) < 0.001 && Math.abs(r.toCoord.lng - 139.7387) < 0.001);
+  assert.ok(Math.abs(r.fromCoord.lat - 35.6522) < 0.001);
+});
+
+test('乗換取込：Yahoo!の到着地点が目的地から離れていれば知らせる', () => {
+  const Sheet = require('../js/sheet.js');
+  const st = require('../js/samples.js').p2();
+  st.p2.destLat = 35.7075; st.p2.destLng = 139.8395; // 平井
+  const r = st.p2.routes[0];
+  r.arrive = { name: '葛西内科皮膚科クリニック', lat: 35.66439, lng: 139.86945 };
+  const g = Sheet.routeEndGap(st, r);
+  assert.equal(g.arrive, true);
+  assert.ok(g.km > 5);
+  r.arrive = { name: '医療法人社団俊爽会', lat: 35.7075, lng: 139.8395 };
+  assert.equal(Sheet.routeEndGap(st, r), null);
+});

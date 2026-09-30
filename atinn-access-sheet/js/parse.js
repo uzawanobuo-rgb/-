@@ -245,6 +245,9 @@
           continue;
         }
         const last = pts[pts.length - 1];
+        // 「地図」リンクの位置（htmlToText が 地図@緯度,経度 にしたもの）
+        const mc = /^地図@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$/.exec(x);
+        if (mc) { if (last) { last.real = true; last.coord = { lat: +mc[1], lng: +mc[2] }; } continue; }
         if (/^(時刻表|出口|地図)$|^出口[:：]/.test(x)) { if (last) last.real = true; continue; }
         if (SKIP.test(x)) continue;
         if (expectPoint) {
@@ -269,7 +272,7 @@
       if (ride < 0) ride += 24 * 60;
       routes.push({
         dep: m[1], arr: m[2], total: +m[3], ride, transfers: transfers ?? (rideIdx.length - 1), initialWalk,
-        from: board.name, to: last.name,
+        from: board.name, to: last.name, toCoord: last.coord || null, fromCoord: board.coord || null,
         legs: rideIdx.map(k => ({ mode: /バス/.test(segs[k].line) ? 'bus' : 'train', line: cleanLine(segs[k].line), to: (points[k + 1] || last).name })),
       });
     }
@@ -279,6 +282,12 @@
   // HTML → 行のリスト（ページの見た目＝CSSに左右されないよう、タグの種類だけで改行を決める）
   function htmlToText(html) {
     let t = String(html || '').replace(/<!--[\s\S]*?-->/g, '').replace(/<(script|style|noscript)[\s\S]*?<\/\1>/gi, '');
+    // Yahoo!乗換案内の各地点の「地図」リンクには位置が入っている。行き先が想定の場所かを確かめるために残す
+    t = t.replace(/<a\b[^>]*href="([^"]*map\.yahoo\.co\.jp\/place\?[^"]*)"[^>]*>\s*地図\s*<\/a>/gi, (m0, href) => {
+      const h = href.replace(/&amp;/g, '&');
+      const la = /[?&]lat=(-?\d+(?:\.\d+)?)/.exec(h), lo = /[?&]lon=(-?\d+(?:\.\d+)?)/.exec(h);
+      return la && lo ? `\n地図@${la[1]},${lo[1]}\n` : m0;
+    });
     t = t.replace(/<br\s*\/?>|<\/(li|div|p|dd|dt|dl|ul|ol|tr|h\d|section|table)>|<(li|div|p|dd|dt|dl|ul|ol|tr|h\d|section|table)\b[^>]*>/gi, '\n');
     t = t.replace(/<[^>]+>/g, '');
     t = t.replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&#x27;/g, "'").replace(/&amp;/g, '&');
