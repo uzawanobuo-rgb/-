@@ -101,3 +101,15 @@ test('日付の手入力：年を省いたら基準日以降でいちばん近�
   assert.equal(Calc.parseDateInput('abc'), null);
   assert.equal(Calc.showDate('2026-10-05'), '2026/10/5（月）');
 });
+
+test('目的地を変えたのに経路が前の目的地までのままなら知らせる', () => {
+  const Sheet = require('../js/sheet.js');
+  const Samples = require('../js/samples.js');
+  const st = Samples.p2();
+  assert.equal(Sheet.buildSheet(st).warnings.filter(w => /検索し直して/.test(w)).length, 0);
+  st.p2.destName = '平井'; st.p2.destLat = 35.7065; st.p2.destLng = 139.8425; // 経路は大手町までのまま
+  const g = Sheet.routeEndGap(st, st.p2.routes[0]);
+  assert.equal(g.name, '大手町');
+  assert.ok(g.km > 5);
+  assert.equal(Sheet.buildSheet(st).warnings.filter(w => /検索し直して/.test(w)).length, 3);
+});
