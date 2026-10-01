@@ -21,7 +21,7 @@
     return {
       v: 1, pattern: 'p1', persons: 1, baseDate: Calc.todayStr(), checkIn: '', checkOut: '', customer: '', // 利用期間・お客様名はパターン1・2で共通
       p1: { checkIn: Calc.defaultCheckIn(), property: emptyProp(), routes: {}, headline: '', subheadline: '', note: '' },
-      p2: { destName: '', destLabel: 'お勤め先', destAddress: '', destLat: '', destLng: '', customer: '', checkIn: '', checkOut: '', properties: [emptyProp(), emptyProp(), emptyProp()], routes: [emptyRoute(), emptyRoute(), emptyRoute()], headline: '', subheadline: '', note: '' },
+      p2: { compare: false, destName: '', destLabel: 'お勤め先', destAddress: '', destLat: '', destLng: '', customer: '', checkIn: '', checkOut: '', properties: [emptyProp(), emptyProp(), emptyProp()], routes: [emptyRoute(), emptyRoute(), emptyRoute()], headline: '', subheadline: '', note: '' },
       stationCoords: {},
     };
   }
@@ -704,6 +704,7 @@ ${destCoord && destNearText(true) ? `<div class="muted">最寄駅：${destNearTe
 </div></details>
 </div></details>
 ${propCards}
+<label class="row compare-opt"><input type="checkbox" data-bind="p2.compare" ${p.compare ? 'checked' : ''}> <b>2ページ目に「設備比較」の表を付ける</b><span class="muted">（PDF・印刷は2ページ、PNGは2枚）</span></label>
 ${p.properties.length < MAX_P2 ? `<div class="row" style="justify-content:center;margin:2px 0 6px"><button type="button" class="btn" data-action="add-prop">＋ 物件を追加（${LETTERS[p.properties.length]}）<small class="muted" style="margin-left:6px">最大${MAX_P2}つ</small></button></div>` : ''}
 ${renderTextCard('p2', built.model)}
 ${renderMailCard('p2')}`;
@@ -793,15 +794,19 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   function renderPreview() {
     renderProgress();
     lastBuilt = Sheet.buildSheet(viewState());
-    $('#sheet').innerHTML = lastBuilt.html;
+    // 2ページ目（設備比較）があれば、プレビューに縦に並べる
+    $('#sheet').innerHTML = lastBuilt.pages.map((h, i) => `<div class="sheet-page" data-page="${i + 1}">${h}</div>`).join('');
     $('#warnings').innerHTML = Array.from(new Set(lastBuilt.warnings)).map(w => `<div>⚠ ${esc(w)}</div>`).join('');
     fitPreview();
   }
   function fitPreview() {
     const wrap = $('#sheet-wrap');
     const s = Math.min(1, wrap.clientWidth / 1123);
+    const n = (lastBuilt && lastBuilt.pages && lastBuilt.pages.length) || 1;
+    const h = 794 * n + 16 * (n - 1);
     $('#sheet').style.transform = `scale(${s})`;
-    wrap.style.height = Math.round(794 * s) + 'px';
+    $('#sheet').style.height = h + 'px';
+    wrap.style.height = Math.round(h * s) + 'px';
   }
   let pvTimer = null;
   function schedulePreview() { clearTimeout(pvTimer); pvTimer = setTimeout(renderPreview, 150); }
@@ -833,15 +838,16 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     for (const u of urls) { const d = await blobToDataURL(await (await fetch(u)).blob()); css = css.split(u).join(d); }
     return css;
   }
-  async function renderExportNode() {
+  function exportPages() { return Sheet.buildSheet(viewState()).pages; }
+  async function renderExportNode(i) {
     const root = $('#export-root');
-    root.innerHTML = Sheet.buildSheet(viewState()).html;
+    root.innerHTML = exportPages()[i || 0];
     await document.fonts.ready;
     return root.firstElementChild;
   }
   const PIXEL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
-  async function toPng() {
-    const node = await renderExportNode();
+  async function toPng(i) {
+    const node = await renderExportNode(i);
     let css = '';
     try { css = await fontCSS(node.textContent); } catch (e) { console.warn('font embed failed', e); }
     const opt = { pixelRatio: 2, width: 1123, height: 794, cacheBust: false, imagePlaceholder: PIXEL, backgroundColor: '#F7F6F2' };
@@ -853,22 +859,35 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     try { await fn(); } catch (e) { console.error(e); toast('作成に失敗しました：' + (e && e.message || e)); }
     finally { btn.disabled = false; btn.textContent = t; }
   }
-  async function exportPng() { const url = await toPng(); download(url, fileBase() + '.png'); toast('PNGを保存しました'); }
-  async function exportPdf() {
-    const png = await toPng();
-    // PNGのままだと10MB超になるため、JPEGにしてから埋め込む
-    const img = new Image();
-    await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = png; });
-    const c = document.createElement('canvas');
-    c.width = img.naturalWidth; c.height = img.naturalHeight;
-    const g = c.getContext('2d');
-    g.fillStyle = '#F7F6F2'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0);
-    const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
-    pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 297, 210);
-    pdf.save(fileBase() + '.pdf');
-    toast('PDFを保存しました');
+  // 2ページ目（設備比較）は「…_設備比較.png」として別に保存する
+  async function exportPng() {
+    const n = exportPages().length;
+    for (let i = 0; i < n; i++) download(await toPng(i), fileBase() + (i ? '_設備比較' : '') + '.png');
+    toast(n > 1 ? 'PNGを2枚保存しました' : 'PNGを保存しました');
   }
-  async function doPrint() { await renderExportNode(); window.print(); }
+  async function exportPdf() {
+    const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
+    const n = exportPages().length;
+    for (let i = 0; i < n; i++) {
+      const png = await toPng(i);
+      // PNGのままだと10MB超になるため、JPEGにしてから埋め込む
+      const img = new Image();
+      await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = png; });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth; c.height = img.naturalHeight;
+      const g = c.getContext('2d');
+      g.fillStyle = '#F7F6F2'; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0);
+      if (i) pdf.addPage('a4', 'landscape');
+      pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, 297, 210);
+    }
+    pdf.save(fileBase() + '.pdf');
+    toast(n > 1 ? 'PDF（2ページ）を保存しました' : 'PDFを保存しました');
+  }
+  async function doPrint() {
+    $('#export-root').innerHTML = exportPages().join('');
+    await document.fonts.ready;
+    window.print();
+  }
 
   function saveJson() {
     const built = Sheet.buildSheet(viewState());

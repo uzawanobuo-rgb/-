@@ -126,3 +126,16 @@ test('パターン1：利用期間（パターン2と共通）の実際の総額
   assert.ok(r.html.includes(exp.total.toLocaleString('ja-JP')));
   assert.ok(r.html.includes('10/1（木）〜11/15（日）・46日間'));
 });
+
+test('パターン2：設備比較の2ページ目（チェックしたときだけ）', () => {
+  const Sheet = require('../js/sheet.js');
+  const st = require('../js/samples.js').p2();
+  assert.equal(Sheet.buildSheet(st).pages.length, 1);
+  st.p2.compare = true;
+  const r = Sheet.buildSheet(st);
+  assert.equal(r.pages.length, 2);
+  assert.ok(r.pages[1].includes('3つのお部屋の比較'));
+  assert.ok(r.pages[1].includes('全物件にあり'));   // オートロック・エレベーター・光WiFi・洗濯機は全物件
+  assert.ok(r.pages[1].includes('宅配ボックス'));   // 田町2だけにある
+  assert.ok(!r.pages[1].includes('ユニットバス'));  // 比べる意味が薄いものは出さない
+});

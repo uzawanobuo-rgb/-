@@ -213,3 +213,6 @@ details.more > summary { align-items: center; }
 .slot-btn.first { border-color: var(--pc); }
 .retired { position: fixed; inset: 0; z-index: 70; background: rgba(247,246,242,.94); display: flex; align-items: center; justify-content: center; text-align: center; font-size: 16px; line-height: 1.8; }
 .mailtext { width: 100%; font-size: 13px; line-height: 1.6; background: #fff; resize: vertical; }
+.sheet-page + .sheet-page { margin-top: 16px; }
+.compare-opt { margin: 4px 0 10px; padding: 8px 12px; background: #F1F8F7; border: 1px solid #CFE6E3; border-radius: 10px; gap: 6px; }
+@media print { #export-root { height: auto; } #export-root > .atinn-sheet { break-after: page; page-break-after: always; } #export-root > .atinn-sheet:last-child { break-after: auto; page-break-after: auto; } }

@@ -346,11 +346,70 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
 
     const html = frame(header(title, sub, right) + panel(svg + sideCards, 440, '目的地') + bottom + note);
-    return { html, warnings, model: { title: autoTitle, sub: autoSub, note: autoNote, tags } };
+    const pages = [html];
+    if (p2.compare && items.length) pages.push(buildCompare(state, items, destName, label, warnings));
+    return { html, pages, warnings, model: { title: autoTitle, sub: autoSub, note: autoNote, tags } };
+  }
+
+  // ================= パターン2の2ページ目：設備・条件の比較表 =================
+  // 列が物件、行が項目。設備はどれかの物件にあるものだけ、メリットになりそうな順。全物件にある設備は薄く
+  function buildCompare(state, items, destName, label, warnings) {
+    const cols = MapM.ROUTE_COLORS;
+    const sel = items.slice(0, 5);
+    sel.filter(x => !x.prop.equipmentChecked).forEach(x => warnings.push(`${x.letter}：設備比較を出すには、プランページでもう一度「🏠プラン取込」を押してください`));
+    // ユニットバス・温水器・給湯やコンロの種類は比べる意味が薄いので出さない
+    const haveOf = x => x.prop.equipmentChecked ? String(x.prop.equipment || '').split(/[、,]/).map(t => t.trim()).filter(t => t && !/秘密|法人|限定|ご利用|ユニットバス|温水器|給湯|コンロ/.test(t)) : null;
+    const have = sel.map(haveOf);
+    const all = [];
+    have.forEach(h => (h || []).forEach(t => { if (!all.includes(t)) all.push(t); }));
+    const order = t => { const i = MERIT.indexOf(t); return i < 0 ? 100 + all.indexOf(t) : i; };
+    const known = have.filter(Boolean);
+    const everyone = t => known.length > 1 && known.length === have.length && known.every(h => h.includes(t));
+    const sorted = all.sort((a, b) => order(a) - order(b));
+    const common = sorted.filter(everyone); // 全物件にある設備は1行にまとめる
+    const facs = sorted.filter(t => !everyone(t));
+
+    const lw = 150; // 項目名の列
+    const head = sel.map(x => {
+      const col = cols[x.i % cols.length];
+      return `<th style="padding:8px 8px 6px;background:${col.fill};border-top:5px solid ${col.line};text-align:left;vertical-align:top;font-size:13px;font-weight:900;color:#1E2B33;"><span style="display:inline-flex;width:20px;height:20px;border-radius:50%;background:${col.line};color:#fff;align-items:center;justify-content:center;font-size:11px;margin-right:6px;vertical-align:1px;">${x.letter}</span>${esc(x.prop.name || '')}</th>`;
+    }).join('');
+    const photoOf = p => p.photoCustom || (p.photos && p.photos[p.photoIdx || 0] && (p.photos[p.photoIdx || 0].data || p.photos[p.photoIdx || 0].src)) || '';
+    const cell = (html, extra) => `<td style="padding:5px 8px;border-top:1px solid #ECE8DF;font-size:12px;color:#1E2B33;vertical-align:middle;${extra || ''}">${html}</td>`;
+    const row = (name, fn, opt) => `<tr><th style="padding:5px 10px;border-top:1px solid #ECE8DF;text-align:left;font-size:12px;font-weight:700;color:#5B6770;white-space:nowrap;background:#FBFAF6;">${name}</th>${sel.map(x => cell(fn(x), opt)).join('')}</tr>`;
+    const info = [
+      `<tr><th style="background:#FBFAF6;"></th>${sel.map(x => { const ph = photoOf(x.prop); return `<td style="padding:6px 8px;">${ph && !x.prop.hidePhoto ? `<div style="height:70px;border-radius:8px;background:#EDEAE2 url('${esc(ph)}') center/cover no-repeat;"></div>` : '<div style="height:70px;border-radius:8px;background:#EDEAE2;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8C959B;">写真なし</div>'}</td>`; }).join('')}</tr>`,
+      row('住所', x => { const sa = Parse.shortAddress(x.prop.address || ''); return esc(sa.upToChome || sa.ward + sa.town || '—'); }),
+      row('最寄駅', x => x.r.station ? `${esc(x.r.station)}${/停|前$/.test(x.r.station) ? '' : '駅'} 徒歩${x.info.walk ?? '–'}分` : '—'),
+      row(`${esc(destName)}まで`, x => {
+        const lines = x.info.legs.map(l => shortLine(l.line)).filter(Boolean);
+        return `<b style="font-size:15px;">約${x.info.display ?? '–'}分</b> <span style="color:#5B6770;">${x.info.transfers === 0 ? '乗換なし' : x.info.transfers != null ? '乗換' + x.info.transfers + '回' : ''}${lines.length ? '（' + esc(lines.join('・')) + '）' : ''}</span>`;
+      }),
+      row('総額', x => x.price ? `<b style="font-size:16px;">${yen(x.price.total)}</b>円<div style="font-size:11px;color:#5B6770;line-height:1.3;">${x.price.days}日間・1日あたり約${yen(roundTo(x.price.total / x.price.days, 10))}円</div>` : '—'),
+      row('建物', x => [x.prop.built, x.prop.structure, x.prop.floors ? `${n(x.prop.floors) || x.prop.floors}階建` : ''].filter(Boolean).map(esc).join('・') || '—'),
+    ].join('');
+    // 設備の行の高さは、入る数に合わせて小さくする
+    const rowH = Math.max(15, Math.min(30, Math.floor((300 - (common.length ? 34 : 0)) / Math.max(1, facs.length))));
+    const commonRow = common.length ? `<tr><th style="padding:6px 10px;border-top:2px solid #CFE6E3;text-align:left;font-size:12px;font-weight:900;color:#0B5E5C;background:#F1F8F7;white-space:nowrap;">全物件にあり</th><td colspan="${sel.length}" style="padding:6px 10px;border-top:2px solid #CFE6E3;font-size:12px;color:#1E2B33;">${common.map(t => `<span style="display:inline-block;margin:1px 10px 1px 0;"><span style="color:#0F7C7A;font-weight:900;">✓</span> ${esc(t)}</span>`).join('')}</td></tr>` : '';
+    const facRows = commonRow + facs.map((t, k) => {
+      return `<tr>${k === 0 ? `<th rowspan="${facs.length}" style="padding:6px 10px;border-top:${common.length ? '1px solid #ECE8DF' : '2px solid #CFE6E3'};text-align:left;vertical-align:top;font-size:12px;font-weight:900;color:#0B5E5C;background:#F1F8F7;">主な設備<div style="font-size:10px;font-weight:500;color:#5B6770;margin-top:4px;line-height:1.5;">✓＝あり</div></th>` : ''}${sel.map((x, j) => {
+        const h = have[j];
+        const v = h === null ? '<span style="color:#B9B3A6;font-size:10px;">未取得</span>' : h.includes(t) ? `<span style="color:${cols[x.i % cols.length].line};font-weight:900;font-size:14px;">✓</span>` : '';
+        return `<td style="height:${rowH}px;padding:0 8px;border-top:${k === 0 && !common.length ? '2px solid #CFE6E3' : '1px solid #F0EDE6'};font-size:${rowH < 20 ? 11.5 : 12}px;line-height:1.15;vertical-align:middle;"><span style="display:inline-block;width:18px;text-align:center;line-height:1;">${v}</span><span style="color:${h && h.includes(t) ? '#1E2B33' : '#B9B3A6'};">${esc(t)}</span></td>`;
+      }).join('')}</tr>`;
+    }).join('');
+    const table = `<div style="flex-grow:1;min-height:0;background:#FFFFFF;border:1px solid #E2DED3;border-radius:16px;overflow:hidden;">
+<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><colgroup><col style="width:${lw}px">${sel.map(() => '<col>').join('')}</colgroup>
+<thead><tr><th style="background:#FBFAF6;"></th>${head}</tr></thead><tbody>${info}${facRows || `<tr><th style="padding:8px 10px;text-align:left;font-size:12px;color:#5B6770;background:#F1F8F7;">主な設備</th><td colspan="${sel.length}" style="padding:8px;font-size:12px;color:#8C959B;">設備の情報がありません（プランページで「🏠プラン取込」をすると入ります）</td></tr>`}</tbody></table></div>`;
+    const ttl = `${destName}まで、${sel.length}つのお部屋の比較`;
+    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">※設備はプランページの「主な設備」より。総額は1ページ目と同じ条件（${state.persons || 1}名）で計算しています。</div>`;
+    return frame(header(ttl, `${label}（${destName}）までの時間・料金・設備`, customerBadge(state)) + table + note);
   }
 
   function buildSheet(state) {
-    return state.pattern === 'p2' ? buildP2(state) : buildP1(state);
+    const r = state.pattern === 'p2' ? buildP2(state) : buildP1(state);
+    if (!r.pages) r.pages = [r.html];
+    return r;
   }
 
   const M = { buildSheet, buildP1, buildP2, routeInfo, makeResolver, routeEndGap, autoTags, shortLine };
