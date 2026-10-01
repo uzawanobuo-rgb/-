@@ -36,9 +36,9 @@
       p2: {
         destName: '大手町', destLabel: 'お勤め先', destAddress: '東京都千代田区大手町', destLat: 35.6862, destLng: 139.7660,
         properties: [
-          { planUrl: 'https://atinn.jp/plan/33492', planName: '【3ヶ月以上～・ロングSALE】□アットインmini門前仲町5-1', name: 'アットインmini門前仲町5-1', address: '東京都江東区福住', lat: 35.676281, lng: 139.7924957, stations: [{ name: '門前仲町', line: '東京メトロ東西線', walk: 11 }], price: Object.assign({}, PRICE.monzen), photos: [] },
-          { planUrl: 'https://atinn.jp/plan/27788', planName: '【スペシャルSALE】アットイン飯田橋5-1', name: 'アットイン飯田橋5-1', address: '東京都新宿区箪笥町', lat: 35.700489, lng: 139.7338257, stations: [{ name: '牛込神楽坂', line: '都営大江戸線', walk: 3 }, { name: '神楽坂', line: '東京メトロ東西線', walk: 6 }], price: Object.assign({}, PRICE.iidabashi), photos: [] },
-          { planUrl: 'https://atinn.jp/plan/34063', planName: '【3ヶ月以上～・ロングSALE】◆アットイン田町2', name: 'アットイン田町2', address: '東京都港区芝浦', lat: 35.6431923, lng: 139.7535706, stations: [{ name: '田町', line: 'JR山手線', walk: 11 }, { name: '三田', line: '都営三田線', walk: 13 }], price: Object.assign({}, PRICE.tamachi), photos: [], tag: '運河沿い・11階建' },
+          { planUrl: 'https://atinn.jp/plan/33492', planName: '【3ヶ月以上～・ロングSALE】□アットインmini門前仲町5-1', name: 'アットインmini門前仲町5-1', address: '東京都江東区福住', lat: 35.676281, lng: 139.7924957, stations: [{ name: '門前仲町', line: '東京メトロ東西線', walk: 11 }], price: Object.assign({}, PRICE.monzen), photos: [], equipment: 'オートロック、エレベーター、光WiFi使い放題、バス・トイレ別、ガス給湯、温水洗浄便座、洗濯機、IHコンロ、禁煙選択', equipmentChecked: true },
+          { planUrl: 'https://atinn.jp/plan/27788', planName: '【スペシャルSALE】アットイン飯田橋5-1', name: 'アットイン飯田橋5-1', address: '東京都新宿区箪笥町', lat: 35.700489, lng: 139.7338257, stations: [{ name: '牛込神楽坂', line: '都営大江戸線', walk: 3 }, { name: '神楽坂', line: '東京メトロ東西線', walk: 6 }], price: Object.assign({}, PRICE.iidabashi), photos: [], equipment: 'オートロック、エレベーター、光WiFi使い放題、ユニットバス、深夜電気温水器、洗濯機、IHコンロ、快適テレワーク、24時間ゴミ出し可能', equipmentChecked: true },
+          { planUrl: 'https://atinn.jp/plan/34063', planName: '【3ヶ月以上～・ロングSALE】◆アットイン田町2', name: 'アットイン田町2', address: '東京都港区芝浦', lat: 35.6431923, lng: 139.7535706, stations: [{ name: '田町', line: 'JR山手線', walk: 11 }, { name: '三田', line: '都営三田線', walk: 13 }], price: Object.assign({}, PRICE.tamachi), photos: [], equipment: 'オートロック、エレベーター、宅配ボックス、オンライン警備システム、光WiFi使い放題、ユニットバス、ガス給湯、浴室乾燥機、洗濯機、ガスコンロ、快適テレワーク、24時間ゴミ出し可能', equipmentChecked: true, tag: '運河沿い・11階建' },
         ],
         routes: [
           { station: '門前仲町', walk: 11, legs: [{ mode: 'train', line: '東京メトロ東西線', to: '大手町' }], ride: 6, source: 'https://ekitan.com/transit/route/sf-3192/st-1709' },
