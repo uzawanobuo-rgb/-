@@ -124,8 +124,9 @@
     return `<input ${attrs.join(' ')}>`;
   }
   // 日付は手入力（「10/5」→ Tab でOK）。年を省いたら、ref 以降でいちばん近い日にする
+  // type="tel" にすると、Chrome・Edge では日本語入力（IME）がオフになり、半角で打てる
   function dateInp(path, ref) {
-    return `<input data-bind="${path}" data-date="${esc(ref || '')}" type="text" inputmode="numeric" autocomplete="off" value="${esc(Calc.showDate(getPath(path)))}" placeholder="例：10/5">`;
+    return `<input data-bind="${path}" data-date="${esc(ref || '')}" type="tel" inputmode="numeric" autocomplete="off" value="${esc(Calc.showDate(getPath(path)))}" placeholder="例：10/5">`;
   }
   // 項目名を左、入力欄を右に1行で並べる（項目名の幅をそろえて縦位置を合わせる）
   function inlineField(label, html) { return `<label class="f-inline all"><span>${label}</span>${html}</label>`; }
