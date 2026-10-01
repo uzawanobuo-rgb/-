@@ -135,7 +135,9 @@
     // 最寄駅と徒歩は、地図の物件名の枠の中に出す
     const nearText = (prop.stations || []).filter(s => s && s.name).slice().sort((a, b) => (n(a.walk) ?? 99) - (n(b.walk) ?? 99)).slice(0, 2)
       .map(s => `${s.name}駅 徒歩${s.walk}分`).join('／');
-    const center = (prop.lat != null && prop.lng != null) ? { lat: +prop.lat, lng: +prop.lng, name: prop.name || '物件', note: nearText } : null;
+    const addr = Parse.shortAddress(prop.address || '').upToChome;
+    // 住所と最寄駅は、地図の物件名の枠の中に出す
+    const center = (prop.lat != null && prop.lng != null) ? { lat: +prop.lat, lng: +prop.lng, name: prop.name || '物件', notes: [addr, nearText].filter(Boolean) } : null;
     if (!center) warnings.push('物件の座標（緯度・経度）が未入力です');
 
     let svg = '';
@@ -157,8 +159,7 @@
     const autoTitle = selected.length ? `${allCentral ? '都心の' : ''}主要駅へ、${ceil5(maxMin)}分以内` : '主要駅へのアクセス';
     const title = state.headline || autoTitle;
     const sub = state.subheadline || `${prop.name || '物件'}から主要駅へのアクセス概要図`;
-    const addr = Parse.shortAddress(prop.address || '').upToChome;
-    const right = `<div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">${addr ? `<div style="font-size:13px;font-weight:700;color:#1E2B33;white-space:nowrap;">${esc(addr)}</div>` : ''}${customerBadge(state)}</div>`;
+    const right = customerBadge(state);
 
     // 料金
     let bottom;

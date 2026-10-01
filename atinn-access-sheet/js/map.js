@@ -229,8 +229,8 @@
     {
       const w = mode === 'p2'
         ? Math.max(150, Math.max(textW(cName, 18), textW(center.sublabel || '', 11)) + 40)
-        : Math.max(textW(cName, 18) + 66, center.note ? textW(center.note, 12) + 58 : 0);
-      const h = mode === 'p1' && center.note ? 66 : 50;
+        : Math.max(textW(cName, 18) + 66, ...(center.notes || []).map(t => textW(t, 12) + 58));
+      const h = mode === 'p1' ? 50 + (center.notes || []).length * 18 : 50;
       const cands = [
         { x: cP.x - w / 2 + 0, y: cP.y - 34 - h, tail: 'down' },
         { x: cP.x - w / 2, y: cP.y + 34, tail: 'up' },
@@ -572,8 +572,10 @@
         s.push(`<g><circle cx="${r1(cP.x)}" cy="${r1(cP.y)}" r="24" fill="${C.text}" opacity="0.12"/><circle cx="${r1(cP.x)}" cy="${r1(cP.y)}" r="11" fill="${C.text}" stroke="#FFFFFF" stroke-width="3"/>`);
         s.push(`<rect x="${r1(cl.x)}" y="${r1(cl.y)}" width="${r1(cl.w)}" height="${cl.h}" rx="10" fill="${C.text}"/><polygon points="${tail}" fill="${C.text}"/>`);
         s.push(`<g transform="translate(${r1(cl.x + 14)},${r1(cl.y + (cl.h - 34) / 2)})" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"><rect x="0" y="4" width="20" height="26" rx="2"/><line x1="6" y1="10" x2="6" y2="12"/><line x1="14" y1="10" x2="14" y2="12"/><line x1="6" y1="17" x2="6" y2="19"/><line x1="14" y1="17" x2="14" y2="19"/></g>`);
-        s.push(`<text x="${r1(cl.x + 44)}" y="${r1(cl.y + (center.note ? 29 : 32))}" font-size="18" font-weight="900" fill="#FFFFFF">${esc(cName)}</text>`);
-        if (center.note) s.push(`<text x="${r1(cl.x + 44)}" y="${r1(cl.y + 52)}" font-size="12" font-weight="700" fill="#9FD9D4">${esc(center.note)}</text>`);
+        const notes = center.notes || [];
+        s.push(`<text x="${r1(cl.x + 44)}" y="${r1(cl.y + (notes.length ? 29 : 32))}" font-size="18" font-weight="900" fill="#FFFFFF">${esc(cName)}</text>`);
+        // 2行目以降：住所（白に近い灰）、最寄駅と徒歩（水色）
+        notes.forEach((t, i) => s.push(`<text x="${r1(cl.x + 44)}" y="${r1(cl.y + 50 + i * 18)}" font-size="12" font-weight="700" fill="${i === notes.length - 1 && notes.length > 1 || /徒歩/.test(t) ? '#9FD9D4' : '#DCE3E8'}">${esc(t)}</text>`));
         s.push('</g>');
       }
     }
