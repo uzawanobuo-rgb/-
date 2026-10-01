@@ -687,14 +687,15 @@ ${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https:/
 <div class="grid">
 ${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('customer', { ph: '山田' }), 'all')}
 </div>
+<div class="grid">
+${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
+${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
+</div>
+<!-- 日本語を打つ欄（お客様名・目的地）を先に、自動で半角になる欄（日付・人数）をあとに -->
 <div class="grid g3 align-end">
 ${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('checkIn', 'today'))}
 ${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('checkOut', 'checkin'))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
-</div>
-<div class="grid">
-${field('目的地（シートの表記）', inp('p2.destName', { ph: '大手町' }))}
-${field('目的地の種類', `<input data-bind="p2.destLabel" type="text" value="${esc(p.destLabel)}" list="dl-labels"><datalist id="dl-labels"><option value="お勤め先"><option value="学校"><option value="病院"><option value="研修先"><option value="ご実家"></datalist>`)}
 </div>
 <details class="more" data-ui="dest-geo" ${ui.open['dest-geo'] ? 'open' : ''}><summary>住所・GoogleマップURL <span class="more-sum">${destCoord ? `地図の位置：✓ 設定済み${destNearText(false) ? `・最寄駅 ${destNearText(false)}` : ''}` : '<span class="warn-t">地図の位置：未設定（住所を入れるか、GoogleマップのURLを貼ってください）</span>'}</span></summary>
 <div class="more-b"><div class="grid">
