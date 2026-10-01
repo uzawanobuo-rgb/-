@@ -231,24 +231,38 @@
         ? Math.max(150, Math.max(textW(cName, 18), textW(center.sublabel || '', 11)) + 40)
         : Math.max(textW(cName, 18) + 66, ...(center.notes || []).map(t => textW(t, 12) + 58));
       const h = mode === 'p1' ? 50 + (center.notes || []).length * 18 : 50;
-      const cands = [
-        { x: cP.x - w / 2 + 0, y: cP.y - 34 - h, tail: 'down' },
-        { x: cP.x - w / 2, y: cP.y + 34, tail: 'up' },
-        { x: cP.x - w * 0.25, y: cP.y - 34 - h, tail: 'down' },
-        { x: cP.x - w * 0.75, y: cP.y - 34 - h, tail: 'down' },
-        { x: cP.x - w * 0.25, y: cP.y + 34, tail: 'up' },
-        { x: cP.x - w * 0.75, y: cP.y + 34, tail: 'up' },
-        { x: cP.x + 34, y: cP.y - h / 2, tail: 'left' },
-        { x: cP.x - 34 - w, y: cP.y - h / 2, tail: 'right' },
-      ];
+      // 置き場所の候補：上下は横に、左右は縦にずらした位置もためす（吹き出しの「しっぽ」は中心を指すように描く）
+      const cands = [];
+      for (const f of [0.5, 0.3, 0.7, 0.15, 0.85]) {
+        cands.push({ x: cP.x - w * f, y: cP.y - 34 - h, tail: 'down', pref: Math.abs(f - 0.5) * 40 });
+        cands.push({ x: cP.x - w * f, y: cP.y + 34, tail: 'up', pref: 10 + Math.abs(f - 0.5) * 40 });
+      }
+      for (const f of [0.5, 0.3, 0.7]) {
+        cands.push({ x: cP.x + 34, y: cP.y - h * f, tail: 'left', pref: 5 + Math.abs(f - 0.5) * 40 });
+        cands.push({ x: cP.x - 34 - w, y: cP.y - h * f, tail: 'right', pref: 5 + Math.abs(f - 0.5) * 40 });
+      }
+      // すぐ横が線でふさがっているときのために、少し離して引き出し線でつなぐ位置も
+      for (let a = 0; a < 16; a++) {
+        const ang = a * Math.PI / 8, dx = Math.cos(ang), dy = Math.sin(ang);
+        for (const d of [60, 100, 150]) {
+          const cx = cP.x + dx * (d + w / 2), cy = cP.y + dy * (d + h / 2);
+          cands.push({ x: cx - w / 2, y: cy - h / 2, tail: 'line', pref: 60 + d * 0.8 });
+        }
+      }
       let bc = Infinity;
       for (const c of cands) {
         const rr = { x0: c.x, y0: c.y, x1: c.x + w, y1: c.y + h };
-        const cost = L.cost(rr, { segWeight: 250 });
+        // 路線の線に重なるのは大きな減点（路線が隠れて読めなくなるので）
+        const cost = L.cost(rr, { segWeight: 900 }) + c.pref;
         if (cost < bc) { bc = cost; cLabel = Object.assign({ w, h }, c); }
       }
       bad += bc * 2;
       L.add({ x0: cLabel.x, y0: cLabel.y, x1: cLabel.x + w, y1: cLabel.y + h }, 3);
+      if (cLabel.tail === 'line') {
+        const nx = Math.max(cLabel.x, Math.min(cP.x, cLabel.x + w)), ny = Math.max(cLabel.y, Math.min(cP.y, cLabel.y + h));
+        cLabel.lead = { x: nx, y: ny };
+        L.segs.push({ p: cP, q: cLabel.lead });
+      }
     }
 
     // 6. 吹き出し
@@ -557,20 +571,26 @@
       const cl = cLabel;
       const tailY = cl.tail === 'down' ? cl.y + cl.h : cl.y;
       const tx = Math.max(cl.x + 16, Math.min(cP.x, cl.x + cl.w - 16));
-      const my = cl.y + cl.h / 2;
-      const tail = cl.tail === 'down'
+      const my = Math.max(cl.y + 16, Math.min(cP.y, cl.y + cl.h - 16));
+      const tail = cl.tail === 'line' ? null : cl.tail === 'down'
         ? `${r1(tx - 12)},${r1(tailY)} ${r1(tx)},${r1(tailY + 14)} ${r1(tx + 12)},${r1(tailY)}`
         : cl.tail === 'up' ? `${r1(tx - 12)},${r1(tailY)} ${r1(tx)},${r1(tailY - 14)} ${r1(tx + 12)},${r1(tailY)}`
         : cl.tail === 'left' ? `${r1(cl.x)},${r1(my - 12)} ${r1(cl.x - 14)},${r1(my)} ${r1(cl.x)},${r1(my + 12)}`
         : `${r1(cl.x + cl.w)},${r1(my - 12)} ${r1(cl.x + cl.w + 14)},${r1(my)} ${r1(cl.x + cl.w)},${r1(my + 12)}`;
+      // 離して置いたときは、印から枠まで引き出し線でつなぐ
+      let leader = '';
+      if (cl.lead) {
+        const dx = cl.lead.x - cP.x, dy = cl.lead.y - cP.y, d = Math.hypot(dx, dy) || 1;
+        leader = `<line x1="${r1(cP.x + dx / d * 16)}" y1="${r1(cP.y + dy / d * 16)}" x2="${r1(cl.lead.x)}" y2="${r1(cl.lead.y)}" stroke="${C.text}" stroke-width="2"/>`;
+      }
       if (mode === 'p2') {
         s.push(`<g><circle cx="${r1(cP.x)}" cy="${r1(cP.y)}" r="30" fill="${C.text}" opacity="0.1"/><circle cx="${r1(cP.x)}" cy="${r1(cP.y)}" r="16" fill="${C.text}" stroke="#FFFFFF" stroke-width="4"/><path d="M${r1(cP.x - 8)} ${r1(cP.y)} L${r1(cP.x - 2)} ${r1(cP.y + 6)} L${r1(cP.x + 9)} ${r1(cP.y - 6)}" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>`);
-        s.push(`<rect x="${r1(cl.x)}" y="${r1(cl.y)}" width="${r1(cl.w)}" height="${cl.h}" rx="10" fill="${C.text}"/><polygon points="${tail}" fill="${C.text}"/>`);
+        s.push(`${leader}<rect x="${r1(cl.x)}" y="${r1(cl.y)}" width="${r1(cl.w)}" height="${cl.h}" rx="10" fill="${C.text}"/>${tail ? `<polygon points="${tail}" fill="${C.text}"/>` : ''}`);
         s.push(`<text x="${r1(cl.x + cl.w / 2)}" y="${r1(cl.y + 20)}" text-anchor="middle" font-size="11" font-weight="700" fill="#9FD9D4">${esc(center.sublabel || '目的地')}</text>`);
         s.push(`<text x="${r1(cl.x + cl.w / 2)}" y="${r1(cl.y + 41)}" text-anchor="middle" font-size="18" font-weight="900" fill="#FFFFFF">${esc(cName)}</text></g>`);
       } else {
         s.push(`<g><circle cx="${r1(cP.x)}" cy="${r1(cP.y)}" r="24" fill="${C.text}" opacity="0.12"/><circle cx="${r1(cP.x)}" cy="${r1(cP.y)}" r="11" fill="${C.text}" stroke="#FFFFFF" stroke-width="3"/>`);
-        s.push(`<rect x="${r1(cl.x)}" y="${r1(cl.y)}" width="${r1(cl.w)}" height="${cl.h}" rx="10" fill="${C.text}"/><polygon points="${tail}" fill="${C.text}"/>`);
+        s.push(`${leader}<rect x="${r1(cl.x)}" y="${r1(cl.y)}" width="${r1(cl.w)}" height="${cl.h}" rx="10" fill="${C.text}"/>${tail ? `<polygon points="${tail}" fill="${C.text}"/>` : ''}`);
         s.push(`<g transform="translate(${r1(cl.x + 14)},${r1(cl.y + (cl.h - 34) / 2)})" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"><rect x="0" y="4" width="20" height="26" rx="2"/><line x1="6" y1="10" x2="6" y2="12"/><line x1="14" y1="10" x2="14" y2="12"/><line x1="6" y1="17" x2="6" y2="19"/><line x1="14" y1="17" x2="14" y2="19"/></g>`);
         const notes = center.notes || [];
         s.push(`<text x="${r1(cl.x + 44)}" y="${r1(cl.y + (notes.length ? 29 : 32))}" font-size="18" font-weight="900" fill="#FFFFFF">${esc(cName)}</text>`);

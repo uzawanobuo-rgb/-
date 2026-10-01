@@ -45,7 +45,10 @@
         } catch (e) { /* 別ドメインの画像は URL のみ */ }
         images.push({ src: new URL(x.s, location.href).href, data, caption: x.a });
       });
-      const json = JSON.stringify({ v: 1, src: 'atinn-bookmarklet', url: location.href, title: d.title, h1: (d.querySelector('h1') || {}).innerText || '', text: d.body.innerText.slice(0, 80000), lat, lng, images, fetchedAt: new Date().toISOString() });
+      // 主な設備：灰色（unsupport）のものは「ない」設備なので、ある設備だけ集める
+      const facilities = Array.from(d.querySelectorAll('.prop_detail_facs li')).filter(li => !li.classList.contains('unsupport'))
+        .map(li => ((li.querySelector('.prop_facs_spntxt') || li).innerText || '').trim()).filter(Boolean);
+      const json = JSON.stringify({ v: 1, src: 'atinn-bookmarklet', url: location.href, facilities, title: d.title, h1: (d.querySelector('h1') || {}).innerText || '', text: d.body.innerText.slice(0, 80000), lat, lng, images, fetchedAt: new Date().toISOString() });
       const info = '写真 ' + images.length + '枚' + (lat ? '・地図座標あり' : '・地図座標なし');
       const copy = async () => {
         try { await navigator.clipboard.writeText(json); return true; } catch (e) { /* 次の方法 */ }

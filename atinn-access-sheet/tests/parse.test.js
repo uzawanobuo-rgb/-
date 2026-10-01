@@ -150,3 +150,18 @@ test('GoogleマップのURL：場所の名前と、選んだ場所の位置（@ 
   assert.deepEqual(P.parseGmapPlace(pin), { name: '', lat: 35.7169, lng: 139.8575 });
   assert.equal(P.parseGmapPlace('https://maps.app.goo.gl/abc'), null);
 });
+
+test('主な設備：灰色（unsupport）の「ない」設備は除き、ある設備だけ読む', () => {
+  const html = '<table><tr><th>主な設備</th><td><ul class="prop_detail_facs">'
+    + '<li class="icon_list unsupport "><span class="prop_facs_spntxt">オートロック</span></li>'
+    + '<li class="icon_list "><span class="prop_facs_spntxt">エレベーター</span></li>'
+    + '<li class="icon_list "><a><span class="prop_facs_spntxt"> 深夜電気温水器 <i></i></span></a></li>'
+    + '<li class="icon_list unsupport "><span class="prop_facs_spntxt">洗濯機</span></li>'
+    + '</ul></td></tr></table>';
+  const r = P.parsePlan({ url: 'https://atinn.jp/plan/1', html, text: '' });
+  assert.equal(r.equipment, 'エレベーター、深夜電気温水器');
+  assert.equal(r.equipmentChecked, true);
+  assert.equal(P.parsePlan({ url: 'https://atinn.jp/plan/1', facilities: ['宅配ボックス'], text: '' }).equipment, '宅配ボックス');
+  // 本文だけでは「ある・ない」が分からないので確認済みにしない
+  assert.equal(P.parsePlan({ text: '主な設備\nオートロック\n洗濯機\n' }).equipmentChecked, false);
+});
