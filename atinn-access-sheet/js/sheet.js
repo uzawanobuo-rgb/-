@@ -154,7 +154,7 @@
 
     // 主な設備（メリットになるもの）。あれば地図の下に1行で出し、そのぶん地図を低くする
     const facs = meritFacilities(prop);
-    const mapH = facs.length ? 432 : 468;
+    const mapH = 468; // 設備は地図の空いている場所に出す
     let svg = '';
     if (center) {
       const routes = selected.map((x, i) => {
@@ -163,7 +163,7 @@
         mr.target = x.ms;
         return mr;
       });
-      svg = MapM.renderMap({ width: 1043, height: mapH, mode: 'p1', center, routes, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
+      svg = MapM.renderMap({ width: 1043, height: mapH, mode: 'p1', center, routes, facilities: facs, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
     } else {
       svg = `<svg width="1043" height="${mapH}"><rect width="1043" height="${mapH}" fill="#FBFAF6"/><text x="521" y="${mapH / 2}" text-anchor="middle" font-size="16" fill="#8C959B">物件の座標を入力すると路線図が表示されます</text></svg>`;
     }
@@ -211,10 +211,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の${campaign}・${state.persons || 1}名・${jpDate(ci)}〜${jpDate(co)}の税込総額（利用料＋清掃費＋住宅保険。保険は応当日で月数を計算）です。空室状況・時期により変動します。`;
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
 
-    const facRow = facs.length ? `<div style="display:flex;align-items:center;gap:8px;flex-wrap:nowrap;overflow:hidden;">
-<div style="font-size:13px;font-weight:900;color:#1E2B33;white-space:nowrap;margin-right:2px;">主な設備</div>
-${facs.map(f => `<div style="padding:4px 10px;border-radius:999px;background:#E4F2F1;color:#0B5E5C;font-size:12px;font-weight:700;white-space:nowrap;">${esc(f)}</div>`).join('')}</div>` : '';
-    const html = frame(header(title, sub, right) + panel(svg, mapH, '物件') + facRow + bottom + note);
+    const html = frame(header(title, sub, right) + panel(svg, mapH, '物件') + bottom + note);
     return { html, warnings, model: { title: autoTitle, sub: `${prop.name || '物件'}から主要駅へのアクセス概要図`, note: autoNote, selected: selected.map(x => x.ms.name), price, facilities: facs } };
   }
 

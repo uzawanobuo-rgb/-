@@ -75,9 +75,9 @@
   // 何通りかの拡大率で配置してみて、ラベルの重なりが増えない範囲でいちばん大きく描く
   function renderMap(spec) {
     let best = null;
-    // 縦が窮屈なときは、横だけ少し広げてもよい（最大1.3倍。東西・南北の向きは変わらない）
+    // 縦が窮屈なときは、横だけ少し広げてもよい（最大1.45倍。東西・南北の向きは変わらない）
     for (const k of [1, 1.12, 1.25, 1.4, 1.55, 1.7, 1.85, 2]) {
-      for (const f of [1, 1.15, 1.3]) {
+      for (const f of [1, 1.15, 1.3, 1.45]) {
         const r = renderMapOnce(spec, k * f, k);
         if (r.bad >= 1e5) continue; // 線や駅が枠からはみ出す
         // 拡大するほど見やすいので、拡大の分だけ少しの重なりは許す。横だけの引き伸ばしは控えめに評価
@@ -439,6 +439,23 @@
       }
     }
 
+    // 9.4 主な設備（パターン1）：地図の左右の空いている場所に箱で置く
+    let facBox = null;
+    const facs = (spec.facilities || []).filter(Boolean);
+    if (facs.length) {
+      const fw = Math.max(120, Math.max.apply(null, facs.map(f => textW(f, 13))) + 46), fh = 40 + facs.length * 23;
+      let bc = Infinity;
+      for (let x = 12; x <= W - 12 - fw; x += 16) for (let y = 12; y <= H - 26 - fh; y += 16) {
+        const rr = { x0: x, y0: y, x1: x + fw, y1: y + fh };
+        // 左右の端に寄せる（地図の真ん中に置かない）
+        const sideD = Math.min(x - 12, W - 12 - fw - x);
+        const cost = L.cost(rr, { segWeight: 600, margin: 4, bottom: 20 }) + sideD * 0.5;
+        if (cost < bc) { bc = cost; facBox = { x, y, w: fw, h: fh }; }
+      }
+      bad += Math.max(0, bc - 150) * 2;
+      if (facBox) L.add({ x0: facBox.x, y0: facBox.y, x1: facBox.x + fw, y1: facBox.y + fh }, 3);
+    }
+
     // 9.5 凡例と北（線や文字のない場所。四隅を少し優先）
     let legendPos = null;
     {
@@ -603,6 +620,16 @@
         notes.forEach((t, i) => s.push(`<text x="${r1(cl.x + 44)}" y="${r1(cl.y + 50 + i * 18)}" font-size="12" font-weight="700" fill="${i === notes.length - 1 && notes.length > 1 || /徒歩/.test(t) ? '#9FD9D4' : '#DCE3E8'}">${esc(t)}</text>`));
         s.push('</g>');
       }
+    }
+    // 主な設備
+    if (facBox) {
+      s.push(`<g><rect x="${r1(facBox.x)}" y="${r1(facBox.y)}" width="${r1(facBox.w)}" height="${r1(facBox.h)}" rx="12" fill="#FFFFFF" opacity="0.95" stroke="#CFE6E3" stroke-width="1.5"/>`);
+      s.push(`<text x="${r1(facBox.x + 16)}" y="${r1(facBox.y + 24)}" font-size="14" font-weight="900" fill="${C.text}">主な設備</text>`);
+      facs.forEach((f, i) => {
+        const y = facBox.y + 50 + i * 23;
+        s.push(`<path d="M${r1(facBox.x + 16)} ${r1(y - 5)} l4 4 l7 -8" fill="none" stroke="#0F7C7A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><text x="${r1(facBox.x + 32)}" y="${r1(y)}" font-size="13" font-weight="700" fill="#0B5E5C">${esc(f)}</text>`);
+      });
+      s.push('</g>');
     }
     // 凡例と北
     {
