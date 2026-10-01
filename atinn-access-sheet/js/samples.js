@@ -16,7 +16,8 @@
           planUrl: 'https://atinn.jp/plan/33705', planName: '（見本）アットイン六本木4', name: 'アットイン六本木4',
           address: '東京都港区西麻布2丁目', lat: 35.6598549, lng: 139.7218323,
           stations: [{ name: '広尾', line: '東京メトロ日比谷線', walk: 11 }, { name: '乃木坂', line: '東京メトロ千代田線', walk: 15 }, { name: '六本木', line: '都営大江戸線', walk: 16 }, { name: '表参道', line: '', walk: 19 }],
-          price: Object.assign({}, PRICE.shinagawa9), photos: [],
+          price: Object.assign({}, PRICE.shinagawa9), photos: [], smoking: '禁煙',
+          equipment: 'エレベーター、宅配ボックス、光WiFi使い放題、ユニットバス、深夜電気温水器、コインランドリー、IHコンロ、ソファ、快適テレワーク、禁煙選択', equipmentChecked: true,
         },
         routes: {
           '渋谷': { station: '西麻布', walk: 5, legs: [{ mode: 'bus', line: '都営バス 都01', to: '渋谷' }], ride: 14, display: 20, source: 'https://www.navitime.co.jp/bus/diagram/timelist?departure=00017381&arrival=00016951&line=00004287', note: 'バス停までの徒歩5分は地図上の推定' },

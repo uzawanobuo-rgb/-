@@ -154,6 +154,7 @@
 
     // 主な設備（メリットになるもの）。あれば地図の下に1行で出し、そのぶん地図を低くする
     const facs = meritFacilities(prop);
+    if (prop.name && !prop.equipmentChecked) warnings.push('主な設備を出すには、プランページでもう一度「🏠プラン取込」を押してください（設備の「ある・なし」を読み取ります）');
     const mapH = 468; // 設備は地図の空いている場所に出す
     let svg = '';
     if (center) {
