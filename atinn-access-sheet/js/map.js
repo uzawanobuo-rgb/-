@@ -15,7 +15,6 @@
     { line: '#E0662A', text: '#C4531A', fill: '#FCEDE4' },
     { line: '#2F74B5', text: '#2F74B5', fill: '#E6EFF8' },
   ];
-  const RING_BASE = ['東京', '新橋', '品川', '大崎', '恵比寿', '渋谷', '新宿', '高田馬場', '池袋', '駒込', '田端', '日暮里', '上野', '秋葉原'];
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function textW(s, size) {
@@ -118,37 +117,43 @@
     const sx = fit(zx + (bx0 - zx) * zoomX, zx + (bx1 - zx) * zoomX, edge.x, W - edge.x);
     const sy = fit(zy + (by0 - zy) * zoomY, zy + (by1 - zy) * zoomY, edge.top, H - edge.bottom);
     if (sx === null || sy === null) return { bad: 1e9, svg: '' };
-    const P = p => { const q = P0(p); return { x: zx + (q.x - zx) * zoomX + sx, y: zy + (q.y - zy) * zoomY + sy }; };
-    const cP = P(center);
+    const Praw = p => { const q = P0(p); return { x: zx + (q.x - zx) * zoomX + sx, y: zy + (q.y - zy) * zoomY + sy }; };
 
-    // 2. 山手線の輪
-    const ringNamesUsed = new Set(RING_BASE);
+    // 2. 山手線の輪：駅を投影した範囲に合わせた楕円で描く（実際の形より、見やすさ優先のデフォルメ）。
+    //    山手線の駅は、楕円の中心から見た向きのまま楕円の上に置き、山手線に乗る区間は楕円に沿って描く
     const ringByName = {};
     GEO.yamanote.forEach((s, i) => { ringByName[s.name] = i; });
     for (const r of routes) {
       let prev = r.walkTo;
       for (const lg of r.legs) {
-        if (isYamanote(lg) && prev && lg.to && prev.name in ringByName && lg.to.name in ringByName) {
-          ringNamesUsed.add(prev.name); ringNamesUsed.add(lg.to.name); lg._ring = true; lg._from = prev.name;
-        }
+        if (isYamanote(lg) && prev && lg.to && prev.name in ringByName && lg.to.name in ringByName) { lg._ring = true; lg._from = prev.name; }
         prev = lg.to;
       }
     }
-    const ringV = GEO.yamanote.filter(s => ringNamesUsed.has(s.name)).map(s => Object.assign({ name: s.name }, P(s)));
-    const ringCtr = ringV.reduce((a, v) => ({ x: a.x + v.x / ringV.length, y: a.y + v.y / ringV.length }), { x: 0, y: 0 });
-    const ringEdges = ringV.map((v, i) => Geo.octiSegment(v, ringV[(i + 1) % ringV.length], ringCtr));
+    const yv = GEO.yamanote.map(s => Object.assign({ name: s.name }, Praw(s)));
+    const ex0 = Math.min.apply(null, yv.map(v => v.x)), ex1 = Math.max.apply(null, yv.map(v => v.x));
+    const ey0 = Math.min.apply(null, yv.map(v => v.y)), ey1 = Math.max.apply(null, yv.map(v => v.y));
+    const ringCtr = { x: (ex0 + ex1) / 2, y: (ey0 + ey1) / 2 };
+    const ea = Math.max(1, (ex1 - ex0) / 2), eb = Math.max(1, (ey1 - ey0) / 2);
+    const ell = t => ({ x: ringCtr.x + ea * Math.cos(t), y: ringCtr.y + eb * Math.sin(t) });
+    const ringTheta = {}, snap = {};
+    yv.forEach(v => {
+      const t = Math.atan2((v.y - ringCtr.y) / eb, (v.x - ringCtr.x) / ea);
+      ringTheta[v.name] = t; snap[v.name] = ell(t);
+    });
+    const useRing = spec.yamanote !== false;
+    const P = p => (useRing && p && p.name && snap[p.name]) ? snap[p.name] : Praw(p);
+    const cP = P(center);
     const ringPts = [];
-    ringEdges.forEach(e => { for (let j = 0; j < e.length - 1; j++) ringPts.push(e[j]); });
-    const ringIdx = {}; ringV.forEach((v, i) => { ringIdx[v.name] = i; });
+    for (let k = 0; k < 120; k++) ringPts.push(ell(k / 120 * Math.PI * 2));
     function ringPath(fromName, toName) {
-      const n = ringV.length, i = ringIdx[fromName], j = ringIdx[toName];
-      const fw = (j - i + n) % n, bw = (i - j + n) % n;
+      const t1 = ringTheta[fromName];
+      let d = ringTheta[toName] - t1;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      const n = Math.max(2, Math.ceil(Math.abs(d) / (Math.PI / 60)));
       const out = [];
-      if (fw <= bw) {
-        for (let k = 0; k < fw; k++) { const e = ringEdges[(i + k) % n]; e.forEach((p, t) => { if (t || !out.length) out.push(p); }); }
-      } else {
-        for (let k = 0; k < bw; k++) { const e = ringEdges[(i - k - 1 + n) % n].slice().reverse(); e.forEach((p, t) => { if (t || !out.length) out.push(p); }); }
-      }
+      for (let i = 0; i <= n; i++) out.push(ell(t1 + d * i / n));
       return out;
     }
     const ringInView = ringPts.some(p => p.x > -50 && p.x < W + 50 && p.y > -50 && p.y < H + 50);
@@ -188,7 +193,7 @@
             extraWalk = [toP, cP];
           }
         }
-        let pts = (lg._ring && ringIdx[lg._from] != null) ? ringPath(lg._from, lg.to.name) : Geo.octiSegment(prevP, toP, cP);
+        let pts = (useRing && lg._ring && ringTheta[lg._from] != null && ringTheta[lg.to.name] != null) ? ringPath(lg._from, lg.to.name) : Geo.octiSegment(prevP, toP, cP);
         if (!pts.length) pts = [prevP, toP];
         drawn.push({ pts, style: lg.mode === 'bus' ? 'bus' : 'train', color: col.line, ring: !!lg._ring, rid: r.idx });
         legLabels.push({ pts, text: lg.line || '', color: col.text, bus: lg.mode === 'bus', ring: !!lg._ring });
@@ -392,8 +397,8 @@
     const routeStationNames = new Set(stationMarks.map(s => s.name).concat(routes.map(r => r.callout && r.callout.title)));
     if (spec.yamanote !== false && ringInView) {
       for (const name of GEO.yamanoteLabeled) {
-        if (routeStationNames.has(name) || ringIdx[name] == null) continue;
-        const v = ringV[ringIdx[name]];
+        if (routeStationNames.has(name) || !snap[name]) continue;
+        const v = snap[name];
         if (v.x < 20 || v.x > W - 20 || v.y < 20 || v.y > H - 30) continue;
         const w = textW(name, 13);
         const cands = [
