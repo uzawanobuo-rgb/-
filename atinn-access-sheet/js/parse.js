@@ -199,7 +199,27 @@
       price: parsePrice(text),
       photos: Array.isArray(p.images) ? p.images.filter(i => i && (i.data || i.src)) : [],
       fetchedAt: p.fetchedAt || null,
-    }, parseBuilding(text));
+    }, parseBuilding(text), parseFacilities(p));
+  }
+
+  // 主な設備（ある設備だけ）。プランページでは「ない」設備も灰色で並ぶので、本文だけでは区別できない。
+  // ブックマークが集めた facilities か、ページのHTML（li.unsupport が「ない」設備）から読む。どちらもなければ確認済みにしない
+  function parseFacilities(p) {
+    if (Array.isArray(p.facilities)) return { equipment: p.facilities.map(x => String(x).trim()).filter(Boolean).join('、'), equipmentChecked: true };
+    const html = String(p.html || '');
+    const ul = /<ul[^>]*class="[^"]*prop_detail_facs[^"]*"[^>]*>([\s\S]*?)<\/ul>/i.exec(html);
+    if (ul) {
+      const items = [];
+      ul[1].replace(/<li([^>]*)>([\s\S]*?)<\/li>/gi, (m0, attrs, inner) => {
+        if (/unsupport/.test(attrs)) return '';
+        const t = /prop_facs_spntxt[^>]*>([\s\S]*?)<\/span>/i.exec(inner);
+        const name = (t ? t[1] : inner).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+        if (name) items.push(name);
+        return '';
+      });
+      return { equipment: items.join('、'), equipmentChecked: true };
+    }
+    return { equipmentChecked: false };
   }
 
 

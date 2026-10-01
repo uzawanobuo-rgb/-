@@ -281,7 +281,7 @@
       planUrl: parsed.planUrl || prop.planUrl, planName: parsed.planName || '', name: parsed.name || '', address: parsed.address || '',
       lat: parsed.lat ?? '', lng: parsed.lng ?? '', stations: parsed.stations || [], price: Object.assign({}, parsed.price || {}),
       photos: parsed.photos || [], built: parsed.built || '', structure: parsed.structure || '', floors: parsed.floors || '',
-      smoking: parsed.smoking || '', capacity: parsed.capacity || '', equipment: parsed.equipment || '', imported: snapshot,
+      smoking: parsed.smoking || '', capacity: parsed.capacity || '', equipment: parsed.equipment || '', equipmentChecked: !!parsed.equipmentChecked, imported: snapshot,
     });
     if (parsed.fetchedAt) state.baseDate = Calc.todayStr(new Date(parsed.fetchedAt));
     const miss = [];
