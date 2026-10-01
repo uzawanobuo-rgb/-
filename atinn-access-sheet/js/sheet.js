@@ -91,6 +91,11 @@
 <div style="font-size:16px;color:#5B6770;font-weight:500;">${esc(sub)}</div>
 </div><div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;"><img src="${LOGO.src}" alt="アットイン" style="height:30px;display:block;">${right || ''}</div></div>`;
   }
+  // 「〇〇様へのご提案」（お客様名はパターン1・2で共通）
+  function customerBadge(state) {
+    const c = String(state.customer || '').trim().replace(/\s*様$/, '');
+    return c ? `<div style="padding:6px 14px;border-radius:999px;background:#1E2B33;color:#FFFFFF;font-size:13px;font-weight:700;white-space:nowrap;flex-shrink:0;">${esc(c)}様へのご提案</div>` : '';
+  }
   function frame(inner) {
     return `<div class="atinn-sheet" style="width:1123px;height:794px;box-sizing:border-box;border-top:10px solid #0F7C7A;padding:18px 40px 16px;display:flex;flex-direction:column;gap:12px;background:#F7F6F2;color:#1E2B33;font-family:'M PLUS 1p','Hiragino Sans',sans-serif;overflow:hidden;">${inner}</div>`;
   }
@@ -127,7 +132,10 @@
         : '主要駅までの「乗車（分）」を入力してください（入力した駅が地図に載ります）');
     }
 
-    const center = (prop.lat != null && prop.lng != null) ? { lat: +prop.lat, lng: +prop.lng, name: prop.name || '物件' } : null;
+    // 最寄駅と徒歩は、地図の物件名の枠の中に出す
+    const nearText = (prop.stations || []).filter(s => s && s.name).slice().sort((a, b) => (n(a.walk) ?? 99) - (n(b.walk) ?? 99)).slice(0, 2)
+      .map(s => `${s.name}駅 徒歩${s.walk}分`).join('／');
+    const center = (prop.lat != null && prop.lng != null) ? { lat: +prop.lat, lng: +prop.lng, name: prop.name || '物件', note: nearText } : null;
     if (!center) warnings.push('物件の座標（緯度・経度）が未入力です');
 
     let svg = '';
@@ -150,10 +158,7 @@
     const title = state.headline || autoTitle;
     const sub = state.subheadline || `${prop.name || '物件'}から主要駅へのアクセス概要図`;
     const addr = Parse.shortAddress(prop.address || '').upToChome;
-    const near = (prop.stations || []).filter(s => s && s.name).slice().sort((a, b) => (n(a.walk) ?? 99) - (n(b.walk) ?? 99)).slice(0, 2)
-      .map(s => `${esc(s.name)}駅 徒歩${esc(s.walk)}分`).join('／');
-    const right = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-size:13px;color:#5B6770;flex-shrink:0;">
-<div style="font-weight:700;color:#1E2B33;">${esc(addr)}</div><div>${near}</div></div>`;
+    const right = `<div style="display:flex;align-items:center;gap:12px;flex-shrink:0;">${addr ? `<div style="font-size:13px;font-weight:700;color:#1E2B33;white-space:nowrap;">${esc(addr)}</div>` : ''}${customerBadge(state)}</div>`;
 
     // 料金
     let bottom;
@@ -275,7 +280,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const title = state.headline || autoTitle;
     const autoSub = `${label}（${destName}）から選んだ、おすすめ物件のアクセス比較`;
     const sub = state.subheadline || autoSub;
-    const right = p2.customer ? `<div style="padding:6px 14px;border-radius:999px;background:#1E2B33;color:#FFFFFF;font-size:13px;font-weight:700;white-space:nowrap;flex-shrink:0;">${esc(p2.customer)}様へのご提案</div>` : '';
+    const right = customerBadge(state);
 
     const tags = autoTags(items);
     const cols = MapM.ROUTE_COLORS;

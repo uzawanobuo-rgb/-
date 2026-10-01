@@ -18,7 +18,7 @@
   function emptyRoute() { return { station: '', walk: '', legs: [{ mode: 'train', line: '', to: '' }], ride: '', display: '', transfers: '', source: '', note: '', exclude: false }; }
   function defaultState() {
     return {
-      v: 1, pattern: 'p1', persons: 1, baseDate: Calc.todayStr(), checkIn: '', checkOut: '', // 利用期間はパターン1・2で共通
+      v: 1, pattern: 'p1', persons: 1, baseDate: Calc.todayStr(), checkIn: '', checkOut: '', customer: '', // 利用期間・お客様名はパターン1・2で共通
       p1: { checkIn: Calc.defaultCheckIn(), property: emptyProp(), routes: {}, headline: '', subheadline: '', note: '' },
       p2: { destName: '', destLabel: 'お勤め先', destAddress: '', destLat: '', destLng: '', customer: '', checkIn: '', checkOut: '', properties: [emptyProp(), emptyProp(), emptyProp()], routes: [emptyRoute(), emptyRoute(), emptyRoute()], headline: '', subheadline: '', note: '' },
       stationCoords: {},
@@ -37,6 +37,7 @@
     // 以前はパターンごとに持っていた利用期間を、共通の欄に移す
     if (!s.checkIn && s.p2.checkIn) s.checkIn = s.p2.checkIn;
     if (!s.checkOut && s.p2.checkOut) s.checkOut = s.p2.checkOut;
+    if (!s.customer && s.p2.customer) s.customer = s.p2.customer;
     return s;
   }
 
@@ -64,7 +65,7 @@
     if (!s) return false;
     if (pat === 'p1') { const p = s.p1 && s.p1.property; return !!(p && (p.name || p.planUrl)); }
     const p2 = s.p2 || {};
-    return !!(p2.destName || p2.customer || (p2.properties || []).some(p => p && (p.name || p.planUrl)));
+    return !!(p2.destName || (p2.properties || []).some(p => p && (p.name || p.planUrl)));
   }
   function hasContent(s) { return hasPatternContent(s, 'p1') || hasPatternContent(s, 'p2'); }
   function prevSaved() {
@@ -586,6 +587,7 @@ ${coordStatus(names)}
     return `
 <details class="card cond-card" id="sec-p1-cond" open><summary><span class="step">1</span>条件</summary>
 <div class="card-b">
+${field('お客様名 <small>入れると「〇〇様へのご提案」を表示（パターン2と共通）</small>', inp('customer', { ph: '山田' }), 'all')}
 <div class="grid g3 align-end">
 ${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('checkIn', 'today'))}
 ${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('checkOut', 'checkin'))}
@@ -679,7 +681,7 @@ ${destCoord ? `<a class="btn small" target="_blank" rel="noopener" href="https:/
 <span class="badge ${destOk ? 'ok' : 'ng'}">${destOk ? esc(p.destName) : '未入力'}</span></summary>
 <div class="card-b">
 <div class="grid">
-${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('p2.customer', { ph: '山田' }), 'all')}
+${field('お客様名 <small>入れると「〇〇様へのご提案」を表示</small>', inp('customer', { ph: '山田' }), 'all')}
 </div>
 <div class="grid g3 align-end">
 ${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('checkIn', 'today'))}
@@ -810,7 +812,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     // パターン2：「お名前 様_目的地_ご提案３物件_2026-09-30」（お名前がなければ先頭を省く。日付は作った日）
     const p2 = state.p2;
     const n = p2.properties.filter(p => p && p.name).length || 3;
-    const cust = safe(p2.customer).replace(/\s*様$/, '');
+    const cust = safe(state.customer).replace(/\s*様$/, '');
     const parts = [cust ? `${cust} 様` : '', safe(p2.destName) || '目的地', `ご提案${String(n).replace(/\d/g, c => String.fromCharCode(c.charCodeAt(0) + 0xFEE0))}物件`, Calc.todayStr()];
     return parts.filter(Boolean).join('_');
   }
@@ -1101,7 +1103,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         const pat = state.pattern, old = normalize(v);
         state[pat] = old[pat];
         state.stationCoords = Object.assign({}, old.stationCoords, state.stationCoords);
-        if (!hasPatternContent(state, pat === 'p1' ? 'p2' : 'p1')) { state.persons = old.persons; state.baseDate = old.baseDate; state.checkIn = old.checkIn; state.checkOut = old.checkOut; }
+        if (!hasPatternContent(state, pat === 'p1' ? 'p2' : 'p1')) { state.persons = old.persons; state.baseDate = old.baseDate; state.checkIn = old.checkIn; state.checkOut = old.checkOut; state.customer = old.customer; }
         persist(); renderForm(); renderPreview(); autoResolveStations(); toast(`前回の${pat === 'p1' ? 'パターン1' : 'パターン2'}の入力を復元しました`);
         break;
       }
