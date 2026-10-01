@@ -14,6 +14,8 @@
     { line: '#0F7C7A', text: '#0F7C7A', fill: '#E4F2F1' },
     { line: '#E0662A', text: '#C4531A', fill: '#FCEDE4' },
     { line: '#2F74B5', text: '#2F74B5', fill: '#E6EFF8' },
+    { line: '#7A5BB8', text: '#6A4BA8', fill: '#EFEAF8' },
+    { line: '#B08A1E', text: '#8A6A12', fill: '#F7F0DC' },
   ];
 
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
@@ -93,7 +95,7 @@
     let bad = 0; // 配置の悪さ（重なり・線とのかぶり）
     const mode = spec.mode;
     const center = spec.center;
-    const routes = (spec.routes || []).map((r, i) => Object.assign({ color: ROUTE_COLORS[i % 3], idx: i }, r));
+    const routes = (spec.routes || []).map((r, i) => Object.assign({ color: ROUTE_COLORS[i % ROUTE_COLORS.length], idx: i }, r));
     const L = new Layout(W, H);
 
     // 1. 投影（方角は正確、距離は圧縮）
@@ -104,7 +106,11 @@
       for (const lg of r.legs) if (lg.to) fitPts.push(lg.to);
     }
     const mx = mode === 'p2' ? 150 : 130;
-    const box = { x0: mx, y0: 70, x1: W - mx, y1: H - 60 };
+    // 地図の上に重ねる物件カード（パターン2の4・5件目）。縦に長くふさぐときは、地図をその左に収める
+    const blocked = spec.blocked || [];
+    const covered = blocked.reduce((t, b) => t + (b.y1 - b.y0), 0); // 右側をふさぐ高さの合計（5件なら2枚で縦いっぱい）
+    const rightEdge = covered > H * 0.6 ? Math.min.apply(null, blocked.map(b => b.x0 - 24)) : W - 40;
+    const box = { x0: mx, y0: 70, x1: Math.min(W - mx, rightEdge - (mx - 40)), y1: H - 60 };
     const proj = Geo.makeProjection(center, fitPts.length ? fitPts : [{ lat: center.lat + 0.01, lng: center.lng + 0.01 }], box, { maxA: 110 });
     // 拡大：物件・駅の範囲の中心を基準に広げ、はみ出したら枠内へずらす
     const P0 = p => proj.project(p);
@@ -114,7 +120,7 @@
     const zx = (bx0 + bx1) / 2, zy = (by0 + by1) / 2;
     const edge = { x: 40, top: 40, bottom: 44 };
     const fit = (lo, hi, min, max) => (hi - lo > max - min ? null : lo < min ? min - lo : hi > max ? max - hi : 0);
-    const sx = fit(zx + (bx0 - zx) * zoomX, zx + (bx1 - zx) * zoomX, edge.x, W - edge.x);
+    const sx = fit(zx + (bx0 - zx) * zoomX, zx + (bx1 - zx) * zoomX, edge.x, rightEdge);
     const sy = fit(zy + (by0 - zy) * zoomY, zy + (by1 - zy) * zoomY, edge.top, H - edge.bottom);
     if (sx === null || sy === null) return { bad: 1e9, svg: '' };
     const Praw = p => { const q = P0(p); return { x: zx + (q.x - zx) * zoomX + sx, y: zy + (q.y - zy) * zoomY + sy }; };
@@ -215,6 +221,12 @@
     drawn.forEach(d => L.addPath(d.pts));
     // 線が枠の外に出る配置（山手線まわりの区間など）は避ける
     drawn.forEach(d => d.pts.forEach(q => { if (q.x < 10 || q.x > W - 10 || q.y < 10 || q.y > H - 10) bad += 2000; }));
+    // 重ねるカードの下に線が隠れる配置も避ける。カードの場所は文字も置かない
+    blocked.forEach(b => {
+      drawn.forEach(d => d.pts.forEach(q => { if (q.x > b.x0 && q.x < b.x1 && q.y > b.y0 && q.y < b.y1) bad += 3000; }));
+      [cP].concat(stationMarks.map(m => m.p)).forEach(q => { if (q.x > b.x0 && q.x < b.x1 && q.y > b.y0 && q.y < b.y1) bad += 5000; });
+      L.add({ x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }, 5);
+    });
 
     // 4. 固定の占有領域（中心・駅・物件マーカー）
     const cMarkR = mode === 'p2' ? 20 : 16;

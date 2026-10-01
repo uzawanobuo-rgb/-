@@ -10,7 +10,7 @@
 
   const esc = MapM.esc;
   const yen = Calc.yen;
-  const TAG_TEXT = ['#0B5E5C', '#A8461A', '#245B8F'];
+  const TAG_TEXT = ['#0B5E5C', '#A8461A', '#245B8F', '#5A3F94', '#7A5E10'];
   const CENTRAL = ['新宿', '渋谷', '池袋', '東京', '品川', '上野'];
 
   function n(v) { return Calc.num(v); }
@@ -216,10 +216,10 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     return { html, warnings, model: { title: autoTitle, sub: `${prop.name || '物件'}から主要駅へのアクセス概要図`, note: autoNote, selected: selected.map(x => x.ms.name), price, facilities: facs } };
   }
 
-  // ================= パターン2：目的地 → 3物件 =================
+  // ================= パターン2：目的地 → 2〜5物件 =================
   function autoTags(items) {
-    // 物件A〜Cの位置（x.i）で持つ。A が空でも B・C のタグが正しい位置に入るように
-    const tags = [[], [], []];
+    // 物件A〜Eの位置（x.i）で持つ。A が空でも B 以降のタグが正しい位置に入るように
+    const tags = [[], [], [], [], []];
     const withMin = items.filter(x => x.info.display !== null);
     if (withMin.length > 1) {
       const m = Math.min.apply(null, withMin.map(x => x.info.display));
@@ -252,7 +252,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const ci = state.checkIn || Calc.defaultCheckIn();
     const co = state.checkOut || Calc.addDays(ci, 29);
     const props = (p2.properties || []).filter(p => p && (p.name || p.planUrl || p.lat));
-    const letters = ['A', 'B', 'C'];
+    const letters = ['A', 'B', 'C', 'D', 'E'];
 
     const items = (p2.properties || []).map((prop, i) => {
       if (!prop || !(prop.name || prop.planUrl || prop.lat)) return null;
@@ -271,6 +271,11 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const dest = (p2.destLat != null && p2.destLng != null && p2.destLat !== '' && p2.destLng !== '') ? { lat: +p2.destLat, lng: +p2.destLng, name: destName, sublabel: `目的地（${label}）` } : null;
     if (!dest) warnings.push('目的地の座標（緯度・経度）が未入力です');
 
+    // 4・5件目は、地図の右側に重ねて置く（下の段の C の上。4件のときは下の場所だけ使う）
+    const SIDE = { left: 704, w: 327, h: 205 };
+    const extra = items.slice(3);
+    const sideSlots = extra.length === 1 ? [{ left: SIDE.left, top: 225, h: SIDE.h }]
+      : extra.length >= 2 ? [{ left: SIDE.left, top: 10, h: SIDE.h }, { left: SIDE.left, top: 225, h: SIDE.h }] : [];
     let svg;
     if (dest) {
       const routes = items.map(x => {
@@ -282,10 +287,10 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
         if (x.prop.lat == null || x.prop.lat === '') { warnings.push(`${x.letter}：物件の座標が未入力です`); return null; }
         mr.origin = { lat: +x.prop.lat, lng: +x.prop.lng, name: x.prop.name, letter: x.letter };
         mr.callout = { title: x.prop.name, minutes: x.info.display, transfers: x.info.transfers };
-        mr.color = MapM.ROUTE_COLORS[x.i % 3];
+        mr.color = MapM.ROUTE_COLORS[x.i % MapM.ROUTE_COLORS.length];
         return mr;
       }).filter(Boolean);
-      svg = MapM.renderMap({ width: 1043, height: 440, mode: 'p2', center: dest, routes, ariaLabel: `${destName}と物件の位置関係と路線概要図` });
+      svg = MapM.renderMap({ width: 1043, height: 440, mode: 'p2', center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
     } else {
       svg = `<svg width="1043" height="440"><rect width="1043" height="440" fill="#FBFAF6"/><text x="521" y="220" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
     }
@@ -301,8 +306,8 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
 
     const tags = autoTags(items);
     const cols = MapM.ROUTE_COLORS;
-    const cards = items.map((x, k) => {
-      const p = x.prop, col = cols[x.i % 3];
+    const cardHtml = (x, extraStyle) => {
+      const p = x.prop, col = cols[x.i % cols.length];
       const sa = Parse.shortAddress(p.address || '');
       const photo = p.photoCustom || (p.photos && p.photos[p.photoIdx || 0] && (p.photos[p.photoIdx || 0].data || p.photos[p.photoIdx || 0].src)) || '';
       const photoHtml = photo && !p.hidePhoto
@@ -312,9 +317,9 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
       const lines = x.info.legs.map(l => shortLine(l.line)).filter(Boolean);
       const rideTxt = x.info.ride !== null ? `（${lines.length ? lines.join('・') : '乗車'}${x.info.ride}分）` : '';
       const tagList = (p.tag != null && p.tag !== '' ? String(p.tag).split(/[、,]/).map(s => s.trim()).filter(Boolean) : tags[x.i]);
-      const pills = tagList.map(t => `<span style="padding:2px 8px;border-radius:999px;background:${col.fill};color:${TAG_TEXT[x.i % 3]};font-size:11px;font-weight:700;white-space:nowrap;">${esc(t)}</span>`).join('');
+      const pills = tagList.map(t => `<span style="padding:2px 8px;border-radius:999px;background:${col.fill};color:${TAG_TEXT[x.i % TAG_TEXT.length]};font-size:11px;font-weight:700;white-space:nowrap;">${esc(t)}</span>`).join('');
       const daily = x.price ? x.price.dailyApplied : null;
-      return `<div style="display:flex;gap:12px;padding:12px;background:#FFFFFF;border:1px solid #E2DED3;border-top:5px solid ${col.line};border-radius:12px;min-width:0;">
+      return `<div style="display:flex;gap:12px;padding:12px;background:#FFFFFF;border:1px solid #E2DED3;border-top:5px solid ${col.line};border-radius:12px;min-width:0;box-sizing:border-box;${extraStyle || ''}">
 ${photoHtml}
 <div style="display:flex;flex-direction:column;gap:2px;flex-grow:1;min-width:0;">
 <div style="font-size:14px;font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${x.letter}　${esc(p.name || '')}</div>
@@ -325,7 +330,9 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
 <div style="display:flex;align-items:baseline;gap:3px;white-space:nowrap;"><span style="font-size:11px;color:#5B6770;">${x.price && x.price.days !== 30 ? x.price.days + '日間' : '1か月'}総額</span><span style="font-size:22px;font-weight:900;">${x.price ? yen(x.price.total) : '—'}</span><span style="font-size:11px;font-weight:700;">円</span></div>
 <div style="font-size:10px;color:#7A7466;white-space:nowrap;">1日 ${daily !== null ? yen(daily) : '—'}円 × ${x.price ? x.price.days : '–'}日 ＋ 清掃費・保険</div>
 </div></div></div>`;
-    }).join('');
+    };
+    const cards = items.slice(0, 3).map(x => cardHtml(x)).join('');
+    const sideCards = extra.slice(0, 2).map((x, k) => cardHtml(x, `position:absolute;left:${sideSlots[k].left}px;top:${sideSlots[k].top}px;width:${SIDE.w}px;height:${sideSlots[k].h}px;box-shadow:0 2px 10px rgba(30,43,51,.12);`)).join('');
     const bottom = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;flex-grow:1;min-height:0;">${cards}</div>`;
 
     const base = state.baseDate || Calc.todayStr();
@@ -338,7 +345,7 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の各プランの${anyCampaign ? 'キャンペーン価格' : '料金'}で、${state.persons || 1}名・${days}日利用時の総額（利用料＋ルームクリーニング${sameClean ? yen(cleanVals[0]) + '円' : ''}＋住宅保険${sameIns ? yen(insVals[0]) + '円' : ''}×月数（応当日で計算、端数月は1か月））です。`;
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
 
-    const html = frame(header(title, sub, right) + panel(svg, 440, '目的地') + bottom + note);
+    const html = frame(header(title, sub, right) + panel(svg + sideCards, 440, '目的地') + bottom + note);
     return { html, warnings, model: { title: autoTitle, sub: autoSub, note: autoNote, tags } };
   }
 

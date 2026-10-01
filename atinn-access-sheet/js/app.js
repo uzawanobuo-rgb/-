@@ -7,9 +7,10 @@
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = (sel, el) => (el || document).querySelector(sel);
   const MAJOR = GEO.majorStations.map(s => s.name);
-  const LETTERS = ['A', 'B', 'C'];
-  const COLORS = ['#0F7C7A', '#E0662A', '#2F74B5'];
-  const TINTS = ['#E4F2F1', '#FCEDE4', '#E6EFF8'];
+  const LETTERS = ['A', 'B', 'C', 'D', 'E'];
+  const MAX_P2 = 5; // パターン2の物件は3〜5つ（3つまでは空欄で減らせる）
+  const COLORS = ['#0F7C7A', '#E0662A', '#2F74B5', '#7A5BB8', '#B08A1E'];
+  const TINTS = ['#E4F2F1', '#FCEDE4', '#E6EFF8', '#EFEAF8', '#F7F0DC'];
 
   // ---------- 状態 ----------
   function emptyProp() {
@@ -30,8 +31,10 @@
     s.p1 = Object.assign(defaultState().p1, s.p1 || {});
     s.p2 = Object.assign(defaultState().p2, s.p2 || {});
     s.p1.property = Object.assign(emptyProp(), s.p1.property || {});
-    s.p2.properties = [0, 1, 2].map(i => Object.assign(emptyProp(), (s.p2.properties || [])[i] || {}));
-    s.p2.routes = [0, 1, 2].map(i => Object.assign(emptyRoute(), (s.p2.routes || [])[i] || {}));
+    const np = Math.min(MAX_P2, Math.max(3, (s.p2.properties || []).length));
+    const idx = Array.from({ length: np }, (_, i) => i);
+    s.p2.properties = idx.map(i => Object.assign(emptyProp(), (s.p2.properties || [])[i] || {}));
+    s.p2.routes = idx.map(i => Object.assign(emptyRoute(), (s.p2.routes || [])[i] || {}));
     Object.keys(s.p1.routes || {}).forEach(k => { s.p1.routes[k] = Object.assign(emptyRoute(), s.p1.routes[k]); });
     s.stationCoords = s.stationCoords || {};
     // 以前はパターンごとに持っていた利用期間を、共通の欄に移す
@@ -701,6 +704,7 @@ ${destCoord && destNearText(true) ? `<div class="muted">最寄駅：${destNearTe
 </div></details>
 </div></details>
 ${propCards}
+${p.properties.length < MAX_P2 ? `<div class="row" style="justify-content:center;margin:2px 0 6px"><button type="button" class="btn" data-action="add-prop">＋ 物件を追加（${LETTERS[p.properties.length]}）<small class="muted" style="margin-left:6px">最大${MAX_P2}つ</small></button></div>` : ''}
 ${renderTextCard('p2', built.model)}
 ${renderMailCard('p2')}`;
   }
@@ -985,7 +989,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   window.addEventListener('message', e => {
     const d = e.data;
     if (e.origin !== 'https://transit.yahoo.co.jp' || !d || d.src !== 'yahoo-transit') return;
-    const m = String(d.name || '').match(/^atinn-yahoo\|(p1\.routes\.[^|]+|p2\.routes\.[0-2])\|(.*)$/);
+    const m = String(d.name || '').match(/^atinn-yahoo\|(p1\.routes\.[^|]+|p2\.routes\.[0-4])\|(.*)$/);
     const reply = (ok, msg) => { try { e.source.postMessage({ src: 'atinn-tool', ok, msg }, e.origin); } catch (er) { /* noop */ } };
     if (!m) { reply(false, 'どの経路の結果か分かりませんでした。ツールの「Yahoo!乗換案内で検索」から開き直してください'); return; }
     const path = m[1], pat = path.slice(0, 2);
@@ -1141,9 +1145,23 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         state.p1.routes = {};
         MAJOR.forEach(name => fillRouteDefaults(p1Route(name), state.p1.property, name));
         persist(); renderForm(); renderPreview(); break;
-      case 'clear-prop':
-        if (!confirm(`物件${LETTERS[i]}の入力を消します。よろしいですか？`)) return;
-        state.p2.properties[i] = emptyProp(); state.p2.routes[i] = emptyRoute(); if (ui.imported) delete ui.imported[`p2.properties.${i}`]; persist(); renderForm(); renderPreview(); break;
+      case 'clear-prop': {
+        if (!confirm(`物件${LETTERS[i]}を消します。よろしいですか？（後ろの物件は前に詰めます）`)) return;
+        // 消して後ろを詰める。3つより少なくなったら空欄を足す
+        const p2 = state.p2;
+        p2.properties.splice(i, 1); p2.routes.splice(i, 1);
+        while (p2.properties.length < 3) { p2.properties.push(emptyProp()); p2.routes.push(emptyRoute()); }
+        if (ui.imported) Object.keys(ui.imported).filter(k => k.startsWith('p2.')).forEach(k => delete ui.imported[k]);
+        persist(); renderForm(); renderPreview(); break;
+      }
+      case 'add-prop': {
+        const p2 = state.p2;
+        if (p2.properties.length >= MAX_P2) break;
+        p2.properties.push(emptyProp()); p2.routes.push(emptyRoute());
+        const k = p2.properties.length - 1;
+        persist(); renderForm(); renderPreview(); scrollToSlot(`sec-p2-${k}`);
+        break;
+      }
       case 'geocode-prop': {
         const p = getPath(path);
         if (!p.address) { toast('住所を入力してください'); return; }
@@ -1246,16 +1264,18 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     o.innerHTML = `<div class="slot-box" role="dialog" aria-label="取り込む物件を選ぶ">
 <div class="slot-t">${esc(name || 'アットインの物件')} を取り込みます</div>
 <div class="muted">どの物件に入れますか？</div>
-<div class="slot-btns">${props.map((p, i) => `<button type="button" class="slot-btn ${i === first ? 'first' : ''}" data-i="${i}" style="--pc:${COLORS[i]}"><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span><span>${p.name ? esc(p.name) + '<small>入力済み（上書き）</small>' : '空き'}</span></button>`).join('')}</div>
+<div class="slot-btns">${props.map((p, i) => `<button type="button" class="slot-btn ${i === first ? 'first' : ''}" data-i="${i}" style="--pc:${COLORS[i]}"><span class="prop-letter" style="background:${COLORS[i]}">${LETTERS[i]}</span><span>${p.name ? esc(p.name) + '<small>入力済み（上書き）</small>' : '空き'}</span></button>`).join('')}
+${first < 0 && props.length < MAX_P2 ? `<button type="button" class="slot-btn first" data-i="${props.length}" style="--pc:${COLORS[props.length]}"><span class="prop-letter" style="background:${COLORS[props.length]}">${LETTERS[props.length]}</span><span>＋ 物件${LETTERS[props.length]}として追加</span></button>` : ''}</div>
 <div class="row" style="justify-content:flex-end"><button type="button" class="btn small" data-cancel>やめる</button></div></div>`;
     document.body.appendChild(o);
-    const btn = o.querySelector(`.slot-btn[data-i="${first < 0 ? 0 : first}"]`); if (btn) btn.focus();
+    const btn = o.querySelector('.slot-btn.first') || o.querySelector('.slot-btn'); if (btn) btn.focus();
     o.addEventListener('click', ev => {
       const b = ev.target.closest('.slot-btn');
       if (b) {
         const i = +b.dataset.i;
         o.remove();
         if (state.pattern !== 'p2') { state.pattern = 'p2'; }
+        if (i >= state.p2.properties.length) { state.p2.properties.push(emptyProp()); state.p2.routes.push(emptyRoute()); }
         importInto(`p2.properties.${i}`, json); scrollToSlot(`sec-p2-${i}`);
         return;
       }
