@@ -332,6 +332,27 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
       const tagList = (p.tag != null && p.tag !== '' ? String(p.tag).split(/[、,]/).map(s => s.trim()).filter(Boolean) : tags[x.i]);
       const pills = tagList.map(t => `<span style="padding:2px 8px;border-radius:999px;background:${col.fill};color:${TAG_TEXT[x.i % TAG_TEXT.length]};font-size:11px;font-weight:700;white-space:nowrap;">${esc(t)}</span>`).join('');
       const daily = x.price ? x.price.dailyApplied : null;
+      const termLabel = x.price && x.price.days !== 30 ? x.price.days + '日間' : '1か月';
+      if (PORTRAIT) {
+        // 縦型：写真｜物件の情報｜料金（右側の空きに料金を置く）
+        const ph = photo && !p.hidePhoto
+          ? `<div style="width:96px;flex-shrink:0;border-radius:8px;background:#EDEAE2 url('${esc(photo)}') center/cover no-repeat;"></div>`
+          : `<div style="width:96px;flex-shrink:0;border-radius:8px;background:#EDEAE2;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8C959B;">${p.hidePhoto ? '' : '写真なし'}</div>`;
+        return `<div style="display:flex;gap:12px;padding:12px;background:#FFFFFF;border:1px solid #E2DED3;border-top:5px solid ${col.line};border-radius:12px;min-width:0;box-sizing:border-box;min-height:118px;">
+${ph}
+<div style="display:flex;flex-direction:column;gap:3px;flex-grow:1;min-width:0;">
+<div style="font-size:15px;font-weight:900;line-height:1.3;">${x.letter}　${esc(p.name || '')}</div>
+<div style="font-size:12px;color:#5B6770;line-height:1.4;">${esc(sa.ward + sa.town)}${st ? '｜' + st : ''}</div>
+<div style="font-size:12px;color:#5B6770;line-height:1.4;">${esc(destName)}まで <b style="color:${col.text};font-size:14px;">約${x.info.display ?? '–'}分</b>${esc(rideTxt)}</div>
+${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">${pills}</div>` : ''}
+</div>
+<div style="display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:2px;flex-shrink:0;padding-left:12px;border-left:1px solid #EFEBE2;">
+<div style="font-size:11px;color:#5B6770;">${termLabel}総額</div>
+<div style="white-space:nowrap;"><span style="font-size:24px;font-weight:900;">${x.price ? yen(x.price.total) : '—'}</span><span style="font-size:11px;font-weight:700;">円</span></div>
+<div style="font-size:10px;color:#7A7466;white-space:nowrap;">1日 ${daily !== null ? yen(daily) : '—'}円 × ${x.price ? x.price.days : '–'}日</div>
+<div style="font-size:10px;color:#7A7466;white-space:nowrap;">＋ 清掃費・保険</div>
+</div></div>`;
+      }
       return `<div style="display:flex;gap:12px;padding:12px;background:#FFFFFF;border:1px solid #E2DED3;border-top:5px solid ${col.line};border-radius:12px;min-width:0;box-sizing:border-box;${extraStyle || ''}">
 ${photoHtml}
 <div style="display:flex;flex-direction:column;gap:2px;flex-grow:1;min-width:0;">
