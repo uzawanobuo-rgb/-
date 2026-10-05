@@ -158,3 +158,14 @@ test('縦型と横型で、金額・時間が同じ', () => {
     assert.equal(P.min, L.min, k + ' 時間');
   }
 });
+
+test('縦型の設備比較：設備名を左に、物件は記号の列で ●／×', () => {
+  const Sheet = require('../js/sheet.js');
+  const st = require('../js/samples.js').p2();
+  st.p2.compare = true;
+  const r = Sheet.buildSheet(st, { portrait: true });
+  assert.equal(r.pages.length, 2);
+  assert.ok(r.pages[1].includes('class="atinn-sheet portrait"'));
+  assert.ok(r.pages[1].includes('●') && r.pages[1].includes('×'));
+  assert.ok(r.pages[1].includes('全物件にあり'));
+});

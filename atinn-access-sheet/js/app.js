@@ -868,7 +868,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     for (let i = 0; i < n; i++) download(await toPng(i), fileBase() + (i ? '_設備比較' : '') + '.png');
     toast(n > 1 ? 'PNGを2枚保存しました' : 'PNGを保存しました');
   }
-  // 縦型（スマホ向け）。設備比較は横型のまま2枚目に
+  // 縦型（スマホ向け）。設備比較も縦型で2枚目に
   async function exportPngPortrait() {
     const n = exportPages(true).length;
     for (let i = 0; i < n; i++) download(await toPng(i, true), fileBase() + (i ? '_設備比較' : '_縦') + '.png');
