@@ -381,7 +381,7 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
 
     const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? mapHP : 440, '目的地') + bottom + note);
     const pages = [html];
-    if (p2.compare && items.length) { const pv = PORTRAIT; PORTRAIT = false; pages.push(buildCompare(state, items, destName, label, warnings)); PORTRAIT = pv; } // 比較表は横型のまま
+    if (p2.compare && items.length) pages.push(buildCompare(state, items, destName, label, warnings)); // 縦型のときは縦型の比較表
     return { html, pages, warnings, model: { title: autoTitle, sub: autoSub, note: autoNote, tags } };
   }
 
@@ -437,6 +437,33 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
 <thead><tr><th style="background:#FBFAF6;"></th>${head}</tr></thead><tbody>${info}${facRows || `<tr><th style="padding:8px 10px;text-align:left;font-size:12px;color:#5B6770;background:#F1F8F7;">主な設備</th><td colspan="${sel.length}" style="padding:8px;font-size:12px;color:#8C959B;">設備の情報がありません（プランページで「🏠プラン取込」をすると入ります）</td></tr>`}</tbody></table></div>`;
     const ttl = `${destName}まで、${sel.length}つのお部屋の比較`;
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">※設備はプランページの「主な設備」より。総額は1ページ目と同じ条件（${state.persons || 1}名）で計算しています。</div>`;
+    if (PORTRAIT) {
+      // 縦型：上に物件の一覧（時間・料金など）、下に設備の表（設備名を左に1回だけ、物件は記号の細い列で ●／×）
+      const list = sel.map(x => {
+        const col = cols[x.i % cols.length], p = x.prop;
+        const sa = Parse.shortAddress(p.address || '');
+        const st = x.r.station ? `${esc(x.r.station)}${/停|前$/.test(x.r.station) ? '' : '駅'} 徒歩${x.info.walk ?? '–'}分` : '';
+        const tr = x.info.transfers === 0 ? '乗換なし' : x.info.transfers != null ? `乗換${x.info.transfers}回` : '';
+        const bld = [p.built, p.floors ? `${n(p.floors) || p.floors}階建` : ''].filter(Boolean).map(esc).join('・');
+        return `<div style="display:flex;gap:10px;align-items:center;padding:8px 10px;background:#FFFFFF;border:1px solid #E2DED3;border-left:5px solid ${col.line};border-radius:10px;">
+<span style="display:inline-flex;width:24px;height:24px;flex-shrink:0;border-radius:50%;background:${col.line};color:#fff;align-items:center;justify-content:center;font-size:12px;font-weight:900;">${x.letter}</span>
+<div style="flex-grow:1;min-width:0;"><div style="font-size:14px;font-weight:900;line-height:1.3;">${esc(p.name || '')}</div>
+<div style="font-size:11px;color:#5B6770;line-height:1.5;">${esc(sa.ward + sa.town)}${st ? '｜' + st : ''}${bld ? '｜' + bld : ''}</div></div>
+<div style="text-align:right;flex-shrink:0;"><div style="font-size:12px;color:${col.text};font-weight:700;">約<b style="font-size:17px;">${x.info.display ?? '–'}</b>分 <span style="font-size:10px;">${tr}</span></div>
+<div style="font-size:13px;font-weight:900;">${x.price ? yen(x.price.total) : '—'}<span style="font-size:10px;">円</span></div></div></div>`;
+      }).join('');
+      const cw = 52; // 物件の列の幅
+      const headP = sel.map(x => `<th style="width:${cw}px;padding:8px 0 6px;background:${cols[x.i % cols.length].fill};border-top:4px solid ${cols[x.i % cols.length].line};"><span style="display:inline-flex;width:22px;height:22px;border-radius:50%;background:${cols[x.i % cols.length].line};color:#fff;align-items:center;justify-content:center;font-size:11px;font-weight:900;">${x.letter}</span></th>`).join('');
+      const mark = (h, t, x) => h === null ? '<span style="color:#B9B3A6;font-size:10px;">未取得</span>'
+        : h.includes(t) ? `<span style="color:${cols[x.i % cols.length].line};font-size:17px;line-height:1;">●</span>` : '<span style="color:#C9C3B6;font-size:14px;line-height:1;">×</span>';
+      const rowsP = facs.map(t => `<tr><td style="padding:6px 10px;border-top:1px solid #F0EDE6;font-size:13px;font-weight:700;">${esc(t)}</td>${sel.map((x, j) => `<td style="text-align:center;border-top:1px solid #F0EDE6;">${mark(have[j], t, x)}</td>`).join('')}</tr>`).join('');
+      const commonP = common.length ? `<div style="padding:8px 12px;font-size:12px;line-height:1.7;border-top:2px solid #CFE6E3;background:#F1F8F7;"><b style="color:#0B5E5C;">全物件にあり：</b>${common.map(esc).join('・')}</div>` : '';
+      const tableP = `<div style="background:#FFFFFF;border:1px solid #E2DED3;border-radius:14px;overflow:hidden;">
+<table style="width:100%;border-collapse:collapse;table-layout:fixed;"><colgroup><col>${sel.map(() => `<col style="width:${cw}px">`).join('')}</colgroup>
+<thead><tr><th style="padding:8px 10px;text-align:left;font-size:13px;font-weight:900;color:#0B5E5C;background:#F1F8F7;border-top:4px solid #CFE6E3;">主な設備 <span style="font-size:10px;font-weight:500;color:#5B6770;">●＝あり ×＝なし</span></th>${headP}</tr></thead>
+<tbody>${rowsP || `<tr><td colspan="${sel.length + 1}" style="padding:10px;font-size:12px;color:#8C959B;">設備の情報がありません（プランページで「🏠プラン取込」をすると入ります）</td></tr>`}</tbody></table>${commonP}</div>`;
+      return frame(header(ttl, `${label}（${destName}）までの時間・料金・設備`, customerBadge(state)) + `<div style="display:flex;flex-direction:column;gap:6px;">${list}</div>` + tableP + note);
+    }
     return frame(header(ttl, `${label}（${destName}）までの時間・料金・設備`, customerBadge(state)) + table + note);
   }
 
