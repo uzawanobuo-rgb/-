@@ -286,8 +286,11 @@
     const callouts = [];
     ends.forEach(e => {
       const co = e.r.callout || {};
-      const w = mode === 'p2' ? Math.max(180, textW(co.title, 13) + 30) : Math.max(170, textW(co.title, 22) + 110);
-      const h = mode === 'p2' ? 62 : 70;
+      // 小さい吹き出し（縦型のパターン2）：物件名は下のカードにあるので、記号・時間・乗換だけ
+      const compact = mode === 'p2' && spec.compact;
+      const trC = co.transfers === 0 ? '乗換なし' : (co.transfers > 0 ? `乗換${co.transfers}回` : '');
+      const w = compact ? 38 + 26 + String(co.minutes ?? '–').length * 14 + 8 + textW(trC, 10) + 12 : mode === 'p2' ? Math.max(180, textW(co.title, 13) + 30) : Math.max(170, textW(co.title, 22) + 110);
+      const h = compact ? 42 : mode === 'p2' ? 62 : 70;
       const out = { x: e.p.x - cP.x, y: e.p.y - cP.y };
       const ol = Math.hypot(out.x, out.y) || 1;
       let bestC = null, bcost = Infinity;
@@ -577,7 +580,12 @@
       const tr = co.transfers === 0 ? '乗換なし' : (co.transfers > 0 ? `乗換${co.transfers}回` : '');
       const mins = co.minutes != null && co.minutes !== '' ? co.minutes : '–';
       s.push(`<g><rect x="${r1(x)}" y="${r1(y)}" width="${r1(w)}" height="${h}" rx="12" fill="${col.fill}" stroke="${col.line}" stroke-width="1.5"/>`);
-      if (mode === 'p2') {
+      if (mode === 'p2' && spec.compact) {
+        const letter = (e.r.origin && e.r.origin.letter) || '';
+        s.push(`<circle cx="${r1(x + 20)}" cy="${r1(y + h / 2)}" r="11" fill="${col.line}"/><text x="${r1(x + 20)}" y="${r1(y + h / 2 + 4.5)}" text-anchor="middle" font-size="12" font-weight="900" fill="#FFFFFF">${esc(letter)}</text>`);
+        s.push(`<text x="${r1(x + 37)}" y="${r1(y + 29)}" font-size="12" font-weight="700" fill="${col.text}">約<tspan font-size="22" font-weight="900">${esc(mins)}</tspan>分</text>`);
+        s.push(`<text x="${r1(x + w - 10)}" y="${r1(y + 28)}" text-anchor="end" font-size="10" font-weight="700" fill="${col.text}">${tr}</text></g>`);
+      } else if (mode === 'p2') {
         s.push(`<text x="${r1(x + 14)}" y="${r1(y + 21)}" font-size="13" font-weight="700" fill="${C.sub}">${esc(co.title)}</text>`);
         // 時間は、右の「乗換〇回」より左の空いている部分の真ん中に置く
         const freeR = x + w - 14 - (tr ? textW(tr, 12) + 10 : 0);

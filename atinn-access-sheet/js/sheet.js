@@ -286,6 +286,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     // 4・5件目は、地図の右側に重ねて置く（下の段の C の上。4件のときは下の場所だけ使う）
     const SIDE = { left: 704, w: 327, h: 205 };
     const extra = PORTRAIT ? [] : items.slice(3); // 縦型では全部を地図の下に並べる
+    const mapHP = 520; // 縦型の地図の高さ
     const sideSlots = extra.length === 1 ? [{ left: SIDE.left, top: 225, h: SIDE.h }]
       : extra.length >= 2 ? [{ left: SIDE.left, top: 10, h: SIDE.h }, { left: SIDE.left, top: 225, h: SIDE.h }] : [];
     let svg;
@@ -302,9 +303,9 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
         mr.color = MapM.ROUTE_COLORS[x.i % MapM.ROUTE_COLORS.length];
         return mr;
       }).filter(Boolean);
-      svg = MapM.renderMap({ width: PORTRAIT ? PMAP : 1043, height: PORTRAIT ? 520 : 440, mode: 'p2', center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
+      svg = MapM.renderMap({ width: PORTRAIT ? PMAP : 1043, height: PORTRAIT ? mapHP : 440, mode: 'p2', compact: PORTRAIT && items.length > 3, center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
     } else {
-      svg = `<svg width="${PORTRAIT ? PMAP : 1043}" height="${PORTRAIT ? 520 : 440}"><rect width="100%" height="100%" fill="#FBFAF6"/><text x="${PORTRAIT ? PMAP / 2 : 521}" y="${PORTRAIT ? 260 : 220}" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
+      svg = `<svg width="${PORTRAIT ? PMAP : 1043}" height="${PORTRAIT ? mapHP : 440}"><rect width="100%" height="100%" fill="#FBFAF6"/><text x="${PORTRAIT ? PMAP / 2 : 521}" y="${PORTRAIT ? mapHP / 2 : 220}" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
     }
 
     const allNoTransfer = items.length && items.every(x => x.info.transfers === 0);
@@ -357,7 +358,7 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の各プランの${anyCampaign ? 'キャンペーン価格' : '料金'}で、${state.persons || 1}名・${days}日利用時の総額（利用料＋ルームクリーニング${sameClean ? yen(cleanVals[0]) + '円' : ''}＋住宅保険${sameIns ? yen(insVals[0]) + '円' : ''}×月数（応当日で計算、端数月は1か月））です。`;
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
 
-    const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? 520 : 440, '目的地') + bottom + note);
+    const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? mapHP : 440, '目的地') + bottom + note);
     const pages = [html];
     if (p2.compare && items.length) { const pv = PORTRAIT; PORTRAIT = false; pages.push(buildCompare(state, items, destName, label, warnings)); PORTRAIT = pv; } // 比較表は横型のまま
     return { html, pages, warnings, model: { title: autoTitle, sub: autoSub, note: autoNote, tags } };
