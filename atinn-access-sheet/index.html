@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/app.css?v=202610020100">
+<link rel="stylesheet" href="css/app.css?v=202610050100">
 </head>
 <body>
 <header class="topbar">
@@ -37,8 +37,10 @@
       <div class="preview-title">プレビュー（A4横）</div>
       <div class="preview-actions">
         <button type="button" class="btn primary" data-action="png">PNG</button>
+        <button type="button" class="btn primary" data-action="png-portrait" title="スマホで見やすい縦長の画像">PNG（縦）</button>
         <button type="button" class="btn primary" data-action="pdf">PDF</button>
         <button type="button" class="btn" data-action="print">印刷</button>
+        <button type="button" class="btn" data-action="share" title="お客様に送るリンクを作る（スマホでは縦、パソコンでは横で表示）">共有リンク</button>
       </div>
     </div>
     <div class="warnings" id="warnings"></div>
@@ -50,20 +52,21 @@
 <div id="export-root" aria-hidden="true"></div>
 <div id="toast" role="status"></div>
 
-<script src="vendor/html-to-image.js?v=202610020100"></script>
-<script src="vendor/jspdf.umd.min.js?v=202610020100"></script>
-<script src="js/calc.js?v=202610020100"></script>
-<script src="js/geo.js?v=202610020100"></script>
-<script src="js/data.js?v=202610020100"></script>
-<script src="js/icons.js?v=202610020100"></script>
-<script src="js/parse.js?v=202610020100"></script>
-<script src="js/map.js?v=202610020100"></script>
-<script src="js/logo.js?v=202610020100"></script>
-<script src="js/sheet.js?v=202610020100"></script>
-<script src="js/mailtext.js?v=202610020100"></script>
-<script src="js/samples.js?v=202610020100"></script>
-<script src="js/bm-transit.js?v=202610020100"></script>
-<script src="js/bm-atinn.js?v=202610020100"></script>
-<script src="js/app.js?v=202610020100"></script>
+<script src="vendor/html-to-image.js?v=202610050100"></script>
+<script src="vendor/jspdf.umd.min.js?v=202610050100"></script>
+<script src="js/calc.js?v=202610050100"></script>
+<script src="js/geo.js?v=202610050100"></script>
+<script src="js/data.js?v=202610050100"></script>
+<script src="js/icons.js?v=202610050100"></script>
+<script src="js/parse.js?v=202610050100"></script>
+<script src="js/map.js?v=202610050100"></script>
+<script src="js/logo.js?v=202610050100"></script>
+<script src="js/sheet.js?v=202610050100"></script>
+<script src="js/share.js?v=202610050100"></script>
+<script src="js/mailtext.js?v=202610050100"></script>
+<script src="js/samples.js?v=202610050100"></script>
+<script src="js/bm-transit.js?v=202610050100"></script>
+<script src="js/bm-atinn.js?v=202610050100"></script>
+<script src="js/app.js?v=202610050100"></script>
 </body>
 </html>
