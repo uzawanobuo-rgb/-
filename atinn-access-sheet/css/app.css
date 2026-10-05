@@ -216,3 +216,21 @@ details.more > summary { align-items: center; }
 .sheet-page + .sheet-page { margin-top: 16px; }
 .compare-opt { margin: 4px 0 10px; padding: 8px 12px; background: #F1F8F7; border: 1px solid #CFE6E3; border-radius: 10px; gap: 6px; }
 @media print { #export-root { height: auto; } #export-root > .atinn-sheet { break-after: page; page-break-after: always; } #export-root > .atinn-sheet:last-child { break-after: auto; page-break-after: auto; } }
+
+/* ブロックの先頭行（見出し）は濃い色の帯にして、ブロックの始まりをわかりやすくする。
+   物件のブロックは物件の色（A 緑・B オレンジ…）、それ以外は濃紺。文字は白 */
+.card > summary { background: var(--text); color: #fff; border-radius: 11px 11px 0 0; margin-bottom: 10px; }
+.card:not([open]) > summary { border-radius: 11px; margin-bottom: 0; }
+.card.prop-card > summary, .card.prop-card:not([open]) > summary { background: var(--pc); }
+.card.prop-card > summary { border-radius: 6px 11px 0 0; }
+.card.prop-card:not([open]) > summary { border-radius: 6px 11px 11px 6px; }
+.card.cond-card > summary { background: var(--text); border-radius: 0; }
+.card.cond-card:not([open]) > summary { border-radius: 0; }
+.card > summary:hover, .card.cond-card > summary:hover, .card.prop-card > summary:hover { background-color: inherit; filter: brightness(1.12); }
+.card > summary::before { border-color: #fff; }
+.card > summary .step { background: #fff; color: var(--text); }
+.card.cond-card > summary .step { background: #fff; }
+.card > summary .prop-letter { background: #fff !important; color: var(--pc); }
+.card > summary .prop-title, .card > summary .prop-title.muted-title { color: #fff; }
+.card > summary .prop-title .prop-min { color: rgba(255,255,255,.85); }
+.card > summary .muted { color: rgba(255,255,255,.78) !important; }
