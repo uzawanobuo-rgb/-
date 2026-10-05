@@ -139,3 +139,22 @@ test('パターン2：設備比較の2ページ目（チェックしたときだ
   assert.ok(r.pages[1].includes('宅配ボックス'));   // 田町2だけにある
   assert.ok(!r.pages[1].includes('ユニットバス'));  // 比べる意味が薄いものは出さない
 });
+
+test('縦型と横型で、金額・時間が同じ', () => {
+  const Sheet = require('../js/sheet.js');
+  const Samples = require('../js/samples.js');
+  const nums = h => {
+    const t = h.replace(/<[^>]+>/g, ' ');
+    return {
+      yen: (t.match(/\d{1,3}(?:,\d{3})+/g) || []).sort().join(' '),
+      min: (t.match(/約\s*\d+\s*分/g) || []).map(x => x.replace(/\s/g, '')).sort().join(' '),
+    };
+  };
+  for (const k of ['p1', 'p2']) {
+    const st = Samples[k]();
+    const L = nums(Sheet.buildSheet(st).pages[0]);
+    const P = nums(Sheet.buildSheet(st, { portrait: true }).pages[0]);
+    assert.equal(P.yen, L.yen, k + ' 金額');
+    assert.equal(P.min, L.min, k + ' 時間');
+  }
+});
