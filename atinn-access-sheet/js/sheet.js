@@ -81,7 +81,18 @@
     return km > 1.2 ? { name: c.name, km } : null;
   }
 
+  // 縦型（スマホ向け）で作るときは true。buildSheet(state, { portrait: true }) で切り替える
+  let PORTRAIT = false;
+  const PW = 600, PMAP = 568; // 縦型の幅と、地図の幅
+
   function header(title, sub, right) {
+    if (PORTRAIT) {
+      const fs = Math.max(20, Math.min(30, Math.floor(30 * 560 / Math.max(1, MapM.textW(title, 30) * 1.04))));
+      return `<div style="display:flex;flex-direction:column;gap:8px;">
+<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;"><img src="${LOGO.src}" alt="アットイン" style="height:26px;display:block;">${right || ''}</div>
+<h1 style="margin:0;font-size:${fs}px;font-weight:900;letter-spacing:0.02em;line-height:1.25;">${esc(title)}</h1>
+<div style="font-size:14px;color:#5B6770;font-weight:500;">${esc(sub)}</div></div>`;
+    }
     // 長い見出し（目的地がビル名など）は、1行に収まるよう文字を小さくする
     const maxW = right ? 800 : 1030;
     const fs = Math.max(22, Math.min(38, Math.floor(38 * maxW / Math.max(1, MapM.textW(title, 38) * 1.04))));
@@ -109,11 +120,12 @@
     return c ? `<div style="padding:6px 14px;border-radius:999px;background:#1E2B33;color:#FFFFFF;font-size:13px;font-weight:700;white-space:nowrap;flex-shrink:0;">${esc(c)}様へのご提案</div>` : '';
   }
   function frame(inner) {
+    if (PORTRAIT) return `<div class="atinn-sheet portrait" style="width:${PW}px;box-sizing:border-box;border-top:8px solid #0F7C7A;padding:16px 16px 18px;display:flex;flex-direction:column;gap:12px;background:#F7F6F2;color:#1E2B33;font-family:'M PLUS 1p','Hiragino Sans',sans-serif;">${inner}</div>`;
     return `<div class="atinn-sheet" style="width:1123px;height:794px;box-sizing:border-box;border-top:10px solid #0F7C7A;padding:18px 40px 16px;display:flex;flex-direction:column;gap:12px;background:#F7F6F2;color:#1E2B33;font-family:'M PLUS 1p','Hiragino Sans',sans-serif;overflow:hidden;">${inner}</div>`;
   }
   function panel(svg, h, what) {
     return `<div style="position:relative;height:${h}px;flex-shrink:0;background:#FFFFFF;border:1px solid #E2DED3;border-radius:16px;overflow:hidden;">${svg}
-<div style="position:absolute;left:14px;bottom:8px;font-size:10px;color:#8C959B;">※路線図・イラストはイメージです（方角は実際に合わせ、${what}周辺を拡大してデフォルメしています）</div></div>`;
+<div style="position:absolute;left:14px;bottom:8px;font-size:10px;color:#8C959B;${PORTRAIT ? 'right:14px;' : ''}">※路線図・イラストはイメージです（方角は実際に合わせ、${what}周辺を拡大してデフォルメしています）</div></div>`;
   }
   function jpDate(s) {
     try { const d = new Date(Calc.parse(s)); return `${d.getUTCFullYear()}年${d.getUTCMonth() + 1}月${d.getUTCDate()}日`; } catch (e) { return s || ''; }
@@ -155,7 +167,7 @@
     // 主な設備（メリットになるもの）。あれば地図の下に1行で出し、そのぶん地図を低くする
     const facs = meritFacilities(prop);
     if (prop.name && !prop.equipmentChecked) warnings.push('主な設備を出すには、プランページでもう一度「🏠プラン取込」を押してください（設備の「ある・なし」を読み取ります）');
-    const mapH = 468; // 設備は地図の空いている場所に出す
+    const mapW = PORTRAIT ? PMAP : 1043, mapH = PORTRAIT ? 560 : 468; // 設備は地図の空いている場所に出す
     let svg = '';
     if (center) {
       const routes = selected.map((x, i) => {
@@ -164,9 +176,9 @@
         mr.target = x.ms;
         return mr;
       });
-      svg = MapM.renderMap({ width: 1043, height: mapH, mode: 'p1', center, routes, facilities: facs, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
+      svg = MapM.renderMap({ width: mapW, height: mapH, mode: 'p1', center, routes, facilities: facs, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
     } else {
-      svg = `<svg width="1043" height="${mapH}"><rect width="1043" height="${mapH}" fill="#FBFAF6"/><text x="521" y="${mapH / 2}" text-anchor="middle" font-size="16" fill="#8C959B">物件の座標を入力すると路線図が表示されます</text></svg>`;
+      svg = `<svg width="${mapW}" height="${mapH}"><rect width="${mapW}" height="${mapH}" fill="#FBFAF6"/><text x="${mapW / 2}" y="${mapH / 2}" text-anchor="middle" font-size="16" fill="#8C959B">物件の座標を入力すると路線図が表示されます</text></svg>`;
     }
 
     // 見出し
@@ -196,7 +208,7 @@
     const v = x => hasPrice ? yen(x) : '—';
     const md = s => { const d = new Date(Calc.parse(s)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}（${'日月火水木金土'[d.getUTCDay()]}）`; };
     const perMonth = price && price.days >= 28 ? roundTo(price.total / price.days * 30, 1000) : null;
-    const priceBox = `<div style="grid-column:span 2;display:flex;justify-content:space-between;align-items:stretch;gap:18px;padding:12px 20px;background:#FFF8F1;border:2px solid #E0662A;border-radius:12px;">
+    const priceBox = `<div style="grid-column:span ${PORTRAIT ? 1 : 2};display:flex;justify-content:space-between;align-items:stretch;gap:18px;padding:12px 20px;background:#FFF8F1;border:2px solid #E0662A;border-radius:12px;">
 <div style="display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0;">
 <div style="display:flex;align-items:baseline;gap:10px;"><div style="font-size:15px;font-weight:900;">ご利用期間の総額</div><div style="font-size:13px;font-weight:700;color:#5B6770;">${price ? `${md(ci)}〜${md(co)}・${price.days}日間` : '—'}</div></div>
 <div style="display:flex;align-items:baseline;gap:4px;"><span style="font-size:13px;font-weight:700;color:#5B6770;">総額</span><span style="font-size:40px;font-weight:900;line-height:1;color:#C4531A;">${price ? v(price.total) : '—'}</span><span style="font-size:15px;font-weight:700;color:#C4531A;">円</span></div>
@@ -205,7 +217,7 @@
 <div style="display:flex;flex-direction:column;"><span style="font-size:11px;color:#5B6770;">1日あたり</span><span style="font-size:20px;font-weight:900;">約${price ? v(roundTo(price.total / price.days, 100)) : '—'}<span style="font-size:12px;">円</span></span></div>
 ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span style="font-size:11px;color:#5B6770;">1か月（30日）あたり</span><span style="font-size:20px;font-weight:900;">約${v(perMonth)}<span style="font-size:12px;">円</span></span></div>` : ''}
 </div></div>`;
-    bottom = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;flex-grow:1;min-height:0;">${strengths}${priceBox}</div>`;
+    bottom = `<div style="display:grid;grid-template-columns:repeat(${PORTRAIT ? 1 : 3},minmax(0,1fr));gap:${PORTRAIT ? 10 : 14}px;flex-grow:1;min-height:0;">${PORTRAIT ? priceBox + strengths : strengths + priceBox}</div>`;
 
     const base = state.baseDate || Calc.todayStr();
     const campaign = n(pv.dailyCampaign) !== null ? 'キャンペーン価格' : '定価';
@@ -273,7 +285,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
 
     // 4・5件目は、地図の右側に重ねて置く（下の段の C の上。4件のときは下の場所だけ使う）
     const SIDE = { left: 704, w: 327, h: 205 };
-    const extra = items.slice(3);
+    const extra = PORTRAIT ? [] : items.slice(3); // 縦型では全部を地図の下に並べる
     const sideSlots = extra.length === 1 ? [{ left: SIDE.left, top: 225, h: SIDE.h }]
       : extra.length >= 2 ? [{ left: SIDE.left, top: 10, h: SIDE.h }, { left: SIDE.left, top: 225, h: SIDE.h }] : [];
     let svg;
@@ -290,9 +302,9 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
         mr.color = MapM.ROUTE_COLORS[x.i % MapM.ROUTE_COLORS.length];
         return mr;
       }).filter(Boolean);
-      svg = MapM.renderMap({ width: 1043, height: 440, mode: 'p2', center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
+      svg = MapM.renderMap({ width: PORTRAIT ? PMAP : 1043, height: PORTRAIT ? 520 : 440, mode: 'p2', center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
     } else {
-      svg = `<svg width="1043" height="440"><rect width="1043" height="440" fill="#FBFAF6"/><text x="521" y="220" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
+      svg = `<svg width="${PORTRAIT ? PMAP : 1043}" height="${PORTRAIT ? 520 : 440}"><rect width="100%" height="100%" fill="#FBFAF6"/><text x="${PORTRAIT ? PMAP / 2 : 521}" y="${PORTRAIT ? 260 : 220}" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
     }
 
     const allNoTransfer = items.length && items.every(x => x.info.transfers === 0);
@@ -331,9 +343,9 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
 <div style="font-size:10px;color:#7A7466;white-space:nowrap;">1日 ${daily !== null ? yen(daily) : '—'}円 × ${x.price ? x.price.days : '–'}日 ＋ 清掃費・保険</div>
 </div></div></div>`;
     };
-    const cards = items.slice(0, 3).map(x => cardHtml(x)).join('');
+    const cards = (PORTRAIT ? items : items.slice(0, 3)).map(x => cardHtml(x)).join('');
     const sideCards = extra.slice(0, 2).map((x, k) => cardHtml(x, `position:absolute;left:${sideSlots[k].left}px;top:${sideSlots[k].top}px;width:${SIDE.w}px;height:${sideSlots[k].h}px;box-shadow:0 2px 10px rgba(30,43,51,.12);`)).join('');
-    const bottom = `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;flex-grow:1;min-height:0;">${cards}</div>`;
+    const bottom = `<div style="display:grid;grid-template-columns:repeat(${PORTRAIT ? 1 : 3},minmax(0,1fr));gap:${PORTRAIT ? 10 : 14}px;flex-grow:1;min-height:0;">${cards}</div>`;
 
     const base = state.baseDate || Calc.todayStr();
     const days = Calc.daysInclusive(ci, co);
@@ -345,9 +357,9 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の各プランの${anyCampaign ? 'キャンペーン価格' : '料金'}で、${state.persons || 1}名・${days}日利用時の総額（利用料＋ルームクリーニング${sameClean ? yen(cleanVals[0]) + '円' : ''}＋住宅保険${sameIns ? yen(insVals[0]) + '円' : ''}×月数（応当日で計算、端数月は1か月））です。`;
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
 
-    const html = frame(header(title, sub, right) + panel(svg + sideCards, 440, '目的地') + bottom + note);
+    const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? 520 : 440, '目的地') + bottom + note);
     const pages = [html];
-    if (p2.compare && items.length) pages.push(buildCompare(state, items, destName, label, warnings));
+    if (p2.compare && items.length) { const pv = PORTRAIT; PORTRAIT = false; pages.push(buildCompare(state, items, destName, label, warnings)); PORTRAIT = pv; } // 比較表は横型のまま
     return { html, pages, warnings, model: { title: autoTitle, sub: autoSub, note: autoNote, tags } };
   }
 
@@ -406,10 +418,14 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     return frame(header(ttl, `${label}（${destName}）までの時間・料金・設備`, customerBadge(state)) + table + note);
   }
 
-  function buildSheet(state) {
-    const r = state.pattern === 'p2' ? buildP2(state) : buildP1(state);
-    if (!r.pages) r.pages = [r.html];
-    return r;
+  function buildSheet(state, opt) {
+    PORTRAIT = !!(opt && opt.portrait);
+    try {
+      const r = state.pattern === 'p2' ? buildP2(state) : buildP1(state);
+      if (!r.pages) r.pages = [r.html];
+      r.portrait = PORTRAIT;
+      return r;
+    } finally { PORTRAIT = false; }
   }
 
   const M = { buildSheet, buildP1, buildP2, routeInfo, makeResolver, routeEndGap, autoTags, shortLine };
