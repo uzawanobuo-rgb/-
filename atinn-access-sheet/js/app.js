@@ -78,7 +78,7 @@
   function prevLabel(v, pat) {
     if (pat === 'p1') return (v.p1 && v.p1.property && v.p1.property.name) || '物件';
     const names = (v.p2.properties || []).map(p => p && p.name).filter(Boolean);
-    return [v.p2.destName ? `目的地：${v.p2.destName}` : '', names.join('・')].filter(Boolean).join('／') || 'パターン2';
+    return [v.p2.destName ? `目的地：${v.p2.destName}` : '', names.join('・')].filter(Boolean).join('／') || '複数物件';
   }
   const ui = { open: { howto: !localStorage.getItem(STORE_KEY + ':seen') } };
 
@@ -322,7 +322,7 @@
     resetRoutesFor(to);
     const now = new Date();
     ui.imported = ui.imported || {};
-    const where = from === 'p1.property' ? 'パターン1の物件' : `パターン2の物件${LETTERS[+from.split('.')[2]]}`;
+    const where = from === 'p1.property' ? '1物件のタブの物件' : `複数物件のタブの物件${LETTERS[+from.split('.')[2]]}`;
     ui.imported[to] = { name: src.name, got: `${where}から`, miss: [], time: `${now.getHours()}:${String(now.getMinutes()).padStart(2, '0')}` };
     persist(); renderForm(); renderPreview(); autoResolveStations();
     toast(`${where}「${src.name}」を使いました`);
@@ -331,10 +331,10 @@
   function copyRow(path) {
     let label, btns = [];
     if (path === 'p1.property') {
-      label = 'パターン2の物件から使う';
+      label = '複数物件のタブの物件から使う';
       state.p2.properties.forEach((p, i) => { if (p && p.name) btns.push(`<button type="button" class="btn small" data-action="copy-prop" data-from="p2.properties.${i}" data-path="${path}"><span class="prop-letter" style="background:${COLORS[i]};width:18px;height:18px;font-size:10px">${LETTERS[i]}</span>${esc(p.name)}</button>`); });
     } else {
-      label = 'パターン1の物件を使う';
+      label = '1物件のタブの物件を使う';
       const p = state.p1.property;
       if (p && p.name) btns.push(`<button type="button" class="btn small" data-action="copy-prop" data-from="p1.property" data-path="${path}">${esc(p.name)}</button>`);
     }
@@ -367,7 +367,7 @@
 <div class="card-b">
 <ol class="howto">
 <li>下の黒いボタンを、ブラウザの<b>ブックマークバーにドラッグ</b>して登録します（初回だけ）。</li>
-<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）で、登録したブックマーク「<b>プラン取込</b>」をクリック。ツールのタブが開くので、<b>入れる物件（A〜C）を選ぶだけ</b>です（パターン1はそのまま入ります）。写真・料金・最寄駅・地図座標が入ります。</li>
+<li>アットインの<b>プランページ</b>（<code>atinn.jp/plan/…</code>）で、登録したブックマーク「<b>プラン取込</b>」をクリック。ツールのタブが開くので、<b>入れる物件（A〜E）を選ぶだけ</b>です（1物件のタブではそのまま入ります）。写真・料金・最寄駅・地図座標が入ります。</li>
 <li>ツールが開かないとき（ポップアップが止められたときなど）は、コピーはされているので、ツールの画面で <b>Ctrl+V</b>（または物件の欄の「コピーした物件を読み込む」）で入れます。</li>
 <li>所要時間は、各駅の枠の「<b>Yahoo!乗換案内で検索</b>」を押す → 開いた結果のページでブックマーク「<b>乗換取込</b>」をクリック。乗車時間・乗換・路線が<b>自動でツールに入り</b>、Yahoo!のタブは閉じます（入らないときはコピーされているので、枠の「コピーした経路を読み込む」を押す）。</li>
 <li>右のプレビューを確認し、<b>PNG／PDF</b>で保存します。</li>
@@ -591,13 +591,13 @@ ${coordStatus(names)}
     return `
 <details class="card cond-card" id="sec-p1-cond" open><summary><span class="step">1</span>条件</summary>
 <div class="card-b">
-${field('お客様名 <small>入れると「〇〇様へのご提案」を表示（パターン2と共通）</small>', inp('customer', { ph: '山田' }), 'all')}
+${field('お客様名 <small>入れると「〇〇様へのご提案」を表示（複数物件と共通）</small>', inp('customer', { ph: '山田' }), 'all')}
 <div class="grid g3 align-end">
 ${field('チェックイン<br><small>未入力なら翌月1日</small>', dateInp('checkIn', 'today'))}
 ${field('チェックアウト<br><small>未入力なら30日間</small>', dateInp('checkOut', 'checkin'))}
 ${field('人数', inp('persons', { type: 'number', step: 1 }))}
 </div>
-<p class="muted" style="margin:0">料金は、この利用期間の総額を出します。利用期間はパターン2と共通です。</p>
+<p class="muted" style="margin:0">料金は、この利用期間の総額を出します。利用期間は複数物件と共通です。</p>
 </div></details>
 <details class="card prop-card" style="--pc:${COLORS[0]};--pbg:${TINTS[0]}" id="sec-p1-prop" ${ui.open.p1prop === false ? '' : 'open'} data-ui="p1prop"><summary><span class="prop-letter" style="background:${COLORS[0]}">物</span>${propTitle(prop, '物件', null)}</summary>
 <div class="card-b">
@@ -751,7 +751,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     const pat = state.pattern, prevAll = prevSaved();
     const prev = !hasPatternContent(state, pat) && hasPatternContent(prevAll, pat) ? prevAll : null;
     const restore = prev ? `<div class="card restore"><div class="card-b" style="padding:10px 14px;flex-direction:row;align-items:center;flex-wrap:wrap">
-<span class="muted">前回の${pat === 'p1' ? 'パターン1' : 'パターン2'}の入力（${esc(prevLabel(prev, pat))}）があります。</span>
+<span class="muted">前回の${pat === 'p1' ? '1物件' : '複数物件'}の入力（${esc(prevLabel(prev, pat))}）があります。</span>
 <button type="button" class="btn small" data-action="restore-prev">前回の入力を復元</button></div></div>` : '';
     form.innerHTML = restore + renderHowto() + (state.pattern === 'p2' ? renderP2() : renderP1()) + stationDatalist();
     Object.keys(pastes).forEach(k => { const t = form.querySelector(`textarea[data-paste="${k}"]`); if (t) t.value = pastes[k]; });
@@ -1166,7 +1166,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         state[pat] = old[pat];
         state.stationCoords = Object.assign({}, old.stationCoords, state.stationCoords);
         if (!hasPatternContent(state, pat === 'p1' ? 'p2' : 'p1')) { state.persons = old.persons; state.baseDate = old.baseDate; state.checkIn = old.checkIn; state.checkOut = old.checkOut; state.customer = old.customer; }
-        persist(); renderForm(); renderPreview(); autoResolveStations(); toast(`前回の${pat === 'p1' ? 'パターン1' : 'パターン2'}の入力を復元しました`);
+        persist(); renderForm(); renderPreview(); autoResolveStations(); toast(`前回の${pat === 'p1' ? '1物件' : '複数物件'}の入力を復元しました`);
         break;
       }
       case 'reset':
