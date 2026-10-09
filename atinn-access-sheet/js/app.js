@@ -136,16 +136,42 @@
   // ---------- ブックマークレット ----------
   // ブックマーク「プラン取込」：本体は js/bm-atinn.js。「乗換取込」と同じく、公開ページから開いているときは本体を読み込むだけの短いコードにする。
   const loaderFor = file => 'javascript:' + encodeURIComponent(`(function(){var s=document.createElement('script');s.src=${JSON.stringify(new URL(file, location.href).href)}+'?t='+Date.now();s.dataset.run='1';s.onerror=function(){alert('ブックマークの本体を読み込めませんでした。ネットワークを確認してください。')};document.body.appendChild(s)})()`);
-  const BOOKMARKLET = /^https?:$/.test(location.protocol)
+  // 社内サーバーなど http で開いているときは、https の公式サイトから本体を読み込めない（ブラウザが止める）ので、
+  // 本体をそのまま埋め込み、ツールの場所だけを渡す（本体を直したときは登録し直しが必要）。
+  const LOADABLE = location.protocol === 'https:';
+  const TOOL_URL = /^https?:$/.test(location.protocol) ? new URL('./', location.href.split('#')[0]).href : '';
+  const BOOKMARKLET = LOADABLE
     ? loaderFor('js/bm-atinn.js')
-    : 'javascript:' + encodeURIComponent('(' + window.AtinnPlanBM.toString() + ')()');
+    : 'javascript:' + encodeURIComponent('(' + window.AtinnPlanBM.toString() + ')(' + JSON.stringify(TOOL_URL) + ')');
 
   // ブックマーク「乗換取込」：本体は js/bm-transit.js。公開ページから開いているときは、
   // その本体を読み込むだけの短いコードにする（本体を直しても登録し直さなくてよい）。
-  // ファイルを直接開いているときは読み込めないので、本体をそのまま埋め込む。
-  const TRANSIT_BOOKMARKLET = /^https?:$/.test(location.protocol)
+  // ファイルを直接開いているとき・http で開いているときは読み込めないので、本体をそのまま埋め込む。
+  const TRANSIT_BOOKMARKLET = LOADABLE
     ? 'javascript:' + encodeURIComponent(`(function(){var s=document.createElement('script');s.src=${JSON.stringify(new URL('js/bm-transit.js', location.href).href)}+'?t='+Date.now();s.dataset.run='1';s.onerror=function(){alert('乗換取込を読み込めませんでした。ネットワークを確認してください。')};document.body.appendChild(s)})()`)
     : 'javascript:' + encodeURIComponent('(' + window.AtinnTransitBM.toString() + ')()');
+
+  // http で開いているとき（社内サーバーなど）は、ブラウザがボタンからのクリップボード読み取りを許さないので、
+  // 貼り付け用の小さな窓を出して Ctrl+V してもらう
+  async function readClip(title) {
+    if (window.isSecureContext && navigator.clipboard && navigator.clipboard.readText) {
+      try { return await navigator.clipboard.readText(); }
+      catch (er) { toast('クリップボードを読めませんでした。ブラウザの「クリップボードの読み取り」を許可してから、もう一度押してください'); return null; }
+    }
+    return new Promise(resolve => {
+      const o = document.createElement('div');
+      o.className = 'slot-pick';
+      o.innerHTML = `<div class="slot-box" role="dialog" aria-label="${esc(title)}"><div class="slot-t">${esc(title)}</div>
+<textarea rows="3" style="width:100%" placeholder="ここをクリックして Ctrl+V"></textarea>
+<div class="row" style="justify-content:flex-end"><button type="button" class="btn small" data-cancel>閉じる</button></div></div>`;
+      document.body.appendChild(o);
+      const ta = o.querySelector('textarea');
+      const done = v => { o.remove(); resolve(v); };
+      ta.addEventListener('paste', ev => { ev.preventDefault(); done((ev.clipboardData || window.clipboardData).getData('text')); });
+      o.addEventListener('click', ev => { if (ev.target.closest('[data-cancel]') || ev.target === o) done(null); });
+      ta.focus();
+    });
+  }
 
   // ---------- 外部サービス（座標） ----------
   function jsonp(url, timeout) {
@@ -1155,8 +1181,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         window.open(b.href, 'atinn-yahoo|' + path + '|' + (b.dataset.to || ''));
         break;
       case 'transit-clip':
-        try { applyTransit(path, await navigator.clipboard.readText(), b.dataset.to); }
-        catch (er) { toast('クリップボードを読めませんでした。ブラウザの「クリップボードの読み取り」を許可してから、もう一度押してください'); }
+        { const txt = await readClip('コピーした経路を貼り付け'); if (txt) applyTransit(path, txt, b.dataset.to); }
         break;
       case 'restore-prev': {
         const v = prevSaved();
@@ -1182,10 +1207,8 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
       case 'import': { const t = $(`textarea[data-paste="${path}"]`); importInto(path, t && t.value); break; }
       case 'import-clip':
         {
-          let txt = null;
-          try { txt = await navigator.clipboard.readText(); }
-          catch (er) { toast('クリップボードを読めませんでした。ブラウザの「クリップボードの読み取り」を許可してから、もう一度押してください'); break; }
-          importInto(path, txt);
+          const txt = await readClip('コピーした物件を貼り付け');
+          if (txt) importInto(path, txt);
         }
         break;
       case 'add-station': { const st = getPath(path).stations; st.push({ name: '', line: '', walk: '' }); if (st.length > 1) ui.open['st-' + path] = true; persist(); renderForm(); break; }
