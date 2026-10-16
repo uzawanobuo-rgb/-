@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>eBay 写真統一補正ツール</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#f5f4f0;--surface:#fff;--surface2:#f0efe9;--border:rgba(0,0,0,.12);--border2:rgba(0,0,0,.22);--text:#1a1a18;--text2:#6b6b67;--text3:#9b9b97;--accent:#1a1a18;--accent-fg:#fff;--radius:10px;--radius-sm:6px;--blue-bg:#e6f1fb;--blue-text:#185fa5;--green-bg:#eaf3de;--green-text:#3b6d11;--red-bg:#fcebeb;--red-text:#a32d2d;--amber-bg:#faeeda;--amber-text:#854f0b}
+@media(prefers-color-scheme:dark){:root{--bg:#1c1c1a;--surface:#262624;--surface2:#2e2e2b;--border:rgba(255,255,255,.10);--border2:rgba(255,255,255,.20);--text:#f0efe9;--text2:#9b9b97;--text3:#6b6b67;--accent:#f0efe9;--accent-fg:#1a1a18;--blue-bg:#0c447c;--blue-text:#b5d4f4;--green-bg:#27500a;--green-text:#c0dd97;--red-bg:#791f1f;--red-text:#f7c1c1;--amber-bg:#633806;--amber-text:#fac775}}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.6;min-height:100vh}
+header{background:var(--surface);border-bottom:.5px solid var(--border);padding:0 24px;height:56px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.logo{font-size:15px;font-weight:500}.logo span{color:var(--text2);font-weight:400}
+.header-links{display:flex;gap:16px}
+.back-link{font-size:12px;color:var(--text2);text-decoration:none}.back-link:hover{color:var(--text)}
+main{max-width:1100px;margin:0 auto;padding:24px 24px 80px}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;font-size:12px;color:var(--text2)}
+.steps div{background:var(--surface);border:.5px solid var(--border);border-radius:20px;padding:4px 12px}
+.steps b{color:var(--text);font-weight:500}
+.adj-panel{background:var(--surface);border:.5px solid var(--border);border-radius:var(--radius);padding:20px 24px;margin-bottom:16px}
+.adj-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:6px}
+.adj-panel h2{font-size:14px;font-weight:500}
+.adj-note{font-size:12px;color:var(--text2);margin-bottom:14px}
+.adj-sec{font-size:11px;color:var(--text3);margin:14px 0 8px;letter-spacing:.04em}
+.adj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px 28px}
+.adj-row{display:flex;align-items:center;gap:10px}
+.adj-row label{font-size:12px;color:var(--text2);width:132px;flex-shrink:0;line-height:1.3}
+.adj-row label small{display:block;font-size:10px;color:var(--text3)}
+.adj-row input[type=range]{flex:1;min-width:0}
+.adj-row .val{font-size:12px;font-weight:500;width:30px;text-align:right}
+.adj-row .hint{font-size:10px;color:var(--text3);width:44px;text-align:right;white-space:nowrap}
+.checks{display:flex;gap:20px;flex-wrap:wrap;margin-top:14px;font-size:12px;color:var(--text2)}
+.checks label{display:flex;align-items:center;gap:6px;cursor:pointer}
+.drop-zone{border:1.5px dashed var(--border2);border-radius:var(--radius);padding:14px 20px;display:flex;align-items:center;gap:16px;cursor:pointer;transition:background .15s;background:var(--surface);flex-wrap:wrap}
+.drop-zone:hover,.drop-zone.drag-over{background:var(--surface2)}
+.drop-label{font-size:13px;color:var(--text2);flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;transition:opacity .15s,transform .1s;border:.5px solid var(--border2);background:transparent;color:var(--text);user-select:none;-webkit-user-select:none}
+.btn:hover{background:var(--surface2)}.btn:active{transform:scale(.98)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-primary{background:var(--accent);color:var(--accent-fg);border-color:transparent}.btn-primary:hover{opacity:.85;background:var(--accent)}.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.btn.active{background:var(--surface2);border-color:var(--text)}
+.toolbar{display:none;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-top:12px;padding:12px 16px;background:var(--surface);border-radius:var(--radius);border:.5px solid var(--border);position:sticky;top:64px;z-index:5}
+.toolbar-left{font-size:13px;color:var(--text2)}.toolbar-right{display:flex;gap:8px;flex-wrap:wrap}
+.progress-wrap{display:none;margin-top:10px;background:var(--surface2);border-radius:4px;height:4px;overflow:hidden}
+.progress-bar{height:100%;background:var(--accent);border-radius:4px;transition:width .3s ease}
+.progress-label{font-size:12px;color:var(--text2);margin-top:6px;text-align:right}
+.stale-note{display:none;margin-top:10px;padding:10px 14px;border-radius:var(--radius-sm);background:var(--amber-bg);color:var(--amber-text);font-size:12px}
+.photo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:12px}
+.photo-card{border-radius:var(--radius);border:.5px solid var(--border);overflow:hidden;background:var(--surface);transition:border-color .2s}.photo-card.done{border-color:#3b6d11}
+.pv-wrap{position:relative;cursor:zoom-in;background:var(--surface2)}
+.pv-wrap canvas{width:100%;height:170px;object-fit:contain;display:block}
+.pv-tag{position:absolute;left:6px;top:6px;font-size:10px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,.55);color:#fff;display:none}
+.showing-before .pv-tag{display:block}
+.card-body{padding:10px 12px 12px}.card-name{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px}
+.card-meta{font-size:10px;color:var(--text3);line-height:1.5;margin-bottom:6px}
+.fine{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);margin-bottom:6px}
+.fine button{width:24px;height:22px;border:.5px solid var(--border2);border-radius:4px;background:transparent;color:var(--text);cursor:pointer;font-size:13px;line-height:1}
+.fine button:hover{background:var(--surface2)}
+.fine .off{width:26px;text-align:center;font-weight:500;color:var(--text)}
+.badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px}
+.badge-wait{background:var(--surface2);color:var(--text2)}.badge-proc{background:var(--blue-bg);color:var(--blue-text)}.badge-done{background:var(--green-bg);color:var(--green-text)}.badge-err{background:var(--red-bg);color:var(--red-text)}
+.dl-btn{display:none;width:100%;margin-top:8px;font-size:12px;padding:6px;border:.5px solid var(--border2);border-radius:var(--radius-sm);background:transparent;color:var(--text);cursor:pointer;text-align:center}.dl-btn:hover{background:var(--surface2)}
+.finish-bar{display:none;margin-top:12px;padding:16px 20px;background:var(--green-bg);border-radius:var(--radius);align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.finish-bar p{font-size:13px;color:var(--green-text);margin:0}
+.modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;align-items:center;justify-content:center;padding:16px}
+.modal.open{display:flex}
+.modal-box{background:var(--surface);border-radius:var(--radius);width:min(1200px,100%);max-height:100%;overflow:auto;padding:16px 20px}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+.modal-title{font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.compare figure{background:var(--surface2);border-radius:var(--radius-sm);overflow:hidden}
+.compare canvas{width:100%;height:auto;max-height:68vh;object-fit:contain;display:block}
+.compare figcaption{font-size:11px;color:var(--text2);padding:6px 10px}
+.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;flex-wrap:wrap}
+.modal-meta{font-size:11px;color:var(--text2)}
+@media(max-width:640px){header{padding:0 16px}main{padding:16px 16px 64px}.compare{grid-template-columns:1fr}.adj-row label{width:108px}.adj-grid{grid-template-columns:1fr}.toolbar{top:60px}}
+footer{text-align:center;font-size:11px;color:var(--text3);padding:24px;border-top:.5px solid var(--border);margin-top:48px}
+</style>
+</head>
+<body>
+<header>
+<div class="logo">eBay 写真補正ツール <span>/ 統一補正 v4</span></div>
+<div class="header-links">
+<a class="back-link" href="./ebay-photo-enhancer_3.html">v3（一律補正）</a>
+<a class="back-link" href="./ebay_banner_tool.html">← バナー合成ツールへ</a>
+</div>
+</header>
+<main>
+<div class="steps">
+<div><b>1</b> 写真を読み込む（自動で明るさ・色を解析）</div>
+<div><b>2</b> 目標値を調整してプレビュー確認</div>
+<div><b>3</b> OKなら一括処理 → ダウンロード</div>
+</div>
+
+<div class="adj-panel">
+<div class="adj-head">
+<h2>目標値（すべての写真をこの値にそろえます）</h2>
+<div style="display:flex;gap:8px;flex-wrap:wrap">
+<button class="btn btn-sm" id="groupBtn" onclick="setTargetsFromGroup(true)" disabled>写真の平均値を目標にする</button>
+<button class="btn btn-sm" onclick="resetDefaults()">初期値に戻す</button>
+</div>
+</div>
+<p class="adj-note">スライダーは「今より＋−」ではなく、仕上がりの<b>絶対値</b>（0〜100）です。写真ごとに現状を測って、この値に近づくように個別に補正量を決めます。右端の小さな数字は読み込んだ写真の平均値です。</p>
+<div class="adj-sec">明るさ・階調</div>
+<div class="adj-grid" id="gridTone"></div>
+<div class="adj-sec">色</div>
+<div class="adj-grid" id="gridColor"></div>
+<div class="adj-sec">全体</div>
+<div class="adj-grid" id="gridBase"></div>
+<div class="checks">
+<label><input type="checkbox" id="c-autoWB" checked onchange="onSettingChange()">ホワイトバランスを自動でそろえる（色かぶりを除去）</label>
+<label><input type="checkbox" id="c-autoTarget" checked onchange="saveSettings()">読み込み時、写真の平均値を目標に自動セット</label>
+</div>
+</div>
+
+<div class="drop-zone" id="dropZone">
+<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24" style="flex-shrink:0;color:var(--text3)"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+<span class="drop-label">写真をここにドロップ</span>
+<button class="btn btn-primary" onclick="event.stopPropagation();document.getElementById('fileInput').click()">ファイルを選択</button>
+<span style="font-size:12px;color:var(--text3)">JPG・PNG 複数可</span>
+</div>
+<input type="file" id="fileInput" accept="image/*" multiple style="display:none">
+
+<div class="toolbar" id="toolbar">
+<div class="toolbar-left" id="countLabel"></div>
+<div class="toolbar-right">
+<button class="btn" id="beforeBtn" title="押している間、補正前の写真を表示します">補正前を見る（押している間）</button>
+<button class="btn" onclick="clearAll()">クリア</button>
+<button class="btn btn-primary" id="runBtn" onclick="runAll()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>この設定でOK・一括処理する</button>
+</div>
+</div>
+<div class="progress-wrap" id="progressWrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+<div class="progress-label" id="progressLabel" style="display:none"></div>
+<div class="stale-note" id="staleNote">設定が変わったため、処理済みの写真はプレビュー状態に戻りました。もう一度「一括処理」を押してください。</div>
+<div class="photo-grid" id="photoGrid"></div>
+<div class="finish-bar" id="finishBar">
+<p>すべての補正が完了しました</p>
+<button class="btn btn-primary" onclick="downloadAll()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全ファイルをダウンロード</button>
+</div>
+</main>
+
+<div class="modal" id="modal" onclick="if(event.target===this)closeModal()">
+<div class="modal-box">
+<div class="modal-head">
+<div class="modal-title" id="modalTitle"></div>
+<div style="display:flex;gap:8px">
+<button class="btn btn-sm" onclick="stepModal(-1)">← 前</button>
+<button class="btn btn-sm" onclick="stepModal(1)">次 →</button>
+<button class="btn btn-sm" onclick="closeModal()">閉じる</button>
+</div>
+</div>
+<div class="compare">
+<figure><canvas id="mBefore"></canvas><figcaption>補正前（元の写真）</figcaption></figure>
+<figure><canvas id="mAfter"></canvas><figcaption>補正後（プレビュー）</figcaption></figure>
+</div>
+<div class="modal-foot">
+<div class="modal-meta" id="modalMeta"></div>
+<div class="fine" style="margin:0"><span>この写真だけ明るさ微調整</span><button onclick="nudge(state.modal,-2)">−</button><span class="off" id="modalOff">0</span><button onclick="nudge(state.modal,2)">＋</button></div>
+</div>
+</div>
+</div>
+
+<footer>画像処理はすべてブラウザ内で完結します。写真がサーバーに送られることはありません。</footer>
+<script src="https://cdn.jsdelivr.net/npm/piexifjs@1.0.6/piexif.js"></script>
+<script>
+// ---------- 設定（すべて仕上がりの絶対値） ----------
+const SLIDERS=[
+{id:'bp',grid:'gridTone',label:'黒点',sub:'最も暗い部分',min:0,max:30,def:2},
+{id:'sh',grid:'gridTone',label:'シャドウ',sub:'暗い部分',min:5,max:60,def:22},
+{id:'mid',grid:'gridTone',label:'明るさ',sub:'中間の明るさ',min:20,max:85,def:55},
+{id:'hl',grid:'gridTone',label:'ハイライト',sub:'明るい部分',min:40,max:97,def:85},
+{id:'wp',grid:'gridTone',label:'白点',sub:'最も明るい部分',min:70,max:100,def:98},
+{id:'contrast',grid:'gridTone',label:'コントラスト',sub:'ハイライト−シャドウ',min:5,max:80,def:63},
+{id:'sat',grid:'gridColor',label:'彩度',sub:'色の鮮やかさ',min:0,max:60,def:25},
+{id:'temp',grid:'gridColor',label:'色温度',sub:'−青み / ＋黄み',min:-30,max:30,def:0},
+{id:'tint',grid:'gridColor',label:'色かぶり',sub:'−緑 / ＋赤紫',min:-30,max:30,def:0},
+{id:'strength',grid:'gridBase',label:'統一の強さ',sub:'0=元のまま 100=完全に合わせる',min:0,max:100,def:80}
+];
+const STORE_KEY='ebayEnhancer4Settings';
+const PREV_MAX=360,MODAL_MAX=1000;
+const state={files:[],showBefore:false,modal:-1,modalSrc:null};
+const $=id=>document.getElementById(id);
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+function buildSliders(){SLIDERS.forEach(s=>{const row=document.createElement('div');row.className='adj-row';row.innerHTML='<label for="s-'+s.id+'">'+s.label+'<small>'+s.sub+'</small></label><input type="range" min="'+s.min+'" max="'+s.max+'" value="'+s.def+'" id="s-'+s.id+'"><span class="val" id="v-'+s.id+'">'+s.def+'</span><span class="hint" id="h-'+s.id+'"></span>';$(s.grid).appendChild(row);$('s-'+s.id).addEventListener('input',()=>onSlider(s.id));});}
+function getS(){const o={};SLIDERS.forEach(s=>o[s.id]=+$('s-'+s.id).value);o.autoWB=$('c-autoWB').checked;return o;}
+function setSlider(id,v){const s=SLIDERS.find(x=>x.id===id);v=Math.round(clamp(v,s.min,s.max));$('s-'+id).value=v;$('v-'+id).textContent=v;}
+function onSlider(id){const v=+$('s-'+id).value;$('v-'+id).textContent=v;
+if(id==='contrast'){const c=(+$('s-sh').value+ +$('s-hl').value)/2;setSlider('sh',c-v/2);setSlider('hl',c+v/2);}
+if(id==='sh'||id==='hl')setSlider('contrast',+$('s-hl').value- +$('s-sh').value);
+onSettingChange();}
+function onSettingChange(){saveSettings();invalidateAll();schedulePreview();}
+function saveSettings(){try{const o=getS();o.autoTarget=$('c-autoTarget').checked;localStorage.setItem(STORE_KEY,JSON.stringify(o));}catch(e){}}
+function loadSettings(){try{const o=JSON.parse(localStorage.getItem(STORE_KEY)||'null');if(!o)return;SLIDERS.forEach(s=>{if(typeof o[s.id]==='number')setSlider(s.id,o[s.id]);});if(typeof o.autoWB==='boolean')$('c-autoWB').checked=o.autoWB;if(typeof o.autoTarget==='boolean')$('c-autoTarget').checked=o.autoTarget;}catch(e){}}
+function resetDefaults(){SLIDERS.forEach(s=>setSlider(s.id,s.def));$('c-autoWB').checked=true;onSettingChange();}
+
+// ---------- 解析：写真ごとの現状を測る ----------
+function analyze(d){const n=d.length/4,hist=new Uint32Array(256),chist=new Uint32Array(101);let gR=0,gG=0,gB=0,gN=0,aR=0,aG=0,aB=0,aN=0,cN=0;
+const chroma=(r,g,b)=>{const mx=r>g?(r>b?r:b):(g>b?g:b),mn=r<g?(r<b?r:b):(g<b?g:b);return mx>0?(mx-mn)/mx:0;};
+const grayCand=(r,g,b,y)=>y>30&&y<250&&r<254&&g<254&&b<254;
+for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],y=.299*r+.587*g+.114*b;hist[y+.5|0]++;
+if(y>20&&y<240){aR+=r;aG+=g;aB+=b;aN++;}if(grayCand(r,g,b,y)){chist[Math.round(chroma(r,g,b)*100)]++;cN++;}}
+// 色の薄い方から20%の画素を「本来グレー/白のはずの部分」とみなす（全体に色かぶりがあっても機能する）
+let cth=0;{let c=0;for(let v=0;v<=100;v++){c+=chist[v];if(c>=cN*.2){cth=v/100;break;}}}cth=Math.min(Math.max(cth,.03),.35);
+for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],y=.299*r+.587*g+.114*b;if(grayCand(r,g,b,y)&&chroma(r,g,b)<=cth){gR+=r;gG+=g;gB+=b;gN++;}}
+const pct=q=>{const t=q*n;let c=0;for(let v=0;v<256;v++){c+=hist[v];if(c>=t)return v;}return 255;};
+const st={p05:pct(.005),p10:pct(.10),p50:pct(.5),p90:pct(.90),p995:pct(.995)};
+// 明るい部分（白背景など）の色 = ホワイトパッチ
+const p98=pct(.98);let wR=0,wG=0,wB=0,wN=0;
+for(let i=0;i<d.length;i+=4){const r=d[i],g=d[i+1],b=d[i+2],y=.299*r+.587*g+.114*b;if(y>=p98&&r<252&&g<252&&b<252){wR+=r;wG+=g;wB+=b;wN++;}}
+let gains=[1,1,1];
+const toGains=(R,G,B)=>{const m=(R+G+B)/3;return[m/R,m/G,m/B];};
+if(gN>n*.005)gains=toGains(gR,gG,gB);else if(aN>0)gains=toGains(aR,aG,aB);
+if(wN>20){const mx=Math.max(wR,wG,wB),mn=Math.min(wR,wG,wB);if((mx-mn)/mx<.12){const wg=toGains(wR,wG,wB);gains=gains.map((g,k)=>Math.sqrt(g*wg[k]));}}
+gains=gains.map(g=>clamp(g,.75,1.35));const L=.299*gains[0]+.587*gains[1]+.114*gains[2];st.gains=gains.map(g=>g/L);
+st.sat0=measureSat(d,identityLuts(st.gains),1);
+return st;}
+function identityLuts(g){const lut=new Float32Array(256);for(let v=0;v<256;v++)lut[v]=v;return channelLuts(lut,g);}
+function channelLuts(curve,g){return g.map(gain=>{const o=new Uint8ClampedArray(256);for(let v=0;v<256;v++){const x=Math.min(255,v*gain),i=Math.min(254,x|0),f=x-i;o[v]=curve[i]+(curve[i+1]-curve[i])*f;}return o;});}
+function measureSat(d,luts,f){const[lr,lg,lb]=luts;let s=0,n=0;for(let i=0;i<d.length;i+=16){let r=lr[d[i]],g=lg[d[i+1]],b=lb[d[i+2]];if(f!==1){const y=.299*r+.587*g+.114*b;r=y+f*(r-y);g=y+f*(g-y);b=y+f*(b-y);}const y=.299*r+.587*g+.114*b;if(y<15||y>240)continue;const mx=Math.max(r,g,b),mn=Math.min(r,g,b);if(mx<=0)continue;s+=clamp((mx-mn)/mx,0,1);n++;}return n?s/n:0;}
+function castLabel(g){const rb=g[2]/g[0];const t=[];if(rb>1.06)t.push('黄み');else if(rb<.94)t.push('青み');if(g[1]<.96)t.push('緑');else if(g[1]>1.04)t.push('赤紫');return t.length?t.join('・')+'寄り':'ほぼ中立';}
+
+// ---------- 補正パラメータ（写真ごとに算出） ----------
+function monoCurve(xs,ys){const n=xs.length,d=[],m=new Array(n);for(let k=0;k<n-1;k++)d.push((ys[k+1]-ys[k])/(xs[k+1]-xs[k]));
+m[0]=d[0];m[n-1]=d[n-2];for(let k=1;k<n-1;k++)m[k]=d[k-1]*d[k]<=0?0:(d[k-1]+d[k])/2;
+for(let k=0;k<n-1;k++){if(d[k]===0){m[k]=m[k+1]=0;continue;}const a=m[k]/d[k],b=m[k+1]/d[k],s=a*a+b*b;if(s>9){const t=3/Math.sqrt(s);m[k]=t*a*d[k];m[k+1]=t*b*d[k];}}
+const lut=new Float32Array(256);let k=0;for(let x=0;x<256;x++){while(k<n-2&&x>xs[k+1])k++;const h=xs[k+1]-xs[k],t=clamp((x-xs[k])/h,0,1),t2=t*t,t3=t2*t;lut[x]=clamp((2*t3-3*t2+1)*ys[k]+(t3-2*t2+t)*h*m[k]+(-2*t3+3*t2)*ys[k+1]+(t3-t2)*h*m[k+1],0,255);}return lut;}
+function buildParams(it,S){S=S||getS();const k=S.strength/100,st=it.stats,off=(it.off||0)*2.55,lerp=(a,b)=>a+(b-a)*k;
+const pts=[[0,0]];const add=(x,y)=>{if(x>pts[pts.length-1][0]+2&&x<253)pts.push([x,y]);};
+if(st.p05>1)add(st.p05,lerp(st.p05,S.bp*2.55));
+add(st.p10,lerp(st.p10,S.sh*2.55)+off);add(st.p50,lerp(st.p50,S.mid*2.55)+off);add(st.p90,lerp(st.p90,S.hl*2.55)+off);
+add(st.p995,lerp(st.p995,S.wp*2.55));pts.push([255,255]);
+for(let i=1;i<pts.length;i++)pts[i][1]=clamp(Math.max(pts[i][1],pts[i-1][1]+.5),0,255);
+for(let i=pts.length-2;i>=0;i--)pts[i][1]=Math.min(pts[i][1],pts[i+1][1]-.5);pts[0][1]=Math.max(0,pts[0][1]);
+const curve=monoCurve(pts.map(p=>p[0]),pts.map(p=>p[1]));
+let g=S.autoWB?st.gains.map(x=>Math.pow(x,k)):[1,1,1];
+g=[g[0]*(1+S.temp/200),g[1]*(1-S.tint/200),g[2]*(1-S.temp/200)];const L=.299*g[0]+.587*g[1]+.114*g[2];g=g.map(x=>x/L);
+const luts=channelLuts(curve,g);
+const cur=measureSat(it.prev.data,luts,1);let f=1;if(cur>.03&&k>0)f=clamp(Math.pow(S.sat/100/cur,k),.6,1.6);
+return{luts,f};}
+function applyParams(src,dst,P){const[lr,lg,lb]=P.luts,f=P.f;for(let i=0;i<src.length;i+=4){let r=lr[src[i]],g=lg[src[i+1]],b=lb[src[i+2]];if(f!==1){const y=.299*r+.587*g+.114*b;r=y+f*(r-y);g=y+f*(g-y);b=y+f*(b-y);}dst[i]=r;dst[i+1]=g;dst[i+2]=b;dst[i+3]=src[i+3];}}
+
+// ---------- 読み込み ----------
+const dropZone=$('dropZone'),fileInput=$('fileInput'),photoGrid=$('photoGrid'),toolbar=$('toolbar'),countLabel=$('countLabel'),runBtn=$('runBtn'),progressWrap=$('progressWrap'),progressBar=$('progressBar'),progressLabel=$('progressLabel'),finishBar=$('finishBar');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag-over');});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop',e=>{e.preventDefault();dropZone.classList.remove('drag-over');addFiles(e.dataTransfer.files);});
+dropZone.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>{addFiles(e.target.files);e.target.value='';});
+function loadImage(url){return new Promise((res,rej)=>{const img=new Image();img.onload=()=>res(img);img.onerror=()=>rej(new Error('読み込み失敗'));img.src=url;});}
+function imageDataFrom(img,max){const sc=max?Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight)):1,w=Math.max(1,Math.round(img.naturalWidth*sc)),h=Math.max(1,Math.round(img.naturalHeight*sc));const cv=document.createElement('canvas');cv.width=w;cv.height=h;const ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0,w,h);return ctx.getImageData(0,0,w,h);}
+function getCaptureTime(file){return new Promise(res=>{const fb=file.lastModified;if(typeof piexif==='undefined'||!(file.type==='image/jpeg'||/\.jpe?g$/i.test(file.name))){res(fb);return;}const r=new FileReader();r.onload=()=>{try{const u=new Uint8Array(r.result);let s='';for(let i=0;i<u.length;i++)s+=String.fromCharCode(u[i]);const x=piexif.load(s);const t=(x.Exif&&x.Exif[piexif.ExifIFD.DateTimeOriginal])||(x['0th']&&x['0th'][piexif.ImageIFD.DateTime]);const m=t&&String(t).match(/(\d{4}):(\d\d):(\d\d) (\d\d):(\d\d):(\d\d)/);if(m){res(new Date(+m[1],m[2]-1,+m[3],+m[4],+m[5],+m[6]).getTime());return;}}catch(e){}res(fb);};r.onerror=()=>res(fb);r.readAsArrayBuffer(file.slice(0,262144));});}
+async function addFiles(fl){const arr=Array.from(fl).filter(f=>f.type.startsWith('image/'));if(!arr.length)return;const wasEmpty=state.files.length===0;
+progressWrap.style.display='block';progressLabel.style.display='block';let n=0;
+for(const f of arr){progressLabel.textContent='解析中… '+n+' / '+arr.length;progressBar.style.width=Math.round(n/arr.length*100)+'%';
+const url=URL.createObjectURL(f);try{const[ct,img]=await Promise.all([getCaptureTime(f),loadImage(url)]);const prev=imageDataFrom(img,PREV_MAX);state.files.push({file:f,url,captureTime:ct,prev,stats:analyze(prev.data),off:0,status:'wait',blob:null});}catch(e){URL.revokeObjectURL(url);}
+n++;await new Promise(r=>setTimeout(r,0));}
+progressBar.style.width='100%';progressLabel.textContent='解析完了 '+arr.length+'枚';
+state.files.sort((a,b)=>a.captureTime-b.captureTime||a.file.name.localeCompare(b.file.name,undefined,{numeric:true}));
+updateGroupHints();if(wasEmpty&&$('c-autoTarget').checked&&state.files.length>1)setTargetsFromGroup(false);
+renderAllCards();updateUI();renderPreviews();}
+
+// ---------- グループ平均 ----------
+function median(a){const s=a.slice().sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+function groupValues(){const F=state.files;if(!F.length)return null;const md=key=>median(F.map(it=>it.stats[key]));
+const v={bp:md('p05')/2.55,sh:md('p10')/2.55,mid:md('p50')/2.55,hl:md('p90')/2.55,wp:md('p995')/2.55,sat:md('sat0')*100};v.contrast=v.hl-v.sh;return v;}
+function updateGroupHints(){const v=groupValues();SLIDERS.forEach(s=>{$('h-'+s.id).textContent=v&&v[s.id]!=null?'平均 '+Math.round(v[s.id]):'';});$('groupBtn').disabled=!v;}
+function setTargetsFromGroup(apply){const v=groupValues();if(!v)return;['bp','sh','mid','hl','wp','sat'].forEach(id=>setSlider(id,v[id]));setSlider('contrast',+$('s-hl').value- +$('s-sh').value);saveSettings();if(apply){invalidateAll();schedulePreview();}}
+
+// ---------- カード・プレビュー ----------
+function metaText(it){const st=it.stats;return'元の状態：明るさ '+Math.round(st.p50/2.55)+' ／ 明暗差 '+Math.round((st.p90-st.p10)/2.55)+' ／ 彩度 '+Math.round(st.sat0*100)+'<br>色：'+castLabel(st.gains);}
+function renderAllCards(){photoGrid.innerHTML='';state.files.forEach((it,i)=>{const c=document.createElement('div');c.className='photo-card'+(it.status==='done'?' done':'');c.id='card-'+i;
+c.innerHTML='<div class="pv-wrap" onclick="openModal('+i+')"><canvas id="cv-'+i+'" width="'+it.prev.width+'" height="'+it.prev.height+'"></canvas><span class="pv-tag">補正前</span></div><div class="card-body"><div class="card-name"></div><div class="card-meta">'+metaText(it)+'</div><div class="fine"><span>個別の明るさ</span><button onclick="nudge('+i+',-2)">−</button><span class="off" id="off-'+i+'">'+fmtOff(it.off)+'</span><button onclick="nudge('+i+',2)">＋</button></div><span class="badge" id="badge-'+i+'"></span><button class="dl-btn" id="dl-'+i+'" onclick="downloadOne('+i+')">↓ ダウンロード</button></div>';
+c.querySelector('.card-name').textContent=it.file.name;c.querySelector('.card-name').title=it.file.name;photoGrid.appendChild(c);refreshCardStatus(i);});}
+function fmtOff(v){return v>0?'+'+v:''+v;}
+function refreshCardStatus(i){const it=state.files[i];const map={wait:['wait','プレビュー（未処理）'],proc:['proc','処理中...'],done:['done','処理済み'],err:['err','エラー']};const[cls,label]=map[it.status];setBadge(i,cls,label);$('dl-'+i).style.display=it.status==='done'?'block':'none';$('card-'+i).classList.toggle('done',it.status==='done');}
+function drawPreview(i,S){const it=state.files[i],cv=$('cv-'+i);if(!cv)return;const ctx=cv.getContext('2d');if(state.showBefore){ctx.putImageData(it.prev,0,0);return;}
+if(!it.out)it.out=new ImageData(it.prev.width,it.prev.height);applyParams(it.prev.data,it.out.data,buildParams(it,S));ctx.putImageData(it.out,0,0);}
+let rafId=0;function schedulePreview(){if(rafId)return;rafId=requestAnimationFrame(()=>{rafId=0;renderPreviews();});}
+function renderPreviews(){const S=getS();state.files.forEach((_,i)=>drawPreview(i,S));photoGrid.classList.toggle('showing-before',state.showBefore);if(state.modal>=0)drawModal();}
+function nudge(i,d){const it=state.files[i];if(!it)return;it.off=clamp((it.off||0)+d,-30,30);$('off-'+i).textContent=fmtOff(it.off);if(state.modal===i)$('modalOff').textContent=fmtOff(it.off);invalidate(i);drawPreview(i);if(state.modal===i)drawModal();}
+const beforeBtn=$('beforeBtn');const setBefore=v=>{if(state.showBefore===v)return;state.showBefore=v;beforeBtn.classList.toggle('active',v);renderPreviews();};
+beforeBtn.addEventListener('pointerdown',e=>{e.preventDefault();setBefore(true);});['pointerup','pointerleave','pointercancel'].forEach(ev=>beforeBtn.addEventListener(ev,()=>setBefore(false)));
+
+// ---------- 拡大比較 ----------
+async function openModal(i){state.modal=i;state.modalSrc=null;const it=state.files[i];$('modal').classList.add('open');$('modalTitle').textContent=(i+1)+' / '+state.files.length+'　'+it.file.name;$('modalMeta').innerHTML=metaText(it);$('modalOff').textContent=fmtOff(it.off);
+const p=it.prev;[$('mBefore'),$('mAfter')].forEach(c=>{c.width=p.width;c.height=p.height;});$('mBefore').getContext('2d').putImageData(p,0,0);drawModal();
+try{const img=await loadImage(it.url);if(state.modal!==i)return;state.modalSrc=imageDataFrom(img,MODAL_MAX);const s=state.modalSrc;[$('mBefore'),$('mAfter')].forEach(c=>{c.width=s.width;c.height=s.height;});$('mBefore').getContext('2d').putImageData(s,0,0);drawModal();}catch(e){}}
+function drawModal(){const it=state.files[state.modal];if(!it)return;const src=state.modalSrc||it.prev,out=new ImageData(src.width,src.height);applyParams(src.data,out.data,buildParams(it));$('mAfter').getContext('2d').putImageData(out,0,0);}
+function closeModal(){state.modal=-1;state.modalSrc=null;$('modal').classList.remove('open');}
+function stepModal(d){if(state.modal<0||!state.files.length)return;openModal((state.modal+d+state.files.length)%state.files.length);}
+document.addEventListener('keydown',e=>{if(state.modal<0)return;if(e.key==='Escape')closeModal();else if(e.key==='ArrowLeft')stepModal(-1);else if(e.key==='ArrowRight')stepModal(1);});
+
+// ---------- 一括処理 ----------
+function invalidate(i){const it=state.files[i];if(it.status==='done'||it.status==='err'){const wasDone=it.status==='done';it.status='wait';it.blob=null;refreshCardStatus(i);if(wasDone)$('staleNote').style.display='block';}finishBar.style.display='none';}
+function invalidateAll(){state.files.forEach((_,i)=>invalidate(i));}
+function updateUI(){const n=state.files.length;toolbar.style.display=n?'flex':'none';countLabel.textContent=n+'枚の写真　（写真をクリックで拡大比較）';runBtn.disabled=n===0;finishBar.style.display='none';updateGroupHints();}
+function clearAll(){closeModal();state.files.forEach(it=>URL.revokeObjectURL(it.url));state.files=[];photoGrid.innerHTML='';progressWrap.style.display='none';progressLabel.style.display='none';progressBar.style.width='0%';finishBar.style.display='none';$('staleNote').style.display='none';updateUI();}
+async function runAll(){runBtn.disabled=true;$('staleNote').style.display='none';progressWrap.style.display='block';progressLabel.style.display='block';finishBar.style.display='none';const total=state.files.length,S=getS();let done=0;
+for(let i=0;i<total;i++){const it=state.files[i];if(it.status!=='done'){it.status='proc';refreshCardStatus(i);await new Promise(r=>setTimeout(r,0));await processImage(it,S);refreshCardStatus(i);}done++;progressBar.style.width=Math.round(done/total*100)+'%';progressLabel.textContent=done+' / '+total+' 完了';}
+runBtn.disabled=false;if(state.files.every(f=>f.status==='done'))finishBar.style.display='flex';}
+async function processImage(it,S){try{const img=await loadImage(it.url);const cv=document.createElement('canvas');cv.width=img.naturalWidth;cv.height=img.naturalHeight;const ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0);const id=ctx.getImageData(0,0,cv.width,cv.height);
+applyParams(id.data,id.data,buildParams(it,S));ctx.putImageData(id,0,0);
+it.blob=await new Promise((res,rej)=>cv.toBlob(b=>b?res(b):rej(new Error('失敗')),'image/jpeg',.92));it.status='done';}catch(e){it.status='err';}}
+function downloadOne(i){const{blob,file}=state.files[i];if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name.replace(/\.[^.]+$/,'')+'_enhanced.jpg';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);}
+async function downloadAll(){for(let i=0;i<state.files.length;i++){if(state.files[i].status!=='done')continue;downloadOne(i);await new Promise(r=>setTimeout(r,1200));}}
+function setBadge(i,cls,label){const b=$('badge-'+i);b.className='badge badge-'+cls;b.textContent=label;}
+
+buildSliders();loadSettings();setSlider('contrast',+$('s-hl').value- +$('s-sh').value);
+</script>
+</body>
+</html>
