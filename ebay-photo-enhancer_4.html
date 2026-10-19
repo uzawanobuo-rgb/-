@@ -134,8 +134,8 @@ footer{text-align:center;font-size:11px;color:var(--text3);padding:24px;border-t
 <div class="stale-note" id="staleNote">設定が変わったため、処理済みの写真はプレビュー状態に戻りました。もう一度「一括処理」を押してください。</div>
 <div class="photo-grid" id="photoGrid"></div>
 <div class="finish-bar" id="finishBar">
-<p>すべての補正が完了しました</p>
-<button class="btn btn-primary" onclick="downloadAll()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全ファイルをダウンロード</button>
+<p id="finishMsg">すべての補正が完了しました。保存先のフォルダ（例：ダウンロード）を選ぶと、ファイル名の「_」より前の番号ごとにフォルダを作って保存します（例：33705_01.jpg → 33705 フォルダ）。</p>
+<button class="btn btn-primary" onclick="downloadAll()"><svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>全ファイルを保存</button>
 </div>
 </main>
 
@@ -302,8 +302,18 @@ runBtn.disabled=false;if(state.files.every(f=>f.status==='done'))finishBar.style
 async function processImage(it,S){try{const img=await loadImage(it.url);const cv=document.createElement('canvas');cv.width=img.naturalWidth;cv.height=img.naturalHeight;const ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(img,0,0);const id=ctx.getImageData(0,0,cv.width,cv.height);
 applyParams(id.data,id.data,buildParams(it,S));ctx.putImageData(id,0,0);
 it.blob=await new Promise((res,rej)=>cv.toBlob(b=>b?res(b):rej(new Error('失敗')),'image/jpeg',.92));it.status='done';}catch(e){it.status='err';}}
-function downloadOne(i){const{blob,file}=state.files[i];if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=file.name.replace(/\.[^.]+$/,'')+'_enhanced.jpg';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);}
-async function downloadAll(){for(let i=0;i<state.files.length;i++){if(state.files[i].status!=='done')continue;downloadOne(i);await new Promise(r=>setTimeout(r,1200));}}
+function downloadOne(i){const{blob,file}=state.files[i];if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=outName(file.name);a.click();setTimeout(()=>URL.revokeObjectURL(a.href),10000);}
+// 品番フォルダ：ファイル名の最初の「_」より前（例 33705_01.jpg → 33705）。「_」が無ければ保存先の直下
+function folderOf(name){const m=name.match(/^([^_]+)_/);return m?m[1].replace(/[\\/:*?"<>|]/g,'').trim():'';}
+function outName(name){return name.replace(/\.[^.]+$/,'')+'_enhanced.jpg';}
+async function downloadAll(){const done=state.files.filter(f=>f.status==='done');if(!done.length)return;
+if(!window.showDirectoryPicker){alert('このブラウザはフォルダ保存に対応していないため、通常のダウンロードで保存します。\nフォルダ分けして保存するには、パソコンの Chrome または Edge をお使いください。');for(let i=0;i<state.files.length;i++){if(state.files[i].status!=='done')continue;downloadOne(i);await new Promise(r=>setTimeout(r,1200));}return;}
+let root;try{root=await window.showDirectoryPicker({id:'ebayEnhancerSave',mode:'readwrite',startIn:'downloads'});}catch(e){return;}
+const msg=$('finishMsg'),dirs={},counts={};let n=0;
+try{for(const it of done){const fd=folderOf(it.file.name);let dir=root;if(fd){dirs[fd]=dirs[fd]||await root.getDirectoryHandle(fd,{create:true});dir=dirs[fd];}
+const fh=await dir.getFileHandle(outName(it.file.name),{create:true});const w=await fh.createWritable();await w.write(it.blob);await w.close();n++;counts[fd||'（直下）']=(counts[fd||'（直下）']||0)+1;msg.textContent='保存中… '+n+' / '+done.length;}
+msg.textContent='保存しました（'+root.name+'）：'+Object.entries(counts).map(([k,v])=>k+' に '+v+'枚').join('、');}
+catch(e){msg.textContent='保存中にエラーが発生しました（'+n+'枚まで保存済み）：'+e.message;}}
 function setBadge(i,cls,label){const b=$('badge-'+i);b.className='badge badge-'+cls;b.textContent=label;}
 
 buildSliders();loadSettings();setSlider('contrast',+$('s-hl').value- +$('s-sh').value);
