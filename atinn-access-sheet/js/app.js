@@ -1,7 +1,7 @@
 // 画面：入力 → 自動取込 → 確認・修正 → 生成（SPEC.md §1）
 (function () {
   'use strict';
-  const Calc = window.AtinnCalc, Parse = window.AtinnParse, Sheet = window.AtinnSheet, GEO = window.AtinnGeoData, Samples = window.AtinnSamples;
+  const Calc = window.AtinnCalc, Opt = window.AtinnOptions, Parse = window.AtinnParse, Sheet = window.AtinnSheet, GEO = window.AtinnGeoData, Samples = window.AtinnSamples;
   const STORE_KEY = 'atinn-access-sheet:v1';
   const VERSION = '1.0.0';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,7 +19,7 @@
   function emptyRoute() { return { station: '', walk: '', legs: [{ mode: 'train', line: '', to: '' }], ride: '', display: '', transfers: '', source: '', note: '', exclude: false }; }
   function defaultState() {
     return {
-      v: 1, pattern: 'p1', persons: 1, baseDate: Calc.todayStr(), checkIn: '', checkOut: '', customer: '', // 利用期間・お客様名はパターン1・2で共通
+      v: 1, pattern: 'p1', persons: 1, options: [], baseDate: Calc.todayStr(), checkIn: '', checkOut: '', customer: '', // 利用期間・お客様名はパターン1・2で共通
       p1: { checkIn: Calc.defaultCheckIn(), property: emptyProp(), routes: {}, headline: '', subheadline: '', note: '' },
       p2: { compare: false, destName: '', destLabel: 'お勤め先', destAddress: '', destLat: '', destLng: '', customer: '', checkIn: '', checkOut: '', properties: [emptyProp(), emptyProp(), emptyProp()], routes: [emptyRoute(), emptyRoute(), emptyRoute()], headline: '', subheadline: '', note: '' },
       stationCoords: {},
@@ -37,6 +37,7 @@
     s.p2.routes = idx.map(i => Object.assign(emptyRoute(), (s.p2.routes || [])[i] || {}));
     Object.keys(s.p1.routes || {}).forEach(k => { s.p1.routes[k] = Object.assign(emptyRoute(), s.p1.routes[k]); });
     s.stationCoords = s.stationCoords || {};
+    if (!Array.isArray(s.options)) s.options = [];
     // 以前はパターンごとに持っていた利用期間を、共通の欄に移す
     if (!s.checkIn && s.p2.checkIn) s.checkIn = s.p2.checkIn;
     if (!s.checkOut && s.p2.checkOut) s.checkOut = s.p2.checkOut;
@@ -596,6 +597,76 @@ ${coordStatus(names)}
 </div>`;
   }
 
+  // ---------- オプション（利用期間・人数と同じく、1物件・複数物件で共通） ----------
+  function optionRegions() {
+    const props = state.pattern === 'p2' ? state.p2.properties : [state.p1.property];
+    const rs = [];
+    props.forEach(p => { const r = p && Opt.regionOf(p.address); if (r && !rs.includes(r)) rs.push(r); });
+    return rs;
+  }
+  // 料金の表示：地域で違えば地域ごとに並べる
+  function optPriceText(name, rs) {
+    if (name === Opt.PET.n) return `${Calc.yen(Opt.PET.p)}円/日`;
+    const list = (rs.length ? rs : Object.keys(Opt.REGIONS)).map(r => ({ r, it: Opt.find(name, r) })).filter(x => x.it);
+    if (!list.length) return '';
+    const unit = list[0].it.u === 'day' ? '円/日' : '円/契約';
+    const same = list.every(x => x.it.p === list[0].it.p);
+    return same ? `${Calc.yen(list[0].it.p)}${unit}` : list.map(x => `${Opt.REGIONS[x.r]}${Calc.yen(x.it.p)}`).join('・') + unit;
+  }
+  function optAreaText(name, rs) {
+    const it = (rs.length ? rs : Object.keys(Opt.REGIONS)).map(r => Opt.find(name, r)).find(Boolean);
+    if (!it) return '';
+    const t = [];
+    if (it.area) t.push(Opt.AREAS[it.area].label);
+    if (it.smoke) t.push('禁煙部屋のみ');
+    return t.join('・');
+  }
+  function renderOptions() {
+    const rs = optionRegions();
+    const opts = state.options || [];
+    // 物件ごとの判定（エリア外などで外れるもの）
+    const props = (state.pattern === 'p2' ? state.p2.properties : [state.p1.property]).filter(p => p && p.name);
+    const letters = state.pattern === 'p2' ? ['A', 'B', 'C', 'D', 'E'] : [''];
+    const rows = opts.map((o, i) => {
+      const del = `<button type="button" class="btn small" data-action="opt-del" data-i="${i}" title="外す">✕</button>`;
+      const qty = `<input data-bind="options.${i}.qty" type="number" inputmode="numeric" step="1" min="1" value="${esc(o.qty ?? 1)}" style="width:56px">`;
+      if (o.custom) {
+        return `<tr><td>${inp(`options.${i}.name`, { ph: '項目名（割引はマイナスで）' })}</td><td>${qty}</td>
+<td><div class="row" style="flex-wrap:nowrap;gap:4px">${inp(`options.${i}.price`, { type: 'number', ph: '金額' })}<select data-bind="options.${i}.unit"><option value="day" ${o.unit !== 'contract' ? 'selected' : ''}>円/日</option><option value="contract" ${o.unit === 'contract' ? 'selected' : ''}>円/契約</option></select></div></td><td>${del}</td></tr>`;
+      }
+      const it0 = rs.map(r => Opt.find(o.name, r)).find(Boolean) || (o.name === Opt.PET.n ? Opt.PET : null);
+      const notes = [];
+      if (it0 && it0.notes) notes.push(...it0.notes);
+      // 物件ごとに使えない理由
+      const ngs = [];
+      props.forEach((p, k) => {
+        const r = Opt.regionOf(p.address);
+        const it = Opt.find(o.name, r);
+        const who = letters[(state.pattern === 'p2' ? state.p2.properties.indexOf(p) : k)] || '';
+        if (!it) { ngs.push(`${who ? who + '：' : ''}${r ? Opt.REGIONS[r] + 'の一覧になし' : '地域不明（住所を入れてください）'}`); return; }
+        const c = Opt.check(it, p);
+        if (c.ng) ngs.push(`${who ? who + '：' : ''}${c.ng}`);
+        else if (c.note) notes.push(c.note);
+      });
+      const area = optAreaText(o.name, rs);
+      return `<tr><td><b>${esc(o.name)}</b>${area ? `<div class="muted" style="font-size:12px">${esc(area)}</div>` : ''}${notes.length ? `<div class="muted" style="font-size:12px">※${esc([...new Set(notes)].join('／'))}</div>` : ''}${ngs.length ? `<div class="warn-t" style="font-size:12px">料金に入れない：${esc(ngs.join('／'))}</div>` : ''}</td>
+<td>${qty}</td><td style="white-space:nowrap">${esc(optPriceText(o.name, rs))}</td><td>${del}</td></tr>`;
+    }).join('');
+    const chosen = opts.map(o => o.name);
+    const choices = [Opt.PET.n].concat(Opt.names(rs)).filter(nm => !chosen.includes(nm))
+      .map(nm => { const a = optAreaText(nm, rs); return `<option value="${esc(nm)}">${esc(nm)}（${esc(optPriceText(nm, rs))}${a ? '・' + esc(a) : ''}）</option>`; }).join('');
+    const persons = Math.max(1, Math.round(Calc.num(state.persons) || 1));
+    const sum = opts.length ? `${opts.length}件` : 'なし';
+    return `<details class="card" data-ui="opts" id="sec-opts" ${ui.open.opts || opts.length ? 'open' : ''}><summary><span class="step">＋</span>オプション（レンタル品・ペット・割引など）<span class="badge ${opts.length ? 'ok' : ''}">${sum}</span></summary>
+<div class="card-b">
+${rows ? `<table class="mini opt-table"><thead><tr><th>項目</th><th>数</th><th>料金</th><th></th></tr></thead><tbody>${rows}</tbody></table>` : ''}
+<div class="row">
+<select data-action="opt-add" style="max-width:100%"><option value="">＋ 一覧から追加…${rs.length ? `（${rs.map(r => Opt.REGIONS[r]).join('・')}の一覧）` : '（物件の住所が入ると、その地域の一覧になります）'}</option>${choices}</select>
+<button type="button" class="btn small" data-action="opt-custom">＋ 手入力の項目</button></div>
+<p class="muted" style="margin:0">選ぶと提案書・メール用テキストの総額に入ります。${persons > 1 ? `人数の分（2人目から1,100円/日）は自動で入ります。` : ''}料金は公式サイトのオプション一覧（${Opt.AS_OF.replace(/-/g, '/')}時点）。物件の住所から地域の料金を使い、提供エリア外・禁煙部屋限定などに当たる物件では料金に入れません。</p>
+</div></details>`;
+  }
+
   function renderP1() {
     const p = state.p1, prop = p.property;
     const built = Sheet.buildP1(viewState());
@@ -638,6 +709,7 @@ ${renderPropEditor('p1.property', prop, { simple: true })}
 <p class="muted" style="margin:0;align-self:end">郊外の物件は 60分・90分 などに広げてください。</p></div>
 ${routes}
 </div></details>
+${renderOptions()}
 ${renderTextCard('p1', built.model)}
 ${renderMailCard('p1')}`;
   }
@@ -735,6 +807,7 @@ ${destCoord && destNearText(true) ? `<div class="muted">最寄駅：${destNearTe
 ${propCards}
 <label class="row compare-opt"><input type="checkbox" data-bind="p2.compare" ${p.compare ? 'checked' : ''}> <b>2ページ目に「設備比較」の表を付ける</b><span class="muted">（PDF・印刷は2ページ、PNGは2枚）</span></label>
 ${p.properties.length < MAX_P2 ? `<div class="row" style="justify-content:center;margin:2px 0 6px"><button type="button" class="btn" data-action="add-prop">＋ 物件を追加（${LETTERS[p.properties.length]}）<small class="muted" style="margin-left:6px">最大${MAX_P2}つ</small></button></div>` : ''}
+${renderOptions()}
 ${renderTextCard('p2', built.model)}
 ${renderMailCard('p2')}`;
   }
@@ -1042,6 +1115,13 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     if (el.dataset && el.dataset.gmap) { if (el.value.trim()) applyGmap(el.value); return; }
     if (el.dataset && el.dataset.bind) { onBindInput(el, true); return; }
     const act = el.dataset && el.dataset.action;
+    if (act === 'opt-add' && el.value) {
+      state.options = state.options || [];
+      state.options.push({ name: el.value, qty: 1 });
+      ui.open.opts = true;
+      persist(); renderForm(); renderPreview();
+      return;
+    }
     if (act === 'load-json') loadJson(el);
     if (act === 'upload-photo') uploadPhoto(el);
   });
@@ -1195,6 +1275,8 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         persist(); renderForm(); renderPreview(); autoResolveStations(); toast(`前回の${pat === 'p1' ? '1物件' : '複数物件'}の入力を復元しました`);
         break;
       }
+      case 'opt-del': state.options.splice(+b.dataset.i, 1); persist(); renderForm(); renderPreview(); break;
+      case 'opt-custom': state.options.push({ name: '', qty: 1, price: '', unit: 'day', custom: true }); ui.open.opts = true; persist(); renderForm(); break;
       case 'reset':
         if (!confirm('入力をすべて消して新規作成します。よろしいですか？（必要なら先に「データ保存」）')) return;
         { const pat = state.pattern; state = defaultState(); state.pattern = pat; ui.imported = {}; }

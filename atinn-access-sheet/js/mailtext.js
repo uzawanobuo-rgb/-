@@ -4,6 +4,7 @@
   'use strict';
   const req = typeof require === 'function';
   const Calc = req ? require('./calc.js') : root.AtinnCalc;
+  const Opt = req ? require('./options.js') : root.AtinnOptions;
 
   const W = '　'; // 全角スペース（Excel の書式に合わせて、項目名のあとの空きをそろえる）
   const yen = n => Number(n || 0).toLocaleString('ja-JP');
@@ -20,7 +21,8 @@
     return { ci, co };
   }
 
-  function block(prop, ci, co, persons) {
+  function block(prop, ci, co, state) {
+    const persons = Math.max(1, Math.round(Calc.num(state.persons) || 1));
     const lines = [];
     lines.push(`■物件名：${prop.planName || prop.name || ''}`);
     lines.push(`${W}URL ${W}：${prop.planUrl || ''}`);
@@ -32,21 +34,31 @@
       return lines;
     }
     const r = Calc.calcPrice(pv, ci, co);
+    const o = Opt.calc(state, prop, pv, r.days);
     const utilities = Calc.num(pv.utilities) ?? 0;
     const option = persons > 1 ? 1100 * (persons - 1) : 0; // 2人目から1名1,100円/日
-    const total = r.total + option * r.days;
+    const each = l => l.qty > 1 ? `${l.name}×${l.qty}` : l.name;
     lines.push(`${W}賃料：${W.repeat(9)}${yen(r.rentApplied)}円/日`);
     lines.push(`${W}水道光熱費：${W.repeat(7)}${yen(utilities)}円/日`);
-    if (option) lines.push(`${W}オプション料金：${W.repeat(4)}${yen(option)}円/日（${persons}名様入居）`);
-    lines.push(`${W}ルームクリーニング代： ${yen(r.cleaning)}円/契約`);
+    // 1日あたりのオプション（Excel と同じく、人数の行を先に）
+    o.lines.filter(l => l.unit === 'day').forEach(l => {
+      lines.push(l.person
+        ? `${W}オプション料金：${W.repeat(4)}${yen(l.unitPrice)}円/日（${persons}名様入居）`
+        : `${W}オプション料金：${W.repeat(4)}${yen(l.unitPrice * l.qty)}円/日（${each(l)}）`);
+    });
+    lines.push(`${W}ルームクリーニング代： ${yen(r.cleaning + o.cleaningExtra)}円/契約`);
     lines.push(`${W}住宅保険：${W.repeat(7)}${yen(r.insurance)}円/契約`);
+    o.lines.filter(l => l.unit === 'contract').forEach(l => {
+      lines.push(`${W}オプション料金：${W} ${W}${W}${yen(l.unitPrice * l.qty)}円/契約（${each(l)}）`);
+    });
     lines.push('----------------------------------------');
-    lines.push(`${W}総額${W.repeat(8)}：${yen(total)}円（1室${persons}名様利用）`);
+    lines.push(`${W}総額${W.repeat(8)}：${yen(r.total + o.total)}円（1室${persons}名様利用）`);
     lines.push('----------------------------------------');
     if (Calc.num(pv.dailyCampaign) !== null && prop.campaignNote) lines.push(`※キャンペーン価格：${prop.campaignNote}`);
     const smoke = String(prop.smoking || '');
     if (/禁煙/.test(smoke)) lines.push('※禁煙');
     else if (/喫煙/.test(smoke)) lines.push('※喫煙可能');
+    o.warnings.forEach(w => lines.push(`※${w}`));
     lines.push(`（月額目安：${yen((r.rentApplied + utilities + option) * 30)} 円）`);
     return lines;
   }
@@ -70,7 +82,7 @@
     if (!props.length) out.push('（物件が未入力です）');
     props.forEach((p, i) => {
       if (i) out.push('');
-      block(p, ci, co, persons).forEach(l => out.push(l));
+      block(p, ci, co, state).forEach(l => out.push(l));
     });
     return out.join('\n');
   }
