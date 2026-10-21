@@ -127,16 +127,20 @@
 
     // 2. 山手線の輪：駅を投影した範囲に合わせた楕円で描く（実際の形より、見やすさ優先のデフォルメ）。
     //    山手線の駅は、楕円の中心から見た向きのまま楕円の上に置き、山手線に乗る区間は楕円に沿って描く
+    // 地域の環状線（東京：山手線、大阪：大阪環状線。名古屋・京都は環状線なし）
+    const RING = spec.ring === undefined ? GEO.areas.tokyo.ring : spec.ring;
+    const ringStations = RING && spec.yamanote !== false ? RING.stations : [];
+    const isRingLeg = lg => !!RING && lg && lg.mode !== 'bus' && RING.re.test(lg.line || '');
     const ringByName = {};
-    GEO.yamanote.forEach((s, i) => { ringByName[s.name] = i; });
+    ringStations.forEach((s, i) => { ringByName[s.name] = i; });
     for (const r of routes) {
       let prev = r.walkTo;
       for (const lg of r.legs) {
-        if (isYamanote(lg) && prev && lg.to && prev.name in ringByName && lg.to.name in ringByName) { lg._ring = true; lg._from = prev.name; }
+        if (isRingLeg(lg) && prev && lg.to && prev.name in ringByName && lg.to.name in ringByName) { lg._ring = true; lg._from = prev.name; }
         prev = lg.to;
       }
     }
-    const yv = GEO.yamanote.map(s => Object.assign({ name: s.name }, Praw(s)));
+    const yv = ringStations.length ? ringStations.map(s => Object.assign({ name: s.name }, Praw(s))) : [{ name: '', x: 0, y: 0 }];
     const ex0 = Math.min.apply(null, yv.map(v => v.x)), ex1 = Math.max.apply(null, yv.map(v => v.x));
     const ey0 = Math.min.apply(null, yv.map(v => v.y)), ey1 = Math.max.apply(null, yv.map(v => v.y));
     const ringCtr = { x: (ex0 + ex1) / 2, y: (ey0 + ey1) / 2 };
@@ -147,10 +151,10 @@
       const t = Math.atan2((v.y - ringCtr.y) / eb, (v.x - ringCtr.x) / ea);
       ringTheta[v.name] = t; snap[v.name] = ell(t);
     });
-    const useRing = spec.yamanote !== false;
+    const useRing = ringStations.length > 0;
     // 山手線の駅を楕円に寄せた分だけ、その近くの駅・物件・目印も一緒にずらす（近い駅の動きほど強く効かせる）。
     // そうしないと、輪の上に動いた駅（例：田町）と、すぐ隣の駅（例：三田）との距離感がくずれる
-    const ringMove = yv.map(v => ({ x: v.x, y: v.y, dx: snap[v.name].x - v.x, dy: snap[v.name].y - v.y }));
+    const ringMove = yv.filter(v => v.name).map(v => ({ x: v.x, y: v.y, dx: snap[v.name].x - v.x, dy: snap[v.name].y - v.y }));
     const shift = q => {
       let sw = 0, sx = 0, sy = 0;
       for (const m of ringMove) {
@@ -183,7 +187,7 @@
       for (let i = 0; i <= n; i++) out.push(ell(t1 + d * i / n));
       return out;
     }
-    const ringInView = ringPts.some(p => p.x > -50 && p.x < W + 50 && p.y > -50 && p.y < H + 50);
+    const ringInView = useRing && ringPts.some(p => p.x > -50 && p.x < W + 50 && p.y > -50 && p.y < H + 50);
 
     // 3. ルートの形
     const drawn = []; // {pts, style, color}
@@ -432,7 +436,7 @@
     const ringLabels = [];
     const routeStationNames = new Set(stationMarks.map(s => s.name).concat(routes.map(r => r.callout && r.callout.title)));
     if (spec.yamanote !== false && ringInView) {
-      for (const name of GEO.yamanoteLabeled) {
+      for (const name of RING.labeled) {
         if (routeStationNames.has(name) || !snap[name]) continue;
         const v = snap[name];
         if (v.x < 20 || v.x > W - 20 || v.y < 20 || v.y > H - 30) continue;
@@ -462,7 +466,7 @@
         segs.push({ p, q, len: Math.hypot(q.x - p.x, q.y - p.y) });
       }
       segs.sort((a, b) => b.len - a.len);
-      const tw = textW('JR山手線', 12);
+      const tw = textW(RING.name, 12);
       outer: for (const sg of segs.slice(0, 8)) {
         for (const t of [0.5, 0.3, 0.7]) {
           const mxp = sg.p.x + (sg.q.x - sg.p.x) * t, myp = sg.p.y + (sg.q.y - sg.p.y) * t;
@@ -556,7 +560,7 @@
       s.push(`<circle cx="${r1(l.v.x)}" cy="${r1(l.v.y)}" r="6" fill="#FFFFFF" stroke="${C.gray}" stroke-width="3"/>`);
       s.push(`<text x="${r1(l.c.x)}" y="${r1(l.c.y)}" text-anchor="${l.c.anchor}" font-size="13" font-weight="700" fill="${C.gray}">${esc(l.name)}</text>`);
     });
-    if (ringName) s.push(`<text x="${r1(ringName.x)}" y="${r1(ringName.y)}" text-anchor="middle" font-size="12" font-weight="700" fill="${C.gray}">JR山手線</text>`);
+    if (ringName) s.push(`<text x="${r1(ringName.x)}" y="${r1(ringName.y)}" text-anchor="middle" font-size="12" font-weight="700" fill="${C.gray}">${esc(RING.name)}</text>`);
     // 線：徒歩→バス→電車の順
     drawn.filter(d => d.style === 'walk').forEach(d => s.push(`<path d="${pathD(d.pts)}" fill="none" stroke="${d.color}" stroke-width="4" stroke-dasharray="2 8" stroke-linecap="round"/>`));
     const lanes = laneOffsets(drawn.filter(d => d.style !== 'walk'));
@@ -741,7 +745,6 @@
     return out;
   }
 
-  function isYamanote(lg) { return lg && lg.mode !== 'bus' && /山手線/.test(lg.line || ''); }
 
   const M = { renderMap, ROUTE_COLORS, textW, esc };
   if (typeof module === 'object' && module.exports) module.exports = M;

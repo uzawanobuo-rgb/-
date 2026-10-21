@@ -6,7 +6,14 @@
   const VERSION = '1.0.0';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const $ = (sel, el) => (el || document).querySelector(sel);
-  const MAJOR = GEO.majorStations.map(s => s.name);
+  // 地域（東京・名古屋・大阪・京都）：1物件は物件の位置、複数物件は目的地の位置から決める
+  const areaKey = () => GEO.areaForState(state);
+  const AREA = () => GEO.areas[areaKey()];
+  // 地域の駅の座標表（同じ名前の駅が地域ごとにあるので、その地域の表だけを見る）
+  const stTable = () => AREA().stations;
+  // 1物件の主要駅（物件の地域ごと）
+  const majorList = () => GEO.areas[GEO.areaForState(Object.assign({}, state, { pattern: 'p1' }))].major;
+  const majorNames = () => majorList().map(s => s.name);
   const LETTERS = ['A', 'B', 'C', 'D', 'E'];
   const MAX_P2 = 5; // パターン2の物件は3〜5つ（3つまでは空欄で減らせる）
   const COLORS = ['#0F7C7A', '#E0662A', '#2F74B5', '#7A5BB8', '#B08A1E'];
@@ -216,7 +223,7 @@
       const d = await jsonp(`https://express.heartrails.com/api/json?method=getStations&x=${c.lng}&y=${c.lat}`);
       ((d && d.response && d.response.station) || []).forEach(st => add(st.name, st.line, meters(c, { lat: +st.y, lng: +st.x })));
     } catch (e) { /* つながらないときは下の主な駅から */ }
-    if (!Object.keys(byName).length) Object.keys(GEO.stations).forEach(n => add(n, '', meters(c, { lat: GEO.stations[n][0], lng: GEO.stations[n][1] })));
+    if (!Object.keys(byName).length) Object.keys(stTable()).forEach(n => add(n, '', meters(c, { lat: stTable()[n][0], lng: stTable()[n][1] })));
     destNearPending = '';
     if (key !== destNearKey()) return; // 待っている間に目的地が変わった
     ui.destNear = { key, list: Object.values(byName).sort((a, b) => a.m - b.m).slice(0, 3) };
@@ -269,7 +276,7 @@
   const tried = new Set();
   function knownCoord(name) {
     const k = String(name || '').trim().replace(/駅$/, '');
-    return !!(k && (GEO.stations[k] || (state.stationCoords[k] && state.stationCoords[k].lat != null)));
+    return !!(k && (stTable()[k] || (state.stationCoords[k] && state.stationCoords[k].lat != null)));
   }
   function stationNamesInUse() {
     const names = new Set();
@@ -335,7 +342,7 @@
   // 別の物件を入れたら、前の物件の乗車駅・所要時間は消してから、新しい物件の最寄駅で初期値を入れる
   function resetRoutesFor(path) {
     const prop = getPath(path);
-    if (path === 'p1.property') { state.p1.routes = {}; MAJOR.forEach(name => fillRouteDefaults(p1Route(name), prop, name)); }
+    if (path === 'p1.property') { state.p1.routes = {}; majorNames().forEach(name => fillRouteDefaults(p1Route(name), prop, name)); }
     else { const i = +path.split('.')[2]; state.p2.routes[i] = emptyRoute(); fillRouteDefaults(state.p2.routes[i], prop, state.p2.destName); }
   }
 
@@ -542,9 +549,16 @@ ${stTable}
     while ([0, 6].includes(new Date(t).getUTCDay())) t += 86400000;
     const d = new Date(t), pad = n => String(n).padStart(2, '0');
     // 駅名なら「〇〇駅」で検索（同名の地名と区別）。住所・施設名はそのまま
-    const isStation = n => !!(GEO.stations[n] || state.stationCoords[n]);
+    const isStation = n => !!(stTable()[n] || state.stationCoords[n]);
     const st = (n, force) => /駅$|バス|〔/.test(n) ? n : (force || isStation(n)) ? n + '駅' : n;
-    return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(st(fromName, true))}&to=${encodeURIComponent(st(toName))}&y=${d.getUTCFullYear()}&m=${pad(d.getUTCMonth() + 1)}&d=${pad(d.getUTCDate())}&hh=10&m1=0&m2=0&type=1&ticket=ic&expkind=1&ws=3&s=0&al=0&shin=0&ex=0&hb=0&lb=1&sr=1${toCoord ? `&tlatlon=${toCoord.lat},${toCoord.lng}` : ''}`;
+    // 東京以外は、乗る駅も位置で固定する（「京橋」は東京にも大阪にもある、など）
+    let fromC = null;
+    if (areaKey() !== 'tokyo') {
+      const k = String(fromName || '').replace(/駅$/, '');
+      const t = stTable()[k], u = state.stationCoords[k];
+      fromC = t ? { lat: t[0], lng: t[1] } : u && u.lat != null ? { lat: u.lat, lng: u.lng } : null;
+    }
+    return `https://transit.yahoo.co.jp/search/result?from=${encodeURIComponent(st(fromName, true))}${fromC ? `&flatlon=${fromC.lat},${fromC.lng}` : ''}&to=${encodeURIComponent(st(toName))}&y=${d.getUTCFullYear()}&m=${pad(d.getUTCMonth() + 1)}&d=${pad(d.getUTCDate())}&hh=10&m1=0&m2=0&type=1&ticket=ic&expkind=1&ws=3&s=0&al=0&shin=0&ex=0&hb=0&lb=1&sr=1${toCoord ? `&tlatlon=${toCoord.lat},${toCoord.lng}` : ''}`;
   }
   function searchLinks(fromName, toName, missing, path, toCoord) {
     if (fromName && toName) {
@@ -673,7 +687,8 @@ ${rows ? `<table class="mini opt-table"><thead><tr><th>項目</th><th>数</th><t
     const sel = built.model.selected;
     const coord = prop.lat !== '' && prop.lat != null ? { lat: prop.lat, lng: prop.lng } : null;
     const limit = Calc.num(p.maxMin) || 30;
-    const routes = MAJOR.map(name => {
+    const routes = majorList().map(ms => {
+      const name = ms.name;
       const r = p1Route(name);
       const info = Sheet.routeInfo(r);
       const over = info.total !== null && info.total > limit;
@@ -683,7 +698,9 @@ ${rows ? `<table class="mini opt-table"><thead><tr><th>項目</th><th>数</th><t
         : info.ride === null ? '<span class="chip gray">乗車（分）を入れると表示</span>'
         : '<span class="chip gray">4番目以降のため非表示</span>';
       const head = `<b>${esc(name)}</b>${chip}`;
-      return renderRouteEditor(`p1.routes.${name}`, r, { id: 'p1-' + name, head, toName: name, stations: prop.stations, fromCoord: coord, selected: sel.includes(name), excludable: true });
+      // 東京以外は、同じ名前の駅（栄・京橋 など）と取り違えないように、行き先を駅の位置で固定して検索する
+      const away = areaKey() !== 'tokyo';
+      return renderRouteEditor(`p1.routes.${name}`, r, { id: 'p1-' + name, head, toName: name, searchTo: ms.search || name, searchCoord: away ? { lat: ms.lat, lng: ms.lng } : null, stations: prop.stations, fromCoord: coord, selected: sel.includes(name), excludable: true });
     }).join('');
     const propOk = prop.name && prop.lat !== '' && prop.lat != null;
     return `
@@ -720,7 +737,7 @@ ${renderMailCard('p1')}`;
   async function resolveDest(quiet) {
     const p2 = state.p2;
     const name = String(p2.destName || '').replace(/駅$/, '').trim();
-    const st = name && (GEO.stations[name] || (state.stationCoords[name] && [state.stationCoords[name].lat, state.stationCoords[name].lng]));
+    const st = name && (stTable()[name] || (state.stationCoords[name] && [state.stationCoords[name].lat, state.stationCoords[name].lng]));
     let r = null;
     if (st && !(p2.destAddress && !quiet)) r = { lat: +st[0], lng: +st[1], title: name + '駅' };
     else {
@@ -747,7 +764,7 @@ ${renderMailCard('p1')}`;
   function destSearchName() {
     const p = state.p2, n = String(p.destName || '').replace(/駅$/, '');
     if (String(p.destAddress || '').trim()) return p.destAddress.trim();
-    if (n && (GEO.stations[n] || state.stationCoords[n])) return n;
+    if (n && (stTable()[n] || state.stationCoords[n])) return n;
     return p.destName || '';
   }
   // 検索先が駅ではない（住所・場所の名前）ときは、目的地の位置で行き先を固定する
@@ -755,7 +772,7 @@ ${renderMailCard('p1')}`;
     const p = state.p2;
     if (p.destLat === '' || p.destLat == null || p.destLng === '' || p.destLng == null) return null;
     const n = destSearchName().replace(/駅$/, '');
-    if (GEO.stations[n] || state.stationCoords[n]) return null;
+    if (stTable()[n] || state.stationCoords[n]) return null;
     return { lat: p.destLat, lng: p.destLng };
   }
   function renderP2() {
@@ -835,7 +852,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
   }
 
   function stationDatalist() {
-    const names = Object.keys(GEO.stations).concat(Object.keys(state.stationCoords));
+    const names = Object.keys(stTable()).concat(Object.keys(state.stationCoords));
     return `<datalist id="dl-stations">${Array.from(new Set(names)).map(n => `<option value="${esc(n)}">`).join('')}</datalist>`;
   }
 
@@ -1309,7 +1326,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
       case 'clear-routes':
         if (!confirm('主要駅までの所要時間をすべて消します。よろしいですか？')) return;
         state.p1.routes = {};
-        MAJOR.forEach(name => fillRouteDefaults(p1Route(name), state.p1.property, name));
+        majorNames().forEach(name => fillRouteDefaults(p1Route(name), state.p1.property, name));
         persist(); renderForm(); renderPreview(); break;
       case 'clear-prop': {
         if (!confirm(`物件${LETTERS[i]}を消します。よろしいですか？（後ろの物件は前に詰めます）`)) return;
