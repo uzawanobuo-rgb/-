@@ -667,8 +667,11 @@ ${coordStatus(names)}
 <td>${qty}</td><td style="white-space:nowrap">${esc(optPriceText(o.name, rs))}</td><td>${del}</td></tr>`;
     }).join('');
     const chosen = opts.map(o => o.name);
-    const choices = [Opt.PET.n].concat(Opt.names(rs)).filter(nm => !chosen.includes(nm))
-      .map(nm => { const a = optAreaText(nm, rs); return `<option value="${esc(nm)}">${esc(nm)}（${esc(optPriceText(nm, rs))}${a ? '・' + esc(a) : ''}）</option>`; }).join('');
+    const optTag = nm => { const a = optAreaText(nm, rs); return `<option value="${esc(nm)}">${esc(nm)}（${esc(optPriceText(nm, rs))}${a ? '・' + esc(a) : ''}）</option>`; };
+    // ペットは追加料金なので先頭に別に。レンタル品は五十音順
+    const rentals = Opt.names(rs).filter(nm => !chosen.includes(nm)).map(optTag).join('');
+    const choices = (chosen.includes(Opt.PET.n) ? '' : `<optgroup label="追加料金">${optTag(Opt.PET.n)}</optgroup>`)
+      + (rentals ? `<optgroup label="レンタル品（五十音順）">${rentals}</optgroup>` : '');
     const persons = Math.max(1, Math.round(Calc.num(state.persons) || 1));
     const sum = opts.length ? `${opts.length}件` : 'なし';
     return `<details class="card" data-ui="opts" id="sec-opts" ${ui.open.opts || opts.length ? 'open' : ''}><summary><span class="step">＋</span>オプション（レンタル品・ペット・割引など）<span class="badge ${opts.length ? 'ok' : ''}">${sum}</span></summary>
