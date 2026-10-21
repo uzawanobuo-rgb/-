@@ -132,6 +132,22 @@
   }
   function ceil5(v) { return Math.ceil(v / 5) * 5; }
 
+  // キャンペーン条件（プランページの「〇月〇日～〇月〇日までにご利用開始の方限定」など）。キャンペーン価格を使うときだけ載せる
+  function campaignText(prop) {
+    const pv = prop.price || {};
+    const list = [];
+    if (n(pv.dailyCampaign) !== null && prop.campaignNote) list.push(String(prop.campaignNote).trim());
+    if (n(pv.cleaningCampaign) !== null && prop.cleaningCampaignNote && prop.cleaningCampaignNote !== prop.campaignNote) list.push(`清掃費は${String(prop.cleaningCampaignNote).trim()}`);
+    return list.join('／');
+  }
+  // 利用期間がキャンペーン条件に当てはまらないときの注意（ツールの画面だけに出す）
+  function campaignWarn(state, prop, ci, co, who, warnings) {
+    const pv = prop.price || {};
+    if (n(pv.dailyCampaign) === null || !prop.campaignNote) return;
+    const why = Calc.campaignMismatch(prop.campaignNote, ci, co, state.baseDate);
+    if (why) warnings.push(`${who}キャンペーン条件「${prop.campaignNote}」に当てはまらない可能性があります。${why}。定価で計算するときは、キャンペーンの料金欄を空にしてください`);
+  }
+
   // ================= パターン1：物件 → 主要駅 =================
   function buildP1(state) {
     const warnings = [];
@@ -197,6 +213,8 @@
     try { price = Calc.calcPrice(pv, ci, co); } catch (e) { warnings.push('利用期間の日付が不正です'); }
     const hasPrice = price && (n(pv.dailyCampaign) ?? n(pv.dailyList)) !== null;
     if (!hasPrice) warnings.push('料金（利用料・清掃費・住宅保険）が未入力です');
+    else campaignWarn(state, prop, ci, co, '', warnings);
+    const camp = hasPrice ? campaignText(prop) : '';
     const strengths = `<div style="display:flex;flex-direction:column;gap:8px;padding:12px 18px;background:#1E2B33;color:#FFFFFF;border-radius:12px;">
 <div style="font-size:15px;font-weight:900;">家賃以外、ほぼかかりません</div>
 <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 12px;font-size:12px;line-height:1.4;">
@@ -212,7 +230,7 @@
 <div style="display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0;">
 <div style="display:flex;align-items:baseline;gap:10px;"><div style="font-size:15px;font-weight:900;">ご利用期間の総額</div><div style="font-size:13px;font-weight:700;color:#5B6770;">${price ? `${md(ci)}〜${md(co)}・${price.days}日間` : '—'}</div></div>
 <div style="display:flex;align-items:baseline;gap:4px;"><span style="font-size:13px;font-weight:700;color:#5B6770;">総額</span><span style="font-size:40px;font-weight:900;line-height:1;color:#C4531A;">${price ? v(price.total) : '—'}</span><span style="font-size:15px;font-weight:700;color:#C4531A;">円</span></div>
-<div style="font-size:12px;line-height:1.5;color:#5B6770;">利用料 ${price ? v(price.usageFee) : '—'}円（1日 ${price ? v(price.dailyApplied) : '—'}円 × ${price ? price.days : '–'}日）＋ 清掃費 ${price ? v(price.cleaning) : '—'}円 ＋ 保険 ${price ? v(price.insurance) : '—'}円</div></div>
+<div style="font-size:12px;line-height:1.5;color:#5B6770;">利用料 ${price ? v(price.usageFee) : '—'}円（1日 ${price ? v(price.dailyApplied) : '—'}円 × ${price ? price.days : '–'}日）＋ 清掃費 ${price ? v(price.cleaning) : '—'}円 ＋ 保険 ${price ? v(price.insurance) : '—'}円</div>${camp ? `<div style="font-size:12px;line-height:1.4;font-weight:700;color:#C4531A;">※キャンペーン価格：${esc(camp)}</div>` : ''}</div>
 <div style="display:flex;flex-direction:column;justify-content:center;gap:8px;padding-left:18px;border-left:1px solid #F1C9AE;flex-shrink:0;">
 <div style="display:flex;flex-direction:column;"><span style="font-size:11px;color:#5B6770;">1日あたり</span><span style="font-size:20px;font-weight:900;">約${price ? v(roundTo(price.total / price.days, 100)) : '—'}<span style="font-size:12px;">円</span></span></div>
 ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span style="font-size:11px;color:#5B6770;">1か月（30日）あたり</span><span style="font-size:20px;font-weight:900;">約${v(perMonth)}<span style="font-size:12px;">円</span></span></div>` : ''}
@@ -274,6 +292,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
       const pv = prop.price || {};
       if ((n(pv.dailyCampaign) ?? n(pv.dailyList)) !== null) {
         try { price = Calc.calcPrice(pv, ci, co); } catch (e) { warnings.push('利用期間の日付が不正です'); }
+        campaignWarn(state, prop, ci, co, `${letters[i]}：`, warnings);
       } else warnings.push(`${letters[i]}：料金が未入力です`);
       if (info.display === null) warnings.push(`${letters[i]}：所要時間（徒歩・乗車）が未入力です`);
       return { i, prop, r, info, price, letter: letters[i] };
@@ -377,7 +396,12 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     const sameIns = insVals.length && insVals.every(v => v === insVals[0]);
     const anyCampaign = items.some(x => x.price && x.price.isCampaign);
     const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の各プランの${anyCampaign ? 'キャンペーン価格' : '料金'}で、${state.persons || 1}名・${days}日利用時の総額（利用料＋ルームクリーニング${sameClean ? yen(cleanVals[0]) + '円' : ''}＋住宅保険${sameIns ? yen(insVals[0]) + '円' : ''}×月数（応当日で計算、端数月は1か月））です。`;
-    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
+    // キャンペーン条件：物件ごと（全部同じなら1つにまとめる）
+    const camps = items.map(x => ({ l: x.letter, t: x.price ? campaignText(x.prop) : '' })).filter(c => c.t);
+    const campLine = !camps.length ? ''
+      : camps.length > 1 && camps.every(c => c.t === camps[0].t) ? `※キャンペーン価格（${camps.map(c => c.l).join('・')}）：${camps[0].t}`
+      : `※キャンペーン価格　${camps.map(c => `${c.l}：${c.t}`).join('　')}`;
+    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${campLine ? `<div style="font-weight:700;color:#C4531A;">${esc(campLine)}</div>` : ''}${esc(state.note || autoNote)}</div>`;
 
     const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? mapHP : 440, '目的地') + bottom + note);
     const pages = [html];

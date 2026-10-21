@@ -116,7 +116,39 @@
     return `${dt.getUTCFullYear()}/${dt.getUTCMonth() + 1}/${dt.getUTCDate()}（${'日月火水木金土'[dt.getUTCDay()]}）`;
   }
 
-  const M = { parseDateInput, showDate, parse, fmt, addDays, daysInclusive, addMonthsClamp, insuranceMonths, calcPrice, planOneThree, defaultCheckIn, todayStr, num, yen };
+  // キャンペーン条件の期間を読む（「11月16日～11月22日までにご利用開始」「即日から11月30日までの期間内でご利用」など）。
+  // 年は書かれていないので、料金を取得した日（base）から見て近い将来の日付にする。
+  // mode：start＝利用開始日が期間内なら対象、stay＝利用期間全体が期間内なら対象
+  function campaignWindow(note, base) {
+    const t = String(note || '').replace(/[０-９]/g, d => String.fromCharCode(d.charCodeAt(0) - 0xFEE0));
+    const m = /(?:(即日|本日)|(\d{1,2})\s*月\s*(\d{1,2})\s*日)?\s*(?:[～〜~ー\-－]|から)?\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日\s*まで/.exec(t);
+    if (!m) return null;
+    const b = parse(base || todayStr());
+    const pick = (mo, d, after) => {
+      const y = new Date(after).getUTCFullYear();
+      for (const yy of [y - 1, y, y + 1]) {
+        const v = Date.UTC(yy, mo - 1, d);
+        if (v >= after - 120 * DAY) return v;
+      }
+      return Date.UTC(y + 1, mo - 1, d);
+    };
+    const start = m[2] ? pick(+m[2], +m[3], b) : null;
+    let end = pick(+m[4], +m[5], start ?? b);
+    if (start !== null && end < start) end = Date.UTC(new Date(end).getUTCFullYear() + 1, +m[4] - 1, +m[5]);
+    return { start: start === null ? null : fmt(start), end: fmt(end), mode: /期間内/.test(t) ? 'stay' : 'start' };
+  }
+  // 利用期間がキャンペーン条件に当てはまらないときは、理由を返す（当てはまる・読めないときは空文字）
+  function campaignMismatch(note, ci, co, base) {
+    const w = campaignWindow(note, base);
+    if (!w || !ci) return '';
+    const md = s => { const d = new Date(parse(s)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+    if (w.start && parse(ci) < parse(w.start)) return `利用開始 ${md(ci)} がキャンペーン期間（${md(w.start)}〜）より前です`;
+    if (w.mode === 'start' && parse(ci) > parse(w.end)) return `利用開始 ${md(ci)} がキャンペーンの期限（${md(w.end)}までに利用開始）を過ぎています`;
+    if (w.mode === 'stay' && co && parse(co) > parse(w.end)) return `利用期間（〜${md(co)}）がキャンペーンの期間（${md(w.end)}まで）を超えています`;
+    return '';
+  }
+
+  const M = { parseDateInput, showDate, campaignWindow, campaignMismatch, parse, fmt, addDays, daysInclusive, addMonthsClamp, insuranceMonths, calcPrice, planOneThree, defaultCheckIn, todayStr, num, yen };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnCalc = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

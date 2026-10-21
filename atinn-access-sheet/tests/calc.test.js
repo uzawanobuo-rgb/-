@@ -169,3 +169,15 @@ test('縦型の設備比較：設備名を左に、物件は記号の列で ●�
   assert.ok(r.pages[1].includes('●') && r.pages[1].includes('×'));
   assert.ok(r.pages[1].includes('全物件にあり'));
 });
+
+test('キャンペーン条件の期間と、利用期間が当てはまるか', () => {
+  assert.deepEqual(Calc.campaignWindow('11月16日～11月22日までにご利用開始の方限定', '2026-10-21'), { start: '2026-11-16', end: '2026-11-22', mode: 'start' });
+  assert.deepEqual(Calc.campaignWindow('12月14日～1月31日までにご利用開始の方限定', '2026-10-21'), { start: '2026-12-14', end: '2027-01-31', mode: 'start' });
+  assert.deepEqual(Calc.campaignWindow('即日から11月30日までの期間内でご利用の方限定', '2026-10-21'), { start: null, end: '2026-11-30', mode: 'stay' });
+  assert.equal(Calc.campaignWindow('新生活応援', '2026-10-21'), null);
+  const note = '11月16日～11月22日までにご利用開始の方限定';
+  assert.equal(Calc.campaignMismatch(note, '2026-11-20', '2026-12-19', '2026-10-21'), '');
+  assert.match(Calc.campaignMismatch(note, '2026-11-01', '2026-11-30', '2026-10-21'), /より前/);
+  assert.match(Calc.campaignMismatch(note, '2026-11-23', '2026-12-22', '2026-10-21'), /過ぎて/);
+  assert.match(Calc.campaignMismatch('即日から11月30日までの期間内でご利用の方限定', '2026-11-01', '2026-12-10', '2026-10-21'), /超えて/);
+});
