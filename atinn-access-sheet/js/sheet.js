@@ -140,6 +140,15 @@
     if (n(pv.cleaningCampaign) !== null && prop.cleaningCampaignNote && prop.cleaningCampaignNote !== prop.campaignNote) list.push(`清掃費は${String(prop.cleaningCampaignNote).trim()}`);
     return list.join('／');
   }
+  // 物件カード用：「※キャンペーン価格」で改行し、日付は「11/16」の形に縮める。
+  // 2行目は枠の幅に合わせて文字を小さくし、1行に収める（SVG の文字を枠の幅まで縮める。広いときは元の大きさのまま）
+  function campaignLines(camp, size) {
+    const t = camp.replace(/(\d{1,2})月(\d{1,2})日/g, '$1/$2');
+    const w = Math.ceil([...t].reduce((a, c) => a + (c.charCodeAt(0) > 0xFF ? 1 : 0.56), 0) * size);
+    const h = Math.ceil(size * 1.35);
+    return `<div style="font-size:${size}px;line-height:1.35;font-weight:700;color:#C4531A;margin-top:2px;min-width:0;"><div>※キャンペーン価格</div>
+<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMinYMid meet" style="display:block;width:100%;max-width:${w}px;height:auto;overflow:visible;"><text x="0" y="${(h * 0.78).toFixed(1)}" font-size="${size}" font-weight="700" fill="#C4531A" textLength="${w}" lengthAdjust="spacingAndGlyphs">${esc(t)}</text></svg></div>`;
+  }
   // 利用期間がキャンペーン条件に当てはまらないときの注意（ツールの画面だけに出す）
   function campaignWarn(state, prop, ci, co, who, warnings) {
     const pv = prop.price || {};
@@ -365,7 +374,7 @@ ${ph}
 <div style="font-size:12px;color:#5B6770;line-height:1.4;">${esc(sa.ward + sa.town)}${st ? '｜' + st : ''}</div>
 <div style="font-size:12px;color:#5B6770;line-height:1.4;">${esc(destName)}まで <b style="color:${col.text};font-size:14px;">約${x.info.display ?? '–'}分</b>${esc(rideTxt)}</div>
 ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">${pills}</div>` : ''}
-${camp ? `<div style="font-size:11px;line-height:1.35;font-weight:700;color:#C4531A;margin-top:2px;">※キャンペーン価格：${esc(camp)}</div>` : ''}
+${camp ? campaignLines(camp, 11) : ''}
 </div>
 <div style="display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:2px;flex-shrink:0;padding-left:12px;border-left:1px solid #EFEBE2;">
 <div style="font-size:11px;color:#5B6770;">${termLabel}総額</div>
@@ -384,7 +393,7 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
 <div style="margin-top:auto;display:flex;flex-direction:column;gap:0;">
 <div style="display:flex;align-items:baseline;gap:3px;white-space:nowrap;"><span style="font-size:11px;color:#5B6770;">${x.price && x.price.days !== 30 ? x.price.days + '日間' : '1か月'}総額</span><span style="font-size:22px;font-weight:900;">${x.price ? yen(x.price.total) : '—'}</span><span style="font-size:11px;font-weight:700;">円</span></div>
 <div style="font-size:10px;color:#7A7466;white-space:nowrap;">1日 ${daily !== null ? yen(daily) : '—'}円 × ${x.price ? x.price.days : '–'}日 ＋ 清掃費・保険</div>
-${camp ? `<div style="font-size:10px;line-height:1.35;font-weight:700;color:#C4531A;">※キャンペーン価格：${esc(camp)}</div>` : ''}
+${camp ? campaignLines(camp, 10) : ''}
 </div></div></div>`;
     };
     const cards = (PORTRAIT ? items : items.slice(0, 3)).map(x => cardHtml(x)).join('');
