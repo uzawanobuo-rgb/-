@@ -148,7 +148,28 @@
       ringTheta[v.name] = t; snap[v.name] = ell(t);
     });
     const useRing = spec.yamanote !== false;
-    const P = p => (useRing && p && p.name && snap[p.name]) ? snap[p.name] : Praw(p);
+    // 山手線の駅を楕円に寄せた分だけ、その近くの駅・物件・目印も一緒にずらす（近い駅の動きほど強く効かせる）。
+    // そうしないと、輪の上に動いた駅（例：田町）と、すぐ隣の駅（例：三田）との距離感がくずれる
+    const ringMove = yv.map(v => ({ x: v.x, y: v.y, dx: snap[v.name].x - v.x, dy: snap[v.name].y - v.y }));
+    const shift = q => {
+      let sw = 0, sx = 0, sy = 0;
+      for (const m of ringMove) {
+        const w = 1 / (Math.pow(Math.hypot(q.x - m.x, q.y - m.y), 4) + 1e4);
+        sw += w; sx += w * m.dx; sy += w * m.dy;
+      }
+      // 枠の中にあった点は、ずらした結果も枠からはみ出さないようにする（枠の外の目印は外のまま＝描かない）
+      const inside = q.x >= edge.x && q.x <= rightEdge && q.y >= edge.top && q.y <= H - edge.bottom;
+      if (!inside) return { x: q.x + sx / sw, y: q.y + sy / sw };
+      return {
+        x: Math.max(edge.x, Math.min(rightEdge, q.x + sx / sw)),
+        y: Math.max(edge.top, Math.min(H - edge.bottom, q.y + sy / sw)),
+      };
+    };
+    const P = p => {
+      if (!useRing || !p) return Praw(p);
+      if (p.name && snap[p.name]) return snap[p.name];
+      return shift(Praw(p));
+    };
     const cP = P(center);
     const ringPts = [];
     for (let k = 0; k < 120; k++) ringPts.push(ell(k / 120 * Math.PI * 2));
