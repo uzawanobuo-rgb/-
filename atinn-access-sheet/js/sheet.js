@@ -340,6 +340,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const cols = MapM.ROUTE_COLORS;
     const cardHtml = (x, extraStyle) => {
       const p = x.prop, col = cols[x.i % cols.length];
+      const camp = x.price ? campaignText(p) : '';
       const sa = Parse.shortAddress(p.address || '');
       const photo = p.photoCustom || (p.photos && p.photos[p.photoIdx || 0] && (p.photos[p.photoIdx || 0].data || p.photos[p.photoIdx || 0].src)) || '';
       const photoHtml = photo && !p.hidePhoto
@@ -364,6 +365,7 @@ ${ph}
 <div style="font-size:12px;color:#5B6770;line-height:1.4;">${esc(sa.ward + sa.town)}${st ? '｜' + st : ''}</div>
 <div style="font-size:12px;color:#5B6770;line-height:1.4;">${esc(destName)}まで <b style="color:${col.text};font-size:14px;">約${x.info.display ?? '–'}分</b>${esc(rideTxt)}</div>
 ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;">${pills}</div>` : ''}
+${camp ? `<div style="font-size:11px;line-height:1.35;font-weight:700;color:#C4531A;margin-top:2px;">※キャンペーン価格：${esc(camp)}</div>` : ''}
 </div>
 <div style="display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:2px;flex-shrink:0;padding-left:12px;border-left:1px solid #EFEBE2;">
 <div style="font-size:11px;color:#5B6770;">${termLabel}総額</div>
@@ -382,6 +384,7 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
 <div style="margin-top:auto;display:flex;flex-direction:column;gap:0;">
 <div style="display:flex;align-items:baseline;gap:3px;white-space:nowrap;"><span style="font-size:11px;color:#5B6770;">${x.price && x.price.days !== 30 ? x.price.days + '日間' : '1か月'}総額</span><span style="font-size:22px;font-weight:900;">${x.price ? yen(x.price.total) : '—'}</span><span style="font-size:11px;font-weight:700;">円</span></div>
 <div style="font-size:10px;color:#7A7466;white-space:nowrap;">1日 ${daily !== null ? yen(daily) : '—'}円 × ${x.price ? x.price.days : '–'}日 ＋ 清掃費・保険</div>
+${camp ? `<div style="font-size:10px;line-height:1.35;font-weight:700;color:#C4531A;">※キャンペーン価格：${esc(camp)}</div>` : ''}
 </div></div></div>`;
     };
     const cards = (PORTRAIT ? items : items.slice(0, 3)).map(x => cardHtml(x)).join('');
@@ -396,12 +399,7 @@ ${pills ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:3px;">${pi
     const sameIns = insVals.length && insVals.every(v => v === insVals[0]);
     const anyCampaign = items.some(x => x.price && x.price.isCampaign);
     const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の各プランの${anyCampaign ? 'キャンペーン価格' : '料金'}で、${state.persons || 1}名・${days}日利用時の総額（利用料＋ルームクリーニング${sameClean ? yen(cleanVals[0]) + '円' : ''}＋住宅保険${sameIns ? yen(insVals[0]) + '円' : ''}×月数（応当日で計算、端数月は1か月））です。`;
-    // キャンペーン条件：物件ごと（全部同じなら1つにまとめる）
-    const camps = items.map(x => ({ l: x.letter, t: x.price ? campaignText(x.prop) : '' })).filter(c => c.t);
-    const campLine = !camps.length ? ''
-      : camps.length > 1 && camps.every(c => c.t === camps[0].t) ? `※キャンペーン価格（${camps.map(c => c.l).join('・')}）：${camps[0].t}`
-      : `※キャンペーン価格　${camps.map(c => `${c.l}：${c.t}`).join('　')}`;
-    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${campLine ? `<div style="font-weight:700;color:#C4531A;">${esc(campLine)}</div>` : ''}${esc(state.note || autoNote)}</div>`;
+    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${esc(state.note || autoNote)}</div>`;
 
     const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? mapHP : 440, '目的地') + bottom + note);
     const pages = [html];
