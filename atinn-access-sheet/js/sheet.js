@@ -12,7 +12,6 @@
   const esc = MapM.esc;
   const yen = Calc.yen;
   const TAG_TEXT = ['#0B5E5C', '#A8461A', '#245B8F', '#5A3F94', '#7A5E10'];
-  const CENTRAL = ['新宿', '渋谷', '池袋', '東京', '品川', '上野'];
 
   function n(v) { return Calc.num(v); }
   function shortLine(l) { return String(l || '').replace(/^(東京メトロ|都営|ＪＲ|JR)\s*/, ''); }
@@ -29,15 +28,17 @@
     return { walk, ride, total, display, transfers, legs };
   }
 
-  // 駅名→座標
+  // 駅名→座標。地域（東京・名古屋・大阪・京都）の座標表から引く（「京橋」「日本橋」など同じ名前の駅が地域ごとにあるため）
   function makeResolver(state) {
     const user = state.stationCoords || {};
+    const area = GEO.areas[GEO.areaForState(state)];
+    const near = c => Math.hypot((c.lat - area.center[0]) * 111, (c.lng - area.center[1]) * 91) <= 80;
     return function (name) {
       if (!name) return null;
       const k = String(name).trim().replace(/駅$/, '');
       const u = user[k];
-      if (u && u.lat != null && u.lng != null) return { lat: +u.lat, lng: +u.lng, name: k };
-      const s = GEO.stations[k];
+      if (u && u.lat != null && u.lng != null && near({ lat: +u.lat, lng: +u.lng })) return { lat: +u.lat, lng: +u.lng, name: k };
+      const s = area.stations[k];
       if (s) return { lat: s[0], lng: s[1], name: k };
       return null;
     };
@@ -177,6 +178,7 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
 
   // ================= パターン1：物件 → 主要駅 =================
   function buildP1(state) {
+    state = Object.assign({}, state, { pattern: 'p1' }); // 地域の判定・駅の座標は、このパターンの入力から
     const warnings = [];
     const p1 = state.p1 || {};
     const prop = p1.property || {};
@@ -186,7 +188,8 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
 
     // 主要駅の選定：上限（初期値30分）を超える駅を外し、短い順に3つ
     const limit = n(p1.maxMin) || 30;
-    const rows = GEO.majorStations.map(ms => {
+    const AREA = GEO.areas[GEO.areaForState(state)];
+    const rows = AREA.major.map(ms => {
       const r = (p1.routes || {})[ms.name] || {};
       return { ms, r, info: routeInfo(r) };
     });
@@ -219,15 +222,15 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
         mr.target = x.ms;
         return mr;
       });
-      svg = MapM.renderMap({ width: mapW, height: mapH, mode: 'p1', center, routes, facilities: facs, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
+      svg = MapM.renderMap({ width: mapW, height: mapH, mode: 'p1', ring: AREA.ring, center, routes, facilities: facs, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
     } else {
       svg = `<svg width="${mapW}" height="${mapH}"><rect width="${mapW}" height="${mapH}" fill="#FBFAF6"/><text x="${mapW / 2}" y="${mapH / 2}" text-anchor="middle" font-size="16" fill="#8C959B">物件の座標を入力すると路線図が表示されます</text></svg>`;
     }
 
     // 見出し
     const maxMin = selected.length ? Math.max.apply(null, selected.map(x => x.info.display)) : 30;
-    const allCentral = selected.every(x => CENTRAL.includes(x.ms.name));
-    const autoTitle = selected.length ? `${allCentral ? '都心の' : ''}主要駅へ、${ceil5(maxMin)}分以内` : '主要駅へのアクセス';
+    const allCentral = selected.every(x => AREA.central.includes(x.ms.name));
+    const autoTitle = selected.length ? `${allCentral ? AREA.centralWord : ''}主要駅へ、${ceil5(maxMin)}分以内` : '主要駅へのアクセス';
     const title = state.headline || autoTitle;
     const sub = state.subheadline || `${prop.name || '物件'}から主要駅へのアクセス概要図`;
     const right = customerBadge(state);
@@ -307,6 +310,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
   }
 
   function buildP2(state) {
+    state = Object.assign({}, state, { pattern: 'p2' }); // 地域の判定・駅の座標は、このパターンの入力から
     const warnings = [];
     const p2 = state.p2 || {};
     const resolve = makeResolver(state);
@@ -356,7 +360,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
         mr.color = MapM.ROUTE_COLORS[x.i % MapM.ROUTE_COLORS.length];
         return mr;
       }).filter(Boolean);
-      svg = MapM.renderMap({ width: PORTRAIT ? PMAP : 1043, height: PORTRAIT ? mapHP : 440, mode: 'p2', compact: PORTRAIT && items.length > 3, center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
+      svg = MapM.renderMap({ width: PORTRAIT ? PMAP : 1043, height: PORTRAIT ? mapHP : 440, mode: 'p2', ring: GEO.areas[GEO.areaForState(state)].ring, compact: PORTRAIT && items.length > 3, center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
     } else {
       svg = `<svg width="${PORTRAIT ? PMAP : 1043}" height="${PORTRAIT ? mapHP : 440}"><rect width="100%" height="100%" fill="#FBFAF6"/><text x="${PORTRAIT ? PMAP / 2 : 521}" y="${PORTRAIT ? mapHP / 2 : 220}" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
     }

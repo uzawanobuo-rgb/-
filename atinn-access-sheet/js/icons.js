@@ -61,6 +61,10 @@
       draw: n => `<g><ellipse cx="0" cy="0" rx="40" ry="14" fill="#DCEBD6"/><g fill="#7FB36F"><circle cx="-30" cy="-10" r="9"/><circle cx="30" cy="-10" r="9"/></g><path d="M-22 -40 Q0 -46 22 -40 L20 -35 H-20 Z" fill="#C45A48"/><rect x="-18" y="-31" width="36" height="4" fill="#C45A48"/><rect x="-15" y="-35" width="5" height="35" fill="#C45A48"/><rect x="10" y="-35" width="5" height="35" fill="#C45A48"/></g>${label(28, n, 11, '#4E7A43')}`,
       box: n => ({ x0: -Math.max(42, lw(n, 11) / 2), y0: -46, x1: Math.max(42, lw(n, 11) / 2), y1: 32 }),
     },
+    castle: {
+      draw: n => `<g transform="translate(-30,-62)"><rect x="4" y="50" width="52" height="12" fill="#B7B1A3"/><rect x="12" y="34" width="36" height="16" fill="#F3F1EA" stroke="#C9C3B5"/><path d="M4 36 L30 26 L56 36 Z" fill="#4F6B73"/><rect x="18" y="16" width="24" height="12" fill="#F3F1EA" stroke="#C9C3B5"/><path d="M10 18 L30 8 L50 18 Z" fill="#4F6B73"/><path d="M20 6 L30 0 L40 6 Z" fill="#4F6B73"/><g fill="#7C8C91"><rect x="20" y="39" width="5" height="6"/><rect x="35" y="39" width="5" height="6"/><rect x="27" y="20" width="6" height="5"/></g></g>${label(16, n)}`,
+      box: n => ({ x0: -Math.max(32, lw(n) / 2), y0: -64, x1: Math.max(32, lw(n) / 2), y1: 20 }),
+    },
     bridge: {
       draw: n => `<g><rect x="-48" y="-6" width="96" height="5" fill="#9FB3C4"/><rect x="-26" y="-36" width="6" height="36" fill="#B9C7D3"/><rect x="20" y="-36" width="6" height="36" fill="#B9C7D3"/><path d="M-48 -8 Q-36 -10 -23 -34 Q0 -6 23 -34 Q36 -10 48 -8" fill="none" stroke="#8AA1B4" stroke-width="2"/><rect x="-48" y="0" width="96" height="6" fill="#BFDDE8"/></g>${label(20, n, 11)}`,
       box: n => ({ x0: -Math.max(50, lw(n, 11) / 2), y0: -38, x1: Math.max(50, lw(n, 11) / 2), y1: 24 }),
@@ -70,7 +74,7 @@
   // geo_tokyo.json の icon: TODO を割り当てる
   const TODO_MAP = { sensoji: 'temple_gate', tokyo_dome: 'dome', gyoen: 'park_trees', meiji_jingu: 'torii', ueno_park: 'park_trees', odaiba: 'bridge' };
   // 地図上の表示名（短く）
-  const SHORT_NAME = { shinkansen: '新幹線', odaiba: 'レインボーブリッジ', ueno_park: '上野公園', arisugawa: '有栖川宮記念公園' };
+  const SHORT_NAME = { shinkansen: '新幹線', shinosaka_shinkansen: '新幹線', nagoya_towers: '名駅の高層ビル', odaiba: 'レインボーブリッジ', ueno_park: '上野公園', arisugawa: '有栖川宮記念公園' };
 
   function iconFor(lm) {
     const key = lm.icon && lm.icon !== 'TODO' ? lm.icon : TODO_MAP[lm.id];
