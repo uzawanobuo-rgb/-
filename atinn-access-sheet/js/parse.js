@@ -21,8 +21,8 @@
       .trim();
   }
 
-  // 「ご利用料金(１ヶ月以上)」セクションの料金
-  function parsePrice(text) {
+  // 「ご利用料金(1ヶ月以上)」の欄だけを切り出す
+  function priceSection(text) {
     const t = toHalf(text);
     let start = t.search(/ご利用料金\s*[(（]\s*1\s*[ヶケかカヵ]月以上\s*[)）]/);
     if (start < 0) start = t.search(/ご利用料金/);
@@ -33,7 +33,14 @@
     sec = sec.replace(/^ご利用料金\s*[(（][^)）]*[)）]/, '');
     // 「利用料(賃料+水道光熱費)」の括弧内を消す（ラベルの誤認識を防ぐ）
     sec = sec.replace(/[(（]\s*賃料\s*[+＋]\s*水道光熱費\s*[)）]/g, '');
+    return sec;
+  }
+  const PRICE_NUM = /(?<![\d,.\-])(?:\d{1,3}(?:,\d{3})+|\d{3,}|0)(?![\d,.\-]|\s*[年月日件名ヶケか])/;
 
+  // 「ご利用料金(１ヶ月以上)」セクションの料金
+  function parsePrice(text) {
+    const sec = priceSection(text);
+    if (sec === null) return null;
     const out = { dailyList: null, rentList: null, utilities: null, dailyCampaign: null, cleaningList: null, cleaningCampaign: null, insurancePerMonth: null };
     const re = /(利用料|賃料|水道光熱費|キャンペーン|クリーニング|住宅保険)|((?<![\d,.\-])(?:\d{1,3}(?:,\d{3})+|\d{3,}|0)(?![\d,.\-]|\s*[年月日件名ヶケか]))/g;
     let label = null, afterCleaning = false, m;
@@ -61,6 +68,25 @@
     if (out.dailyList === null && out.rentList !== null && out.utilities !== null) out.dailyList = out.rentList + out.utilities;
     const any = Object.values(out).some(v => v !== null);
     return any ? out : null;
+  }
+
+  // キャンペーンの条件（例：「11月16日～11月22日までにご利用開始の方限定」）。
+  // 料金欄の「キャンペーン」と、その金額のあいだに書かれている文を読む。利用料と清掃費で別々に持つ
+  function parseCampaign(text) {
+    const out = { campaignNote: '', cleaningCampaignNote: '' };
+    const sec = priceSection(text);
+    if (sec === null) return out;
+    const re = /キャンペーン/g;
+    let m;
+    while ((m = re.exec(sec))) {
+      const rest = sec.slice(m.index + m[0].length);
+      const num = PRICE_NUM.exec(rest);
+      const note = (num ? rest.slice(0, num.index) : '').replace(/\s+/g, ' ').trim();
+      if (note.length < 4 || !/限定|まで|期間|条件|対象/.test(note)) continue;
+      const key = /クリーニング/.test(sec.slice(0, m.index)) ? 'cleaningCampaignNote' : 'campaignNote';
+      if (!out[key]) out[key] = note;
+    }
+    return out;
   }
 
   // 交通：「JR山手線「品川」駅 徒歩9分」「品川駅 徒歩9分」など
@@ -199,7 +225,7 @@
       price: parsePrice(text),
       photos: Array.isArray(p.images) ? p.images.filter(i => i && (i.data || i.src)) : [],
       fetchedAt: p.fetchedAt || null,
-    }, parseBuilding(text), parseFacilities(p));
+    }, parseCampaign(text), parseBuilding(text), parseFacilities(p));
   }
 
   // 主な設備（ある設備だけ）。プランページでは「ない」設備も灰色で並ぶので、本文だけでは区別できない。
@@ -334,7 +360,7 @@
     return Object.assign({ url: p.url || '', routes }, best);
   }
 
-  const M = { htmlToText, normalizeTransitText, cleanLine, cleanStation, parseTransitRoutes, parseTransit, toHalf, stripBrackets, parsePrice, parseStations, parseCoords, parseGmapPlace, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
+  const M = { htmlToText, normalizeTransitText, cleanLine, cleanStation, parseTransitRoutes, parseTransit, toHalf, stripBrackets, parsePrice, parseCampaign, parseStations, parseCoords, parseGmapPlace, parseAddress, shortAddress, parseBuilding, parseNames, parsePlan };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnParse = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

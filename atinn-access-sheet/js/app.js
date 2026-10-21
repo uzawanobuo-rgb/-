@@ -14,7 +14,7 @@
 
   // ---------- 状態 ----------
   function emptyProp() {
-    return { planUrl: '', planName: '', name: '', address: '', lat: '', lng: '', stations: [], price: {}, photos: [], photoIdx: 0, photoCustom: '', hidePhoto: false, tag: '', built: '', structure: '', floors: '', smoking: '', capacity: '', imported: null };
+    return { planUrl: '', planName: '', name: '', address: '', lat: '', lng: '', stations: [], price: {}, campaignNote: '', cleaningCampaignNote: '', photos: [], photoIdx: 0, photoCustom: '', hidePhoto: false, tag: '', built: '', structure: '', floors: '', smoking: '', capacity: '', imported: null };
   }
   function emptyRoute() { return { station: '', walk: '', legs: [{ mode: 'train', line: '', to: '' }], ride: '', display: '', transfers: '', source: '', note: '', exclude: false }; }
   function defaultState() {
@@ -309,7 +309,7 @@
     const snapshot = JSON.parse(JSON.stringify(Object.assign({}, parsed, { photos: undefined })));
     Object.assign(prop, emptyProp(), keep, {
       planUrl: parsed.planUrl || prop.planUrl, planName: parsed.planName || '', name: parsed.name || '', address: parsed.address || '',
-      lat: parsed.lat ?? '', lng: parsed.lng ?? '', stations: parsed.stations || [], price: Object.assign({}, parsed.price || {}),
+      lat: parsed.lat ?? '', lng: parsed.lng ?? '', stations: parsed.stations || [], price: Object.assign({}, parsed.price || {}), campaignNote: parsed.campaignNote || '', cleaningCampaignNote: parsed.cleaningCampaignNote || '',
       photos: parsed.photos || [], built: parsed.built || '', structure: parsed.structure || '', floors: parsed.floors || '',
       smoking: parsed.smoking || '', capacity: parsed.capacity || '', equipment: parsed.equipment || '', equipmentChecked: !!parsed.equipmentChecked, imported: snapshot,
     });
@@ -512,8 +512,9 @@ ${priceField('dailyList', '利用料/日（定価）')}${priceField('dailyCampai
 ${priceField('rentList', '賃料/日')}${priceField('utilities', '水道光熱費/日')}
 ${priceField('cleaningList', '清掃費（定価）')}${priceField('cleaningCampaign', '清掃キャンペーン')}
 ${priceField('insurancePerMonth', '住宅保険/月')}
+${field('キャンペーン条件 <small>（提案書の料金に添えて載せます）</small>', inp(`${path}.campaignNote`, { ph: '11月16日～11月22日までにご利用開始の方限定' }), 'all')}
 </div>
-<p class="muted" style="margin:0">キャンペーン価格があればそれを使います（期間表記はチェックしません）。</p>
+<p class="muted" style="margin:0">キャンペーン価格があればそれを使います。利用期間が条件に合わないときは、注意を出します。</p>
 ${photos}
 ${opts.tag ? `<div class="grid">${field('強みタグ <small>（空欄なら自動。「、」区切りで複数）</small>', inp(`${path}.tag`, { ph: opts.tagPh || '' }), 'all')}</div>` : ''}
 </div></details>

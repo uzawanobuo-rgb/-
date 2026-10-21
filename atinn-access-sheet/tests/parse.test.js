@@ -165,3 +165,10 @@ test('主な設備：灰色（unsupport）の「ない」設備は除き、あ�
   // 本文だけでは「ある・ない」が分からないので確認済みにしない
   assert.equal(P.parsePlan({ text: '主な設備\nオートロック\n洗濯機\n' }).equipmentChecked, false);
 });
+
+test('キャンペーン条件：料金欄の「キャンペーン」と金額のあいだの文を読む', () => {
+  assert.deepEqual(P.parseCampaign(PRICE_TEXT), { campaignNote: '1月27日～1月31日までにご利用開始の方限定', cleaningCampaignNote: '' });
+  const page = JSON.parse(fs.readFileSync(path.join(__dirname, '../testdata/plan_pages/30877.json'), 'utf8'));
+  assert.equal(P.parsePlan(page).campaignNote, '即日から11月30日までの期間内でご利用の方限定');
+  assert.equal(P.parseCampaign('ご利用料金(1ヶ月以上)\n利用料 7,460\nルーム クリーニング 48,400').campaignNote, '');
+});

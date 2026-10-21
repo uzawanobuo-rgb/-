@@ -43,6 +43,7 @@
     lines.push('----------------------------------------');
     lines.push(`${W}総額${W.repeat(8)}：${yen(total)}円（1室${persons}名様利用）`);
     lines.push('----------------------------------------');
+    if (Calc.num(pv.dailyCampaign) !== null && prop.campaignNote) lines.push(`※キャンペーン価格：${prop.campaignNote}`);
     const smoke = String(prop.smoking || '');
     if (/禁煙/.test(smoke)) lines.push('※禁煙');
     else if (/喫煙/.test(smoke)) lines.push('※喫煙可能');
