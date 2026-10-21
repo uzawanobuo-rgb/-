@@ -181,3 +181,11 @@ test('キャンペーン条件の期間と、利用期間が当てはまるか',
   assert.match(Calc.campaignMismatch(note, '2026-11-23', '2026-12-22', '2026-10-21'), /過ぎて/);
   assert.match(Calc.campaignMismatch('即日から11月30日までの期間内でご利用の方限定', '2026-11-01', '2026-12-10', '2026-10-21'), /超えて/);
 });
+
+test('キャンペーン条件：おためし（開始日〜終了日の期間内でご利用）は、利用期間全体が期間内なら対象', () => {
+  const note = '12月5日～12月23日までの期間内でご利用の方限定';
+  assert.deepEqual(Calc.campaignWindow(note, '2026-10-21'), { start: '2026-12-05', end: '2026-12-23', mode: 'stay' });
+  assert.equal(Calc.campaignMismatch(note, '2026-12-05', '2026-12-23', '2026-10-21'), '');
+  assert.match(Calc.campaignMismatch(note, '2026-12-01', '2026-12-20', '2026-10-21'), /より前/);
+  assert.match(Calc.campaignMismatch(note, '2026-12-10', '2027-01-08', '2026-10-21'), /超えて/);
+});
