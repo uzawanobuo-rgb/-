@@ -81,3 +81,13 @@ test('乗換取込：Yahoo!の到着地点が目的地から離れていれば�
   r.arrive = { name: '医療法人社団俊爽会', lat: 35.7075, lng: 139.8395 };
   assert.equal(Sheet.routeEndGap(st, r), null);
 });
+
+test('1時間を超える経路（「1時間5分（乗車1時間1分）」）も読める：八王子→田町', () => {
+  const r = P.parseTransit({ v: 2, src: 'yahoo-transit', url: 'u', html: page('hachioji-tamachi.srline.html'), text: '' });
+  assert.deepEqual([r.from, r.to, r.transfers], ['八王子', '田町', 1]);
+  assert.equal(r.routes.length, 3);
+  assert.deepEqual(r.legs.map(l => [l.line, l.to]), [['JR中央線', '神田'], ['JR山手線', '田町']]);
+  // 画面の文字（HTMLなし）からでも読める
+  const t = P.parseTransit(page('hachioji-tamachi.txt'));
+  assert.ok(t && t.to === '田町');
+});

@@ -272,8 +272,11 @@
     const L = String(text || '').replace(/\r/g, '').split('\n').map(x => x.trim()).filter(Boolean);
     const routes = [];
     for (let i = 0; i < L.length; i++) {
-      const m = /^(\d{1,2}:\d{2})発→(\d{1,2}:\d{2})着(\d+)分（乗車(\d+)分）/.exec(L[i]);
-      if (!m) continue;
+      // 1時間を超えると「1時間5分（乗車1時間1分）」「2時間（乗車1時間58分）」のように時間が付く
+      const m0 = /^(\d{1,2}:\d{2})発→(\d{1,2}:\d{2})着(?:(\d+)時間)?(?:(\d+)分)?（乗車(?:(\d+)時間)?(?:(\d+)分)?）/.exec(L[i]);
+      if (!m0 || (m0[3] == null && m0[4] == null) || (m0[5] == null && m0[6] == null)) continue;
+      const mins = (h, mm) => (+(h || 0)) * 60 + (+(mm || 0));
+      const m = [m0[0], m0[1], m0[2], mins(m0[3], m0[4]), mins(m0[5], m0[6])];
       let transfers = null;
       // 地点：時刻の直後の名前。「時刻表」「出口」「地図」のリンクが付くものだけが乗り降りする地点（途中駅は名前だけ）
       const pts = [];
@@ -342,7 +345,7 @@
   // 画面の表示（innerText）は環境で改行位置が変わるので、要約行が2行に分かれていたらつなぐ
   function normalizeTransitText(text) {
     return String(text || '').replace(/\r/g, '')
-      .replace(/(\d{1,2}:\d{2})\s*発\s*→\s*(\d{1,2}:\d{2})\s*着\s*(\d+)\s*分\s*[(（]\s*乗車\s*(\d+)\s*分\s*[)）]/g, '$1発→$2着$3分（乗車$4分）')
+      .replace(/(\d{1,2}:\d{2})\s*発\s*→\s*(\d{1,2}:\d{2})\s*着\s*((?:\d+\s*時間)?\s*(?:\d+\s*分)?)\s*[(（]\s*乗車\s*((?:\d+\s*時間)?\s*(?:\d+\s*分)?)\s*[)）]/g, (a, d, t, x, y) => `${d}発→${t}着${x.replace(/\s/g, '')}（乗車${y.replace(/\s/g, '')}）`)
       .replace(/(\d{1,2}:\d{2})\s+(発|着)\s*$/gm, '$1\n$2');
   }
 
