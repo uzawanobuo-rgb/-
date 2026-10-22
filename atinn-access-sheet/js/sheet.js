@@ -340,12 +340,30 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const dest = (p2.destLat != null && p2.destLng != null && p2.destLat !== '' && p2.destLng !== '') ? { lat: +p2.destLat, lng: +p2.destLng, name: destName, sublabel: `目的地（${label}）` } : null;
     if (!dest) warnings.push('目的地の座標（緯度・経度）が未入力です');
 
+    const base = state.baseDate || Calc.todayStr();
+    const days = Calc.daysInclusive(ci, co);
+    const cleanVals = items.filter(x => x.price).map(x => x.price.cleaning);
+    const insVals = items.map(x => n((x.prop.price || {}).insurancePerMonth)).filter(v => v !== null);
+    const sameClean = cleanVals.length && cleanVals.every(v => v === cleanVals[0]);
+    const sameIns = insVals.length && insVals.every(v => v === insVals[0]);
+    const anyCampaign = items.some(x => x.price && x.price.isCampaign);
+    const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の各プランの${anyCampaign ? 'キャンペーン価格' : '料金'}で、${state.persons || 1}名・${days}日利用時の総額（利用料＋ルームクリーニング${sameClean ? yen(cleanVals[0]) + '円' : ''}＋住宅保険${sameIns ? yen(insVals[0]) + '円' : ''}×月数（応当日で計算、端数月は1か月）${items.some(x => x.price && x.price.optionTotal) ? '＋オプション' : ''}）です。`;
+    // オプションは全物件共通。名前は1回だけ書く（地域で料金が違うときは物件ごとの料金で計算）
+    const optNames = [];
+    items.forEach(x => optionNames(x.price && x.price.options).forEach(nm => { if (!optNames.includes(nm)) optNames.push(nm); }));
+    const optLine = optNames.length ? `<div>${esc(`※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。`)}</div>` : '';
+    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${optLine}${esc(state.note || autoNote)}</div>`;
+
+    // 注記が3行以上になるとき（オプション・長い手入力の注記など）は、その分だけ地図を低くして、下の物件カードと重ならないようにする
+    const noteLines = [optNames.length ? `※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。` : '', state.note || autoNote]
+      .filter(Boolean).reduce((t, x) => t + Math.ceil(MapM.textW(x, 11) / 1043), 0);
+    const mapHL = 440 - (PORTRAIT ? 0 : Math.max(0, noteLines - 2) * 16);
     // 4・5件目は、地図の右側に重ねて置く（下の段の C の上。4件のときは下の場所だけ使う）
-    const SIDE = { left: 704, w: 327, h: 205 };
+    const SIDE = { left: 704, w: 327, h: Math.floor((mapHL - 30) / 2) };
     const extra = PORTRAIT ? [] : items.slice(3); // 縦型では全部を地図の下に並べる
     const mapHP = 520; // 縦型の地図の高さ
-    const sideSlots = extra.length === 1 ? [{ left: SIDE.left, top: 225, h: SIDE.h }]
-      : extra.length >= 2 ? [{ left: SIDE.left, top: 10, h: SIDE.h }, { left: SIDE.left, top: 225, h: SIDE.h }] : [];
+    const sideSlots = extra.length === 1 ? [{ left: SIDE.left, top: mapHL - 10 - SIDE.h, h: SIDE.h }]
+      : extra.length >= 2 ? [{ left: SIDE.left, top: 10, h: SIDE.h }, { left: SIDE.left, top: mapHL - 10 - SIDE.h, h: SIDE.h }] : [];
     let svg;
     if (dest) {
       const routes = items.map(x => {
@@ -360,9 +378,9 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
         mr.color = MapM.ROUTE_COLORS[x.i % MapM.ROUTE_COLORS.length];
         return mr;
       }).filter(Boolean);
-      svg = MapM.renderMap({ width: PORTRAIT ? PMAP : 1043, height: PORTRAIT ? mapHP : 440, mode: 'p2', ring: GEO.areas[GEO.areaForState(state)].ring, compact: PORTRAIT && items.length > 3, center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
+      svg = MapM.renderMap({ width: PORTRAIT ? PMAP : 1043, height: PORTRAIT ? mapHP : mapHL, mode: 'p2', ring: GEO.areas[GEO.areaForState(state)].ring, compact: PORTRAIT && items.length > 3, center: dest, routes, blocked: sideSlots.map(b => ({ x0: b.left - 10, y0: b.top - 6, x1: 1043, y1: b.top + b.h + 6 })), ariaLabel: `${destName}と物件の位置関係と路線概要図` });
     } else {
-      svg = `<svg width="${PORTRAIT ? PMAP : 1043}" height="${PORTRAIT ? mapHP : 440}"><rect width="100%" height="100%" fill="#FBFAF6"/><text x="${PORTRAIT ? PMAP / 2 : 521}" y="${PORTRAIT ? mapHP / 2 : 220}" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
+      svg = `<svg width="${PORTRAIT ? PMAP : 1043}" height="${PORTRAIT ? mapHP : mapHL}"><rect width="100%" height="100%" fill="#FBFAF6"/><text x="${PORTRAIT ? PMAP / 2 : 521}" y="${PORTRAIT ? mapHP / 2 : mapHL / 2}" text-anchor="middle" font-size="16" fill="#8C959B">目的地の座標を入力すると路線図が表示されます</text></svg>`;
     }
 
     const allNoTransfer = items.length && items.every(x => x.info.transfers === 0);
@@ -429,21 +447,7 @@ ${camp ? campaignLines(camp, 10) : ''}
     const sideCards = extra.slice(0, 2).map((x, k) => cardHtml(x, `position:absolute;left:${sideSlots[k].left}px;top:${sideSlots[k].top}px;width:${SIDE.w}px;height:${sideSlots[k].h}px;box-shadow:0 2px 10px rgba(30,43,51,.12);`)).join('');
     const bottom = `<div style="display:grid;grid-template-columns:repeat(${PORTRAIT ? 1 : 3},minmax(0,1fr));gap:${PORTRAIT ? 10 : 14}px;flex-grow:1;min-height:0;">${cards}</div>`;
 
-    const base = state.baseDate || Calc.todayStr();
-    const days = Calc.daysInclusive(ci, co);
-    const cleanVals = items.filter(x => x.price).map(x => x.price.cleaning);
-    const insVals = items.map(x => n((x.prop.price || {}).insurancePerMonth)).filter(v => v !== null);
-    const sameClean = cleanVals.length && cleanVals.every(v => v === cleanVals[0]);
-    const sameIns = insVals.length && insVals.every(v => v === insVals[0]);
-    const anyCampaign = items.some(x => x.price && x.price.isCampaign);
-    const autoNote = `※所要時間は「物件からの徒歩＋乗車時間」の日中の目安です（待ち時間は含みません）。料金は${jpDate(base)}時点の各プランの${anyCampaign ? 'キャンペーン価格' : '料金'}で、${state.persons || 1}名・${days}日利用時の総額（利用料＋ルームクリーニング${sameClean ? yen(cleanVals[0]) + '円' : ''}＋住宅保険${sameIns ? yen(insVals[0]) + '円' : ''}×月数（応当日で計算、端数月は1か月）${items.some(x => x.price && x.price.optionTotal) ? '＋オプション' : ''}）です。`;
-    // オプションは全物件共通。名前は1回だけ書く（地域で料金が違うときは物件ごとの料金で計算）
-    const optNames = [];
-    items.forEach(x => optionNames(x.price && x.price.options).forEach(nm => { if (!optNames.includes(nm)) optNames.push(nm); }));
-    const optLine = optNames.length ? `<div>${esc(`※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。`)}</div>` : '';
-    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${optLine}${esc(state.note || autoNote)}</div>`;
-
-    const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? mapHP : 440, '目的地') + bottom + note);
+    const html = frame(header(title, sub, right) + panel(svg + sideCards, PORTRAIT ? mapHP : mapHL, '目的地') + bottom + note);
     const pages = [html];
     if (p2.compare && items.length) pages.push(buildCompare(state, items, destName, label, warnings)); // 縦型のときは縦型の比較表
     return { html, pages, warnings, model: { title: autoTitle, sub: autoSub, note: autoNote, tags } };
