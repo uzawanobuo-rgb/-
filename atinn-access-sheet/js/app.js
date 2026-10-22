@@ -652,7 +652,7 @@ ${coordStatus(names)}
       const notes = [];
       if (it0 && it0.notes) notes.push(...it0.notes);
       // 物件ごとに使えない理由
-      const ngs = [];
+      const ngs = [], outs = [];
       props.forEach((p, k) => {
         const r = Opt.regionOf(p.address);
         const it = Opt.find(o.name, r);
@@ -660,10 +660,11 @@ ${coordStatus(names)}
         if (!it) { ngs.push(`${who ? who + '：' : ''}${r ? Opt.REGIONS[r] + 'の一覧になし' : '地域不明（住所を入れてください）'}`); return; }
         const c = Opt.check(it, p);
         if (c.ng) ngs.push(`${who ? who + '：' : ''}${c.ng}`);
+        else if (c.outside) outs.push(`${who ? who + '：' : ''}${c.outside}`);
         else if (c.note) notes.push(c.note);
       });
       const area = optAreaText(o.name, rs);
-      return `<tr><td><b>${esc(o.name)}</b>${area ? `<div class="muted" style="font-size:12px">${esc(area)}</div>` : ''}${notes.length ? `<div class="muted" style="font-size:12px">※${esc([...new Set(notes)].join('／'))}</div>` : ''}${ngs.length ? `<div class="warn-t" style="font-size:12px">料金に入れない：${esc(ngs.join('／'))}</div>` : ''}</td>
+      return `<tr><td><b>${esc(o.name)}</b>${area ? `<div class="muted" style="font-size:12px">${esc(area)}</div>` : ''}${notes.length ? `<div class="muted" style="font-size:12px">※${esc([...new Set(notes)].join('／'))}</div>` : ''}${outs.length ? `<div class="warn-t" style="font-size:12px">見積もりには入れて注意書きを出す：${esc(outs.join('／'))}</div>` : ''}${ngs.length ? `<div class="warn-t" style="font-size:12px">料金に入れない：${esc(ngs.join('／'))}</div>` : ''}</td>
 <td>${qty}</td><td style="white-space:nowrap">${esc(optPriceText(o.name, rs))}</td><td>${del}</td></tr>`;
     }).join('');
     const chosen = opts.map(o => o.name);
@@ -681,7 +682,7 @@ ${rows ? `<table class="mini opt-table"><thead><tr><th>項目</th><th>数</th><t
 <select data-action="opt-add" style="max-width:100%"><option value="">＋ 一覧から追加…${rs.length ? `（${rs.map(r => Opt.REGIONS[r]).join('・')}の一覧）` : '（物件の住所が入ると、その地域の一覧になります）'}</option>${choices}</select>
 <button type="button" class="btn small" data-action="opt-custom">＋ 手入力の項目</button></div>
 ${rs.length ? `<p class="muted" style="margin:0">提供エリア：${rs.map(r => `${Opt.REGIONS[r]}は${Opt.AREAS[{ kanto: 'tokyo23', kansai: 'osaka', tokai: 'nagoya' }[r]].label}`).join('／')}</p>` : ''}
-<p class="muted" style="margin:0">選ぶと提案書・メール用テキストの総額に入ります。${persons > 1 ? `人数の分（2人目から1,100円/日）は自動で入ります。` : ''}料金は公式サイトのオプション一覧（${Opt.AS_OF.replace(/-/g, '/')}時点）。物件の住所から地域の料金を使い、提供エリア外・禁煙部屋限定などに当たる物件では料金に入れません。</p>
+<p class="muted" style="margin:0">選ぶと提案書・メール用テキストの総額に入ります。${persons > 1 ? `人数の分（2人目から1,100円/日）は自動で入ります。` : ''}料金は公式サイトのオプション一覧（${Opt.AS_OF.replace(/-/g, '/')}時点）。物件の住所から地域の料金を使います。提供エリア外の物件では見積もりに入れたうえで提案書に注意書きを出し、禁煙部屋限定などに当たる物件では料金に入れません。</p>
 </div></details>`;
   }
 

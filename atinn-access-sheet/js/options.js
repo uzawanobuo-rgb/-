@@ -204,7 +204,8 @@
         if (!addr) return { note: '住所が未入力。名古屋市外なら在庫・提供できるかを確認', caution: true };
         if (!a.re.test(addr)) return { note: '名古屋市外のため、在庫・提供できるかを確認', caution: true };
       } else {
-        if (addr && !a.re.test(addr)) return { ng: `提供エリア外（${a.label}）` };
+        // 提供エリア外でも見積もりには入れ、注意書きを出す（ご用意できない場合がある）
+        if (addr && !a.re.test(addr)) return { outside: `提供エリア外（${a.label}）` };
         if (!addr) return { note: `${a.label}（住所が未入力のため要確認）` };
       }
     }
@@ -217,7 +218,7 @@
   // pv はその物件の料金（ペットのときのルームクリーニング代の差額に使う）
   function calc(state, prop, pv, days) {
     const region = regionOf(prop.address);
-    const lines = [], warnings = [], excluded = [], cautions = [];
+    const lines = [], warnings = [], excluded = [], cautions = [], outside = [];
     const persons = Math.max(1, Math.round(Calc.num(state.persons) || 1));
     if (persons > 1) lines.push({ name: `${persons}名様入居`, unitPrice: PERSON * (persons - 1), unit: 'day', qty: 1, person: true });
     let pet = false;
@@ -236,6 +237,10 @@
       const c = check(it, prop);
       if (c.ng) { warnings.push(`「${o.name}」は${c.ng}のため、料金に入れていません`); excluded.push({ name: o.name, reason: c.ng.replace(/（.*$/, '') }); return; }
       if (it === PET) pet = true;
+      if (c.outside) {
+        warnings.push(`「${o.name}」は${c.outside}のため、ご用意できない場合があります（料金には含めています）`);
+        outside.push({ name: o.name, reason: '提供エリア外' });
+      }
       if (c.caution) cautions.push(`「${o.name}」は${c.note}してください`);
       lines.push({ name: o.name, unitPrice: it.p, unit: it.u, qty, note: c.note || '' });
     });
@@ -244,7 +249,7 @@
     const cleaningExtra = pet && cl !== null && cc !== null && cl > cc ? cl - cc : 0;
     lines.forEach(l => { l.amount = l.unitPrice * l.qty * (l.unit === 'day' ? days : 1); });
     const total = lines.reduce((t, l) => t + l.amount, 0) + cleaningExtra;
-    return { region, lines, warnings, excluded, cautions, cleaningExtra, total, perDay: lines.filter(l => l.unit === 'day').reduce((t, l) => t + l.unitPrice * l.qty, 0) };
+    return { region, lines, warnings, excluded, cautions, outside, cleaningExtra, total, perDay: lines.filter(l => l.unit === 'day').reduce((t, l) => t + l.unitPrice * l.qty, 0) };
   }
 
   const M = { AS_OF, REGIONS, ITEMS, YOMI, PET, AREAS, areaOfItem, regionOf, find, names, check, calc };
