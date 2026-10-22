@@ -167,6 +167,7 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
     if (!price) return price;
     const o = Opt.calc(state, prop, prop.price, price.days);
     o.warnings.forEach(w => warnings.push(who + w));
+    (o.cautions || []).forEach(w => warnings.push(who + w)); // 在庫確認などの注意（ツールの画面だけ。提案書・メールには出さない）
     price.options = o;
     price.cleaning += o.cleaningExtra;
     price.optionTotal = o.total - o.cleaningExtra;

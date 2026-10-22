@@ -631,7 +631,7 @@ ${coordStatus(names)}
     const it = (rs.length ? rs : Object.keys(Opt.REGIONS)).map(r => Opt.find(name, r)).find(Boolean);
     if (!it) return '';
     const t = [];
-    if (it.area) t.push(Opt.AREAS[it.area].label);
+    // 地域の決まり（提供エリア）は品目ごとではなく、欄の説明にまとめて出す
     if (it.smoke) t.push('禁煙部屋のみ');
     return t.join('・');
   }
@@ -680,6 +680,7 @@ ${rows ? `<table class="mini opt-table"><thead><tr><th>項目</th><th>数</th><t
 <div class="row">
 <select data-action="opt-add" style="max-width:100%"><option value="">＋ 一覧から追加…${rs.length ? `（${rs.map(r => Opt.REGIONS[r]).join('・')}の一覧）` : '（物件の住所が入ると、その地域の一覧になります）'}</option>${choices}</select>
 <button type="button" class="btn small" data-action="opt-custom">＋ 手入力の項目</button></div>
+${rs.length ? `<p class="muted" style="margin:0">提供エリア：${rs.map(r => `${Opt.REGIONS[r]}は${Opt.AREAS[{ kanto: 'tokyo23', kansai: 'osaka', tokai: 'nagoya' }[r]].label}`).join('／')}</p>` : ''}
 <p class="muted" style="margin:0">選ぶと提案書・メール用テキストの総額に入ります。${persons > 1 ? `人数の分（2人目から1,100円/日）は自動で入ります。` : ''}料金は公式サイトのオプション一覧（${Opt.AS_OF.replace(/-/g, '/')}時点）。物件の住所から地域の料金を使い、提供エリア外・禁煙部屋限定などに当たる物件では料金に入れません。</p>
 </div></details>`;
   }

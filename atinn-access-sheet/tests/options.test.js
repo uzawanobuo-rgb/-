@@ -25,7 +25,10 @@ test('地域ごとの料金（空気清浄機：関東165円・東海143円）',
 test('提供エリアの限定（名古屋市内のみ・東京23区のみ）', () => {
   const nagoya = { persons: 1, options: [{ name: '除湿機', qty: 1 }] };
   assert.equal(O.calc(nagoya, { address: '愛知県名古屋市中区' }, PV, 10).total, 770);
-  assert.match(O.calc(nagoya, { address: '愛知県豊田市' }, PV, 10).warnings[0], /提供エリア外（名古屋市内のみ）/);
+  // 東海は名古屋市外でも料金に入れ、在庫の確認を促す
+  const toyota = O.calc(nagoya, { address: '愛知県豊田市' }, PV, 10);
+  assert.equal(toyota.total, 770);
+  assert.match(toyota.cautions[0], /名古屋市外のため、在庫・提供できるかを確認/);
   assert.match(O.calc(nagoya, { address: '東京都港区' }, PV, 10).warnings[0], /関東の一覧にない/);
   const set = { persons: 1, options: [{ name: '追加備品（1セット）', qty: 1 }] };
   assert.equal(O.calc(set, { address: '東京都江東区福住' }, PV, 30).total, 8800);
@@ -48,4 +51,13 @@ test('東京都の市部（八王子市など）は、「東京都、横浜市�
   const r = O.calc(st, { address: '東京都八王子市旭町' }, PV, 10);
   assert.equal(r.total, 0);
   assert.deepEqual(r.excluded, [{ name: '折りたたみ自転車【保険付き】', reason: '提供エリア外' }]);
+});
+
+test('地域の決まり：関東は23区・横浜市・川崎市、関西は大阪市・吹田市（江坂）のみ', () => {
+  const st = { persons: 1, options: [{ name: 'モバイルデータ通信端末', qty: 1 }] };
+  assert.equal(O.calc(st, { address: '神奈川県川崎市中原区' }, PV, 10).total, 4400);
+  assert.equal(O.calc(st, { address: '埼玉県さいたま市大宮区' }, PV, 10).total, 0);
+  assert.equal(O.calc(st, { address: '大阪府吹田市江坂町' }, PV, 10).total, 4400);
+  assert.equal(O.calc(st, { address: '大阪府堺市堺区' }, PV, 10).total, 0);
+  assert.equal(O.calc(st, { address: '京都府京都市中京区' }, PV, 10).total, 0);
 });
