@@ -98,14 +98,18 @@
   const PERSON = 1100; // 2人目から1名1,100円/日
 
   // 提供エリアの限定：住所で判定する。判定できない書き方の住所は「要確認」にする
+  // 提供エリア。公式サイトの地域ごとの注記を優先する（品目ごとの注記より広い決まり）
+  //   関東：東京23区、横浜市、川崎市のみ（1都3県のそれ以外の物件は対象外）
+  //   関西：大阪市内と江坂（吹田市南部）のみ
+  //   東海：名古屋市外でも使えることが多いが品目による → 料金には入れ、在庫の確認を促す
   const AREAS = {
     tokyo23: { label: '東京23区、横浜市、川崎市のみ', re: /^東京都[^市町村]{1,4}区|横浜市|川崎市/ },
-    // 公式サイトは「東京都、横浜市、川崎市のみ」だが、八王子市など東京都の市部（多摩地域）は対象外として扱う
-    tokyo: { label: '東京23区、横浜市、川崎市のみ', re: /^東京都[^市町村]{1,4}区|横浜市|川崎市/ },
-    nagoya: { label: '名古屋市内のみ', re: /名古屋市/ },
-    tokaiBike: { label: '名古屋・岐阜・四日市・三河エリアのみ', re: /名古屋市|岐阜県|四日市市|豊橋市|岡崎市|豊田市|安城市|刈谷市|西尾市|知立市|碧南市|高浜市|豊川市|蒲郡市|新城市|田原市|みよし市/ },
     osaka: { label: '大阪市内と江坂（吹田市南部）のみ', re: /大阪市|吹田市/ },
+    nagoya: { label: '名古屋市外は在庫を確認', re: /名古屋市/, soft: true },
   };
+  const REGION_AREA = { kanto: 'tokyo23', kansai: 'osaka', tokai: 'nagoya' };
+  // 品目の提供エリア（地域の決まり）
+  function areaOfItem(item) { return item && item.r ? REGION_AREA[item.r] : ''; }
 
   // 物件の住所から地域を決める（一覧のない地域は ''）
   function regionOf(address) {
@@ -193,10 +197,16 @@
   // この物件でその品目が使えるか。使えないときは理由、確認が要るときは note を返す
   function check(item, prop) {
     const addr = String(prop.address || '');
-    if (item.area) {
-      const a = AREAS[item.area];
-      if (addr && !a.re.test(addr)) return { ng: `提供エリア外（${a.label}）` };
-      if (!addr) return { note: `${a.label}（住所が未入力のため要確認）` };
+    const key = areaOfItem(item);
+    if (key) {
+      const a = AREAS[key];
+      if (a.soft) {
+        if (!addr) return { note: '住所が未入力。名古屋市外なら在庫・提供できるかを確認', caution: true };
+        if (!a.re.test(addr)) return { note: '名古屋市外のため、在庫・提供できるかを確認', caution: true };
+      } else {
+        if (addr && !a.re.test(addr)) return { ng: `提供エリア外（${a.label}）` };
+        if (!addr) return { note: `${a.label}（住所が未入力のため要確認）` };
+      }
     }
     if (item.smoke && prop.smoking && !/禁煙/.test(prop.smoking)) return { ng: '禁煙部屋のみ' };
     if (item.elev && prop.equipmentChecked && !/エレベーター/.test(prop.equipment || '')) return { ng: 'エレベーターのある物件のみ' };
@@ -207,7 +217,7 @@
   // pv はその物件の料金（ペットのときのルームクリーニング代の差額に使う）
   function calc(state, prop, pv, days) {
     const region = regionOf(prop.address);
-    const lines = [], warnings = [], excluded = [];
+    const lines = [], warnings = [], excluded = [], cautions = [];
     const persons = Math.max(1, Math.round(Calc.num(state.persons) || 1));
     if (persons > 1) lines.push({ name: `${persons}名様入居`, unitPrice: PERSON * (persons - 1), unit: 'day', qty: 1, person: true });
     let pet = false;
@@ -226,6 +236,7 @@
       const c = check(it, prop);
       if (c.ng) { warnings.push(`「${o.name}」は${c.ng}のため、料金に入れていません`); excluded.push({ name: o.name, reason: c.ng.replace(/（.*$/, '') }); return; }
       if (it === PET) pet = true;
+      if (c.caution) cautions.push(`「${o.name}」は${c.note}してください`);
       lines.push({ name: o.name, unitPrice: it.p, unit: it.u, qty, note: c.note || '' });
     });
     // ペットのときは、ルームクリーニング代をキャンペーン中でも定価にする
@@ -233,10 +244,10 @@
     const cleaningExtra = pet && cl !== null && cc !== null && cl > cc ? cl - cc : 0;
     lines.forEach(l => { l.amount = l.unitPrice * l.qty * (l.unit === 'day' ? days : 1); });
     const total = lines.reduce((t, l) => t + l.amount, 0) + cleaningExtra;
-    return { region, lines, warnings, excluded, cleaningExtra, total, perDay: lines.filter(l => l.unit === 'day').reduce((t, l) => t + l.unitPrice * l.qty, 0) };
+    return { region, lines, warnings, excluded, cautions, cleaningExtra, total, perDay: lines.filter(l => l.unit === 'day').reduce((t, l) => t + l.unitPrice * l.qty, 0) };
   }
 
-  const M = { AS_OF, REGIONS, ITEMS, YOMI, PET, AREAS, regionOf, find, names, check, calc };
+  const M = { AS_OF, REGIONS, ITEMS, YOMI, PET, AREAS, areaOfItem, regionOf, find, names, check, calc };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnOptions = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);
