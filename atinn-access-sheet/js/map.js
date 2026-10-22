@@ -78,9 +78,11 @@
   function renderMap(spec) {
     let best = null;
     // 縦が窮屈なときは、横だけ少し広げてもよい（最大1.45倍。東西・南北の向きは変わらない）
-    for (const k of [1, 1.12, 1.25, 1.4, 1.55, 1.7, 1.85, 2]) {
+    // 地図の上に重ねるカード（4件目）があるときは、カードの左だけに地図を収める配置も試す（遠い物件があって、駅や線がカードの下に入る場合など）
+    const variants = (spec.blocked || []).length ? [spec, Object.assign({}, spec, { narrow: true })] : [spec];
+    for (const sp of variants) for (const k of [1, 1.12, 1.25, 1.4, 1.55, 1.7, 1.85, 2]) {
       for (const f of [1, 1.15, 1.3, 1.45]) {
-        const r = renderMapOnce(spec, k * f, k);
+        const r = renderMapOnce(sp, k * f, k);
         if (r.bad >= 1e5) continue; // 線や駅が枠からはみ出す
         // 拡大するほど見やすいので、拡大の分だけ少しの重なりは許す。横だけの引き伸ばしは控えめに評価
         const score = r.bad - (k - 1) * 1500 - (f - 1) * 900;
@@ -109,7 +111,7 @@
     // 地図の上に重ねる物件カード（パターン2の4・5件目）。縦に長くふさぐときは、地図をその左に収める
     const blocked = spec.blocked || [];
     const covered = blocked.reduce((t, b) => t + (b.y1 - b.y0), 0); // 右側をふさぐ高さの合計（5件なら2枚で縦いっぱい）
-    const rightEdge = covered > H * 0.6 ? Math.min.apply(null, blocked.map(b => b.x0 - 24)) : W - 40;
+    const rightEdge = covered > H * 0.6 || spec.narrow ? Math.min.apply(null, blocked.map(b => b.x0 - 24)) : W - 40;
     const box = { x0: mx, y0: 70, x1: Math.min(W - mx, rightEdge - (mx - 40)), y1: H - 60 };
     const proj = Geo.makeProjection(center, fitPts.length ? fitPts : [{ lat: center.lat + 0.01, lng: center.lng + 0.01 }], box, { maxA: 110 });
     // 拡大：物件・駅の範囲の中心を基準に広げ、はみ出したら枠内へずらす
@@ -249,7 +251,7 @@
     // 重ねるカードの下に線が隠れる配置も避ける。カードの場所は文字も置かない
     blocked.forEach(b => {
       drawn.forEach(d => d.pts.forEach(q => { if (q.x > b.x0 && q.x < b.x1 && q.y > b.y0 && q.y < b.y1) bad += 3000; }));
-      [cP].concat(stationMarks.map(m => m.p)).forEach(q => { if (q.x > b.x0 && q.x < b.x1 && q.y > b.y0 && q.y < b.y1) bad += 5000; });
+      [cP].concat(stationMarks.map(m => m.p), ends.map(e => e.p)).forEach(q => { if (q.x > b.x0 && q.x < b.x1 && q.y > b.y0 && q.y < b.y1) bad += 5000; });
       L.add({ x0: b.x0, y0: b.y0, x1: b.x1, y1: b.y1 }, 5);
     });
 
