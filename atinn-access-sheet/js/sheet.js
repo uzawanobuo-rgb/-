@@ -176,11 +176,20 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
   }
   // 提案書に名前を出すオプション（人数は「〇名」で別に書くので出さない）
   const optionNames = o => (o ? o.lines.filter(l => !l.person).map(l => l.name + (l.qty > 1 ? `×${l.qty}` : '')) : []);
-  // 物件によっては使えないオプション（提供エリア外など）を注記に書く。list：[{ who: 'C' など, o: 料金のオプション }]
+  // 物件によっては使えないオプションを注記に書く。list：[{ who: 'C' など, o: 料金のオプション }]
+  //   提供エリア外：見積もりには入れ、ご用意できない場合がある旨を書く
+  //   禁煙部屋限定・その地域の一覧にない など：総額に含めない旨を書く
   function excludedText(list) {
-    const parts = [];
-    list.forEach(({ who, o }) => (o && o.excluded || []).forEach(e => parts.push(`${who ? who + 'の' : ''}${e.name}（${e.reason}）`)));
-    return parts.length ? `※次のオプションは対象外のため、総額に含みません：${parts.join('、')}` : '';
+    const out = [], ex = [];
+    const nm = (who, e) => `${who ? who + 'の' : ''}${e.name}`;
+    list.forEach(({ who, o }) => {
+      (o && o.outside || []).forEach(e => out.push(nm(who, e)));
+      (o && o.excluded || []).forEach(e => ex.push(`${nm(who, e)}（${e.reason}）`));
+    });
+    return [
+      out.length ? `※次のオプションは提供エリア外のため、ご用意できない場合があります（総額には含めています）：${out.join('、')}` : '',
+      ex.length ? `※次のオプションは対象外のため、総額に含みません：${ex.join('、')}` : '',
+    ].filter(Boolean).join('\n');
   }
 
   // ================= パターン1：物件 → 主要駅 =================
@@ -284,7 +293,7 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const optN = optionNames(price && price.options);
     const optLine = optN.length ? `<div>${esc(`※総額にはオプション（${optN.join('・')}）を含みます。`)}</div>` : '';
     const exP1 = excludedText([{ who: '', o: price && price.options }]);
-    const exLine = exP1 ? `<div style="color:#C4531A;">${esc(exP1)}</div>` : '';
+    const exLine = exP1 ? `<div style="color:#C4531A;">${esc(exP1).replace(/\n/g, '<br>')}</div>` : '';
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${optLine}${exLine}${esc(state.note || autoNote)}</div>`;
 
     const html = frame(header(title, sub, right) + panel(svg, mapH, '物件') + bottom + note);
@@ -362,11 +371,11 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     items.forEach(x => optionNames(x.price && x.price.options).forEach(nm => { if (!optNames.includes(nm)) optNames.push(nm); }));
     const optLine = optNames.length ? `<div>${esc(`※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。`)}</div>` : '';
     const exP2 = excludedText(items.map(x => ({ who: x.letter, o: x.price && x.price.options })));
-    const exLine = exP2 ? `<div style="color:#C4531A;">${esc(exP2)}</div>` : '';
+    const exLine = exP2 ? `<div style="color:#C4531A;">${esc(exP2).replace(/\n/g, '<br>')}</div>` : '';
     const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${optLine}${exLine}${esc(state.note || autoNote)}</div>`;
 
     // 注記が3行以上になるとき（オプション・長い手入力の注記など）は、その分だけ地図を低くして、下の物件カードと重ならないようにする
-    const noteLines = [optNames.length ? `※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。` : '', exP2, state.note || autoNote]
+    const noteLines = [optNames.length ? `※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。` : '', ...exP2.split('\n'), state.note || autoNote]
       .filter(Boolean).reduce((t, x) => t + Math.ceil(MapM.textW(x, 11) / 1043), 0);
     const mapHL = 440 - (PORTRAIT ? 0 : Math.max(0, noteLines - 2) * 16);
     // 4・5件目は、地図の右側に重ねて置く（下の段の C の上。4件のときは下の場所だけ使う）

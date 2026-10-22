@@ -32,7 +32,10 @@ test('提供エリアの限定（名古屋市内のみ・東京23区のみ）', 
   assert.match(O.calc(nagoya, { address: '東京都港区' }, PV, 10).warnings[0], /関東の一覧にない/);
   const set = { persons: 1, options: [{ name: '追加備品（1セット）', qty: 1 }] };
   assert.equal(O.calc(set, { address: '東京都江東区福住' }, PV, 30).total, 8800);
-  assert.match(O.calc(set, { address: '東京都八王子市' }, PV, 30).warnings[0], /提供エリア外/);
+  // 提供エリア外でも見積もりには入れ、注意書きを出す
+  const hachi = O.calc(set, { address: '東京都八王子市' }, PV, 30);
+  assert.equal(hachi.total, 8800);
+  assert.match(hachi.warnings[0], /提供エリア外.*ご用意できない場合があります（料金には含めています）/);
 });
 
 test('人数・ペット・個数・手入力（割引）', () => {
@@ -49,15 +52,17 @@ test('東京都の市部（八王子市など）は、「東京都、横浜市�
   assert.equal(O.calc(st, { address: '東京都港区芝浦' }, PV, 10).total, 2200);
   assert.equal(O.calc(st, { address: '神奈川県横浜市西区' }, PV, 10).total, 2200);
   const r = O.calc(st, { address: '東京都八王子市旭町' }, PV, 10);
-  assert.equal(r.total, 0);
-  assert.deepEqual(r.excluded, [{ name: '折りたたみ自転車【保険付き】', reason: '提供エリア外' }]);
+  assert.equal(r.total, 2200);
+  assert.deepEqual(r.outside, [{ name: '折りたたみ自転車【保険付き】', reason: '提供エリア外' }]);
+  assert.deepEqual(r.excluded, []);
 });
 
 test('地域の決まり：関東は23区・横浜市・川崎市、関西は大阪市・吹田市（江坂）のみ', () => {
   const st = { persons: 1, options: [{ name: 'モバイルデータ通信端末', qty: 1 }] };
   assert.equal(O.calc(st, { address: '神奈川県川崎市中原区' }, PV, 10).total, 4400);
-  assert.equal(O.calc(st, { address: '埼玉県さいたま市大宮区' }, PV, 10).total, 0);
+  assert.equal(O.calc(st, { address: '埼玉県さいたま市大宮区' }, PV, 10).outside.length, 1);
   assert.equal(O.calc(st, { address: '大阪府吹田市江坂町' }, PV, 10).total, 4400);
-  assert.equal(O.calc(st, { address: '大阪府堺市堺区' }, PV, 10).total, 0);
-  assert.equal(O.calc(st, { address: '京都府京都市中京区' }, PV, 10).total, 0);
+  assert.equal(O.calc(st, { address: '大阪府堺市堺区' }, PV, 10).outside.length, 1);
+  assert.equal(O.calc(st, { address: '京都府京都市中京区' }, PV, 10).outside.length, 1);
+  assert.equal(O.calc(st, { address: '京都府京都市中京区' }, PV, 10).total, 4400); // 見積もりには入れる
 });
