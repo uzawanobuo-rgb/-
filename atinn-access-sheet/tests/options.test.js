@@ -40,3 +40,12 @@ test('人数・ペット・個数・手入力（割引）', () => {
   assert.equal(r.cleaningExtra, 24200);
   assert.equal(r.total, 3100 * 30 + 3300 + 24200);
 });
+
+test('東京都の市部（八王子市など）は、「東京都、横浜市、川崎市のみ」の品目の対象外', () => {
+  const st = { persons: 1, options: [{ name: '折りたたみ自転車【保険付き】', qty: 1 }] };
+  assert.equal(O.calc(st, { address: '東京都港区芝浦' }, PV, 10).total, 2200);
+  assert.equal(O.calc(st, { address: '神奈川県横浜市西区' }, PV, 10).total, 2200);
+  const r = O.calc(st, { address: '東京都八王子市旭町' }, PV, 10);
+  assert.equal(r.total, 0);
+  assert.deepEqual(r.excluded, [{ name: '折りたたみ自転車【保険付き】', reason: '提供エリア外' }]);
+});
