@@ -100,7 +100,8 @@
   // 提供エリアの限定：住所で判定する。判定できない書き方の住所は「要確認」にする
   const AREAS = {
     tokyo23: { label: '東京23区、横浜市、川崎市のみ', re: /^東京都[^市町村]{1,4}区|横浜市|川崎市/ },
-    tokyo: { label: '東京都、横浜市、川崎市のみ', re: /^東京都|横浜市|川崎市/ },
+    // 公式サイトは「東京都、横浜市、川崎市のみ」だが、八王子市など東京都の市部（多摩地域）は対象外として扱う
+    tokyo: { label: '東京23区、横浜市、川崎市のみ', re: /^東京都[^市町村]{1,4}区|横浜市|川崎市/ },
     nagoya: { label: '名古屋市内のみ', re: /名古屋市/ },
     tokaiBike: { label: '名古屋・岐阜・四日市・三河エリアのみ', re: /名古屋市|岐阜県|四日市市|豊橋市|岡崎市|豊田市|安城市|刈谷市|西尾市|知立市|碧南市|高浜市|豊川市|蒲郡市|新城市|田原市|みよし市/ },
     osaka: { label: '大阪市内と江坂（吹田市南部）のみ', re: /大阪市|吹田市/ },
@@ -206,7 +207,7 @@
   // pv はその物件の料金（ペットのときのルームクリーニング代の差額に使う）
   function calc(state, prop, pv, days) {
     const region = regionOf(prop.address);
-    const lines = [], warnings = [];
+    const lines = [], warnings = [], excluded = [];
     const persons = Math.max(1, Math.round(Calc.num(state.persons) || 1));
     if (persons > 1) lines.push({ name: `${persons}名様入居`, unitPrice: PERSON * (persons - 1), unit: 'day', qty: 1, person: true });
     let pet = false;
@@ -221,9 +222,9 @@
         return;
       }
       const it = find(o.name, region);
-      if (!it) { warnings.push(`「${o.name}」は${REGIONS[region] || 'この地域'}の一覧にないため、料金に入れていません`); return; }
+      if (!it) { warnings.push(`「${o.name}」は${REGIONS[region] || 'この地域'}の一覧にないため、料金に入れていません`); excluded.push({ name: o.name, reason: `${REGIONS[region] || 'この地域'}では扱いなし` }); return; }
       const c = check(it, prop);
-      if (c.ng) { warnings.push(`「${o.name}」は${c.ng}のため、料金に入れていません`); return; }
+      if (c.ng) { warnings.push(`「${o.name}」は${c.ng}のため、料金に入れていません`); excluded.push({ name: o.name, reason: c.ng.replace(/（.*$/, '') }); return; }
       if (it === PET) pet = true;
       lines.push({ name: o.name, unitPrice: it.p, unit: it.u, qty, note: c.note || '' });
     });
@@ -232,7 +233,7 @@
     const cleaningExtra = pet && cl !== null && cc !== null && cl > cc ? cl - cc : 0;
     lines.forEach(l => { l.amount = l.unitPrice * l.qty * (l.unit === 'day' ? days : 1); });
     const total = lines.reduce((t, l) => t + l.amount, 0) + cleaningExtra;
-    return { region, lines, warnings, cleaningExtra, total, perDay: lines.filter(l => l.unit === 'day').reduce((t, l) => t + l.unitPrice * l.qty, 0) };
+    return { region, lines, warnings, excluded, cleaningExtra, total, perDay: lines.filter(l => l.unit === 'day').reduce((t, l) => t + l.unitPrice * l.qty, 0) };
   }
 
   const M = { AS_OF, REGIONS, ITEMS, YOMI, PET, AREAS, regionOf, find, names, check, calc };
