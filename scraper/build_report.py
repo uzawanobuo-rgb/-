@@ -1,13 +1,16 @@
-"""スクレイピング結果 (data/snapshots/YYYY-MM-DD.csv) からレポート用のデータを作る。
+"""スクレイピング結果 (data/snapshots/<サイト>/YYYY-MM-DD.csv) からレポート用のデータを作る。
+
+サイトごとにフォルダを分ける: gm = グッドマンスリー、wm = ウィークリーマンション。
+どちらもスクレイパーが出す CSV と同じ列 (プラン名, 住所, 最寄駅, ...) を読む。
 
 使い方:
     python scraper/build_report.py --snapshots data/snapshots --out report
 
 出力:
-    report/listings_kanto.csv / listings_tokai.csv / listings_kansai.csv
+    report/listings_<サイト>_<エリア>.csv
         最新日の物件ごとのデータ (前日との差額つき)
     report/trend.csv
-        日付 × エリア × 都道府県 × 掲載会社 ごとの平均利用料 (料金推移グラフ用)
+        日付 × サイト × エリア × 都道府県 × 掲載会社 ごとの利用料の合計と件数 (料金推移グラフ用)
 """
 
 import argparse
@@ -31,6 +34,7 @@ COMPANY_ALIASES = {
     "株式会社BraTTo": "BraTTo",
     "株式会社マイナビ": "マイナビ",
     "株式会社トラストインフィニティー": "トラスト",
+    "ユーアンドアールホテルマネジメント（株）　総合受付": "ユーアンドアール",
     "株式会社リブ・マックス": "リブ・マックス",
     "matsuri technologies株式会社": "matsuri",
     "ＧＶ－Ｒｅｎｔ株式会社": "GV-Rent",
@@ -67,7 +71,8 @@ def short_company(name):
 
 
 def parse_station(text):
-    first = text.split(" / ")[0].strip()
+    # グッドマンスリーは「 / 」区切り、ウィークリーマンションはタブ区切り
+    first = re.split(r" / |\t", text)[0].strip()
     for regex in STATION_RES:
         m = regex.match(first)
         if m:
@@ -130,8 +135,9 @@ def load_snapshot(path):
             if pref not in PREF_AREA:
                 continue
             line, station, walk = parse_station(row["最寄駅"])
-            listings[row["物件番号"]] = {
-                "id": row["物件番号"],
+            bukken = row.get("物件番号") or re.search(r"bukken_no=(\d+)", row["詳細URL"]).group(1)
+            listings[bukken] = {
+                "id": bukken,
                 "name": row["プラン名"],
                 "company": short_company(row["運営会社"]),
                 "area": PREF_AREA[pref],
@@ -150,19 +156,7 @@ def load_snapshot(path):
     return listings
 
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--snapshots", default="data/snapshots")
-    parser.add_argument("--out", default="report")
-    args = parser.parse_args()
-
-    paths = sorted(glob.glob(os.path.join(args.snapshots, "*.csv")))
-    if not paths:
-        raise SystemExit(f"{args.snapshots} に CSV がありません")
-    os.makedirs(args.out, exist_ok=True)
-
-    # 料金推移: 日付 × エリア × 都道府県 × 掲載会社
-    trend = []
+def build_site(site, paths, out_dir, trend):
     snapshots = {}
     for path in paths:
         date = os.path.splitext(os.path.basename(path))[0]
@@ -175,16 +169,11 @@ def main():
                 if x[plan] is not None:
                     g[plan].append(x[plan])
         for (area, pref, company), g in sorted(groups.items()):
-            row = {"date": date, "area": area, "pref": pref, "company": company, "n": g["n"]}
+            row = {"date": date, "site": site, "area": area, "pref": pref, "company": company, "n": g["n"]}
             for plan in "sml":
                 row[f"{plan}_sum"] = sum(g[plan])
                 row[f"{plan}_n"] = len(g[plan])
             trend.append(row)
-
-    with open(os.path.join(args.out, "trend.csv"), "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=list(trend[0].keys()))
-        writer.writeheader()
-        writer.writerows(trend)
 
     # 最新日の物件一覧 (前日との差額つき)
     dates = sorted(snapshots)
@@ -206,12 +195,33 @@ def main():
             # 表示に使う長さに切り詰めてファイルを小さくする
             row["name"] = x["name"][:80]
             rows.append(row)
-        with open(os.path.join(args.out, f"listings_{area}.csv"), "w", newline="", encoding="utf-8") as f:
+        with open(os.path.join(out_dir, f"listings_{site}_{area}.csv"), "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=columns)
             writer.writeheader()
             writer.writerows(rows)
-        print(f"{area}: {len(rows)}件")
-    print(f"日付: {', '.join(dates)}")
+        print(f"{site} {area}: {len(rows)}件")
+    print(f"{site} 日付: {', '.join(dates)}")
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--snapshots", default="data/snapshots")
+    parser.add_argument("--out", default="report")
+    args = parser.parse_args()
+    os.makedirs(args.out, exist_ok=True)
+
+    trend = []
+    for site_dir in sorted(glob.glob(os.path.join(args.snapshots, "*"))):
+        paths = sorted(glob.glob(os.path.join(site_dir, "*.csv")))
+        if paths:
+            build_site(os.path.basename(site_dir), paths, args.out, trend)
+    if not trend:
+        raise SystemExit(f"{args.snapshots}/<サイト>/ に CSV がありません")
+
+    with open(os.path.join(args.out, "trend.csv"), "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(trend[0].keys()))
+        writer.writeheader()
+        writer.writerows(trend)
 
 
 if __name__ == "__main__":

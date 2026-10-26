@@ -3,6 +3,7 @@
 .mr-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--cds-gap-md); }
 .mr-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
 .mr-sub { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); font-variant-numeric: tabular-nums; }
+.mr-switch { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); }
 .mr-seg { display: inline-flex; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); overflow: hidden; flex-wrap: wrap; }
 .mr-seg button { all: unset; cursor: pointer; padding: var(--cds-pad-xs) var(--cds-pad-md); font-size: var(--cds-font-size-body); color: var(--color-fg-muted); }
 .mr-seg button + button { border-left: 1px solid var(--color-border-line); }
@@ -76,10 +77,16 @@
       <h1>マンスリー競合レポート</h1>
       <p class="mr-sub" id="mr-sub" data-mr-listings>—</p>
     </div>
+    <div class="mr-switch">
+    <div class="mr-seg" id="mr-sites" role="tablist" aria-label="サイト">
+      <button role="tab" data-site="wm">ウィークリーマンション</button>
+      <button role="tab" data-site="gm">グッドマンスリー</button>
+    </div>
     <div class="mr-seg" id="mr-areas" role="tablist" aria-label="エリア">
       <button role="tab" data-area="kanto">関東</button>
       <button role="tab" data-area="tokai">東海</button>
       <button role="tab" data-area="kansai">関西</button>
+    </div>
     </div>
   </header>
 
@@ -196,9 +203,14 @@
 <script>
 (() => {
   const AREA_NAME = { kanto: '関東', tokai: '東海', kansai: '関西' };
+  const SITES = {
+    wm: { name: 'ウィークリーマンション', detail: 'https://www.weekly-mansion.com/detail/?bukken_no=' },
+    gm: { name: 'グッドマンスリー', detail: 'https://www.good-monthly.com/detail/?bukken_no=' },
+  };
+  const site = () => (SITES[P().site] ? P().site : 'wm');
   // エリアごとの比較対象 (Looker Studio 版のレポートと同じ顔ぶれ)。データにない会社は出ません。
   const WATCH = {
-    kanto: ['アットイン', 'OneLife', 'BraTTo', 'マイナビ', 'トラスト', 'リブ・マックス', 'ユニオン', 'matsuri', 'GV-Rent'],
+    kanto: ['アットイン', 'OneLife', 'BraTTo', 'マイナビ', 'トラスト', 'リブ・マックス', 'ユニオン', 'ユーアンドアール', 'matsuri', 'GV-Rent'],
     tokai: ['アットイン', 'BraTTo', 'リアルエスト', 'マイナビ', 'リブ・マックス'],
     kansai: ['アットイン', 'stokedlife', 'BraTTo', 'アパルトマン', 'マイナビ', 'リブ・マックス'],
   };
@@ -214,7 +226,7 @@
   const dayStr = d3.utcFormat('%Y-%m-%d');
   const color = (i) => (i < 8 ? dash.colors[i] : `color-mix(in srgb, ${dash.colors[i % 8]} 50%, var(--color-panel))`);
   const P = () => dash.params();
-  const listingsId = () => 'listings_' + (P().area || 'kanto');
+  const listingsId = () => `listings_${site()}_${P().area || 'kanto'}`;
 
   // ---------- データの準備 ----------
   const cache = {};
@@ -495,7 +507,7 @@
       tr.insertCell().textContent = r.id;
       const n = tr.insertCell(); n.className = 'mr-name';
       const a = document.createElement('a');
-      a.href = 'https://www.good-monthly.com/detail/?bukken_no=' + encodeURIComponent(r.id);
+      a.href = SITES[site()].detail + encodeURIComponent(r.id);
       a.target = '_blank'; a.rel = 'noopener';
       a.textContent = r.name;
       n.appendChild(a);
@@ -603,6 +615,10 @@
   }
 
   // ---------- エリア・ページ・期間 ----------
+  document.getElementById('mr-sites').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-site]');
+    if (b) dash.setParams({ site: b.dataset.site, co: null, pref: [], city: [], layout: [], size: [], line: [], station: [] });
+  });
   document.getElementById('mr-areas').addEventListener('click', (ev) => {
     const b = ev.target.closest('button[data-area]');
     if (b) dash.setParams({ area: b.dataset.area, co: null, pref: [], city: [], layout: [], size: [], line: [], station: [] });
@@ -626,6 +642,7 @@
     const area = p.area || 'kanto';
     const page = pages.includes(p.page) ? p.page : 'price';
     for (const b of document.querySelectorAll('#mr-areas button')) b.setAttribute('aria-selected', b.dataset.area === area);
+    for (const b of document.querySelectorAll('#mr-sites button')) b.setAttribute('aria-selected', b.dataset.site === site());
     for (const b of document.querySelectorAll('#mr-tabs button')) b.setAttribute('aria-selected', b.dataset.page === page);
     for (const id of pages) document.getElementById(id).hidden = id !== page;
     const lid = listingsId();
@@ -639,8 +656,8 @@
     const filtered = status === 'ok' ? applyFilters(rows) : [];
     if (status === 'ok') {
       const tr = dash.data('trend');
-      const last = tr.status === 'ok' ? d3.max(tr.data, (r) => r.date) : null;
-      sub.textContent = `${AREA_NAME[area]}エリア ${fmt(rows.length)}件中、条件に合う ${fmt(filtered.length)}件（${cos.length}社）${last ? ` · ${last.replaceAll('-', '/')} 時点` : ''}`;
+      const last = tr.status === 'ok' ? d3.max(tr.data.filter((r) => r.site === site()), (r) => r.date) : null;
+      sub.textContent = `${SITES[site()].name} · ${AREA_NAME[area]}エリア ${fmt(rows.length)}件中、条件に合う ${fmt(filtered.length)}件（${cos.length}社）${last ? ` · ${last.replaceAll('-', '/')} 時点` : ''}`;
     } else sub.textContent = status === 'loading' ? '' : 'データを読み込めませんでした';
 
     const coColor = new Map(cos.map((c, i) => [c, color(i)]));
@@ -653,8 +670,9 @@
       } else {
         for (const b of boxes) b.classList.remove('dash-skeleton');
         const prefs = Array.isArray(p.pref) && p.pref.length ? new Set(p.pref) : null;
-        const areaRows = tr.data.filter((r) => r.area === area && (!prefs || prefs.has(r.pref)) && coColor.has(r.company));
-        const dates = [...new Set(tr.data.map((r) => r.date))].sort();
+        const siteRows = tr.data.filter((r) => r.site === site());
+        const areaRows = siteRows.filter((r) => r.area === area && (!prefs || prefs.has(r.pref)) && coColor.has(r.company));
+        const dates = [...new Set(siteRows.map((r) => r.date))].sort();
         const maxD = dates[dates.length - 1], minD = dates[0];
         fromEl.min = toEl.min = minD; fromEl.max = toEl.max = maxD;
         const to = p.to && p.to <= maxD ? p.to : maxD;
