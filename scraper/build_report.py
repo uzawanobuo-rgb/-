@@ -207,6 +207,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--snapshots", default="data/snapshots")
     parser.add_argument("--out", default="report")
+    parser.add_argument("--trend-in", help="これまでの trend.csv。今回読んだ日付の分だけ置き換えて残りは引き継ぐ")
     args = parser.parse_args()
     os.makedirs(args.out, exist_ok=True)
 
@@ -217,6 +218,11 @@ def main():
             build_site(os.path.basename(site_dir), paths, args.out, trend)
     if not trend:
         raise SystemExit(f"{args.snapshots}/<サイト>/ に CSV がありません")
+    if args.trend_in and os.path.exists(args.trend_in):
+        rebuilt = {(r["site"], r["date"]) for r in trend}
+        with open(args.trend_in, encoding="utf-8") as f:
+            kept = [r for r in csv.DictReader(f) if (r["site"], r["date"]) not in rebuilt]
+        trend = sorted(kept + trend, key=lambda r: (r["date"], r["site"], r["area"], r["pref"], r["company"]))
 
     with open(os.path.join(args.out, "trend.csv"), "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(trend[0].keys()))
