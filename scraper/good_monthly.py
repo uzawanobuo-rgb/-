@@ -85,9 +85,11 @@ def parse_listing(section, pref, fetched_at):
             continue
         heading = text(th)
         values = [text(td) for td in tds[:3]]
-        if heading == "料金":
+        if heading in ("料金", "1ヶ月以上"):
             # 期間別ではなく一律料金の物件は、ショート・ミドル・ロングに同じ値を入れる
             plans = ["ショート", "ミドル", "ロング"]
+        elif heading == "1ヶ月未満":
+            plans = ["スーパーショート"]
         else:
             plans = [p for p in PLANS if heading.startswith(p)][:1]
         for plan in plans:
