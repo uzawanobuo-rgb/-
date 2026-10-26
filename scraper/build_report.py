@@ -35,6 +35,8 @@ COMPANY_ALIASES = {
     "matsuri technologies株式会社": "matsuri",
     "ＧＶ－Ｒｅｎｔ株式会社": "GV-Rent",
     "株式会社stoked life": "stokedlife",
+    "株式会社リアルエスト": "リアルエスト",
+    "アパルトマンエージェント株式会社": "アパルトマン",
     "グッドステイ　全国エリア受付": "グッドステイ",
     "大東建託リーシング株式会社": "大東建託リーシング",
     "グッドルーム株式会社": "グッドルーム",
@@ -59,7 +61,9 @@ def short_company(name):
         return COMPANY_ALIASES[name]
     for word in ["株式会社", "（株）", "(株)", "有限会社"]:
         name = name.replace(word, "")
-    return re.split(r"[\s　]", name.strip())[0] or name
+    # 全角スペース以降（部署名など）と【】の補足を外す
+    name = re.sub(r"【.*?】", "", name.strip().split("　")[0]).strip()
+    return name or "不明"
 
 
 def parse_station(text):

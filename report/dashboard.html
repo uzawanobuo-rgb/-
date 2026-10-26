@@ -1,0 +1,715 @@
+<style>
+#dash-root .mr { font-family: var(--font-anthropic-sans); display: grid; gap: var(--cds-gap-lg); min-width: 0; }
+.mr-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--cds-gap-md); }
+.mr-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
+.mr-sub { margin: var(--cds-gap-xs) 0 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-body); font-variant-numeric: tabular-nums; }
+.mr-seg { display: inline-flex; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); overflow: hidden; flex-wrap: wrap; }
+.mr-seg button { all: unset; cursor: pointer; padding: var(--cds-pad-xs) var(--cds-pad-md); font-size: var(--cds-font-size-body); color: var(--color-fg-muted); }
+.mr-seg button + button { border-left: 1px solid var(--color-border-line); }
+.mr-seg button[aria-selected="true"] { background: var(--color-panel); color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.mr-seg button:focus-visible, .mr-f summary:focus-visible, .mr-th:focus-visible { outline: 2px solid var(--color-fg); outline-offset: -2px; }
+.mr-tabs { display: flex; gap: var(--cds-gap-md); border-bottom: 1px solid var(--color-border-line); overflow-x: auto; }
+.mr-tabs button { all: unset; cursor: pointer; padding: var(--cds-pad-sm) 0; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); border-bottom: 2px solid transparent; white-space: nowrap; }
+.mr-tabs button[aria-selected="true"] { color: var(--color-fg); border-bottom-color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.mr-filters { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; }
+.mr-f { position: relative; }
+.mr-f summary { list-style: none; cursor: pointer; display: flex; gap: var(--cds-gap-xs); align-items: center; padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-panel); font-size: var(--cds-font-size-caption); max-width: 16rem; }
+.mr-f summary::-webkit-details-marker { display: none; }
+.mr-f summary .mr-fv { color: var(--color-fg-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mr-f[data-on="1"] summary { border-color: var(--color-fg); }
+.mr-f summary::after { content: "▾"; color: var(--color-fg-muted); }
+.mr-pop { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; width: min(18rem, 80vw); background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-sm); display: grid; gap: var(--cds-gap-sm); }
+.mr-pop input[type="search"] { font: inherit; font-size: var(--cds-font-size-caption); padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); }
+.mr-opts { max-height: 16rem; overflow: auto; display: grid; gap: 2px; font-size: var(--cds-font-size-caption); }
+.mr-opts label { display: flex; gap: var(--cds-gap-xs); align-items: center; cursor: pointer; padding: 2px 0; }
+.mr-opts label span:last-child { margin-left: auto; color: var(--color-fg-muted); font-variant-numeric: tabular-nums; }
+.mr-popact { display: flex; gap: var(--cds-gap-sm); justify-content: flex-end; }
+.mr-link { all: unset; cursor: pointer; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); text-decoration: underline; }
+.mr-link:focus-visible { outline: 2px solid var(--color-fg); }
+.mr-page { display: grid; gap: var(--cds-gap-md); min-width: 0; }
+.mr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--cds-gap-md); }
+.mr-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; position: relative; display: grid; gap: var(--cds-gap-sm); align-content: start; }
+.mr-card h2 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
+.mr-note { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
+.mr-chart { min-height: 260px; position: relative; }
+.mr-chart.mr-tall { min-height: 340px; }
+.mr-chart svg { display: block; overflow: visible; }
+.mr-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.mr-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.mr-legend i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+.mr-tip { position: absolute; pointer-events: none; z-index: 10; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); border-radius: var(--cds-radius); box-shadow: var(--cds-shadow-popover); padding: var(--cds-pad-xs) var(--cds-pad-sm); font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; display: grid; gap: 2px; min-width: 9rem; }
+.mr-tip b { color: var(--cds-text-secondary); font-weight: 400; }
+.mr-tip div { display: flex; gap: 6px; align-items: center; }
+.mr-tip div span:last-child { margin-left: auto; padding-left: var(--cds-pad-sm); }
+.mr-tip i { width: 8px; height: 8px; border-radius: 2px; display: inline-block; }
+.mr-range { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.mr-range input { font: inherit; padding: 2px var(--cds-pad-xs); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-panel); color: var(--color-fg); }
+.mr-scroll { overflow: auto; max-height: 70vh; border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); }
+.mr-table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: var(--cds-font-size-caption); font-variant-numeric: tabular-nums; }
+.mr-table th, .mr-table td { padding: 6px var(--cds-pad-sm); border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.mr-table thead th { position: sticky; top: 0; background: var(--color-panel); z-index: 2; text-align: left; font-weight: var(--cds-font-weight-medium); }
+.mr-table thead tr:nth-child(2) th { top: 29px; }
+.mr-table .mr-num { text-align: right; }
+.mr-table td.mr-name { white-space: normal; min-width: 18rem; max-width: 34rem; }
+.mr-table a { color: inherit; }
+.mr-th { cursor: pointer; user-select: none; }
+.mr-th[aria-sort="ascending"]::after { content: " ▲"; color: var(--color-fg-muted); }
+.mr-th[aria-sort="descending"]::after { content: " ▼"; color: var(--color-fg-muted); }
+.mr-pivot th:first-child, .mr-pivot td:first-child { position: sticky; left: 0; background: var(--color-panel); z-index: 1; max-width: 9rem; overflow: hidden; text-overflow: ellipsis; }
+.mr-pivot thead th:first-child { z-index: 3; }
+.mr-pivot thead th.mr-co { text-align: center; border-left: 1px solid var(--color-border-line); }
+.mr-pivot td.mr-gs { border-left: 1px solid var(--color-border-line); }
+.mr-up { color: var(--color-bad); }
+.mr-down { color: var(--color-ok); }
+.mr-tools { display: flex; flex-wrap: wrap; gap: var(--cds-gap-sm); align-items: center; justify-content: space-between; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+.mr-tools input { font: inherit; padding: var(--cds-pad-xs) var(--cds-pad-sm); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); background: var(--color-bg); color: var(--color-fg); min-width: 0; width: min(20rem, 100%); }
+.mr-more { all: unset; cursor: pointer; justify-self: center; padding: var(--cds-pad-xs) var(--cds-pad-md); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); font-size: var(--cds-font-size-caption); }
+.mr-more:focus-visible { outline: 2px solid var(--color-fg); }
+.mr-empty { color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); display: flex; align-items: center; justify-content: center; min-height: 120px; }
+.mr-fail::before { content: ""; width: .375rem; height: .375rem; border-radius: 50%; background: var(--color-bad); margin-right: 6px; }
+[data-dash-source-state=refreshing] { opacity: .5; transition: opacity var(--cds-dur-slow); }
+</style>
+
+<div class="mr">
+  <header class="mr-head">
+    <div>
+      <h1>マンスリー競合レポート</h1>
+      <p class="mr-sub" id="mr-sub" data-mr-listings>—</p>
+    </div>
+    <div class="mr-seg" id="mr-areas" role="tablist" aria-label="エリア">
+      <button role="tab" data-area="kanto">関東</button>
+      <button role="tab" data-area="tokai">東海</button>
+      <button role="tab" data-area="kansai">関西</button>
+    </div>
+  </header>
+
+  <nav class="mr-tabs" id="mr-tabs" role="tablist" aria-label="ページ">
+    <button role="tab" data-page="price">料金推移・物件構成</button>
+    <button role="tab" data-page="list">物件別 料金一覧</button>
+    <button role="tab" data-page="city">市区・駅別 掲載数・平均利用料</button>
+    <button role="tab" data-page="count">掲載数・物件構成</button>
+  </nav>
+
+  <div class="mr-filters" id="mr-filters"></div>
+
+  <section class="mr-page" id="price" hidden>
+    <div class="mr-range">
+      <span>期間</span>
+      <input type="date" id="mr-from" min="2026-01-01" max="2099-12-31" aria-label="開始日">
+      <span>〜</span>
+      <input type="date" id="mr-to" min="2026-01-01" max="2099-12-31" aria-label="終了日">
+    </div>
+    <div class="mr-card" id="card-trend-s">
+      <h2>掲載会社別のショート利用料の推移</h2>
+      <p class="mr-note">1日あたりの賃料＋光熱費の平均（円）。ショートは1〜3ヶ月未満。推移は掲載会社・都道府県の絞り込みだけを反映します。</p>
+      <div class="mr-chart" id="chart-s" data-source="trend"></div>
+    </div>
+    <div class="mr-card" id="card-trend-m">
+      <h2>掲載会社別のミドル利用料の推移</h2>
+      <p class="mr-note">ミドルは3〜7ヶ月未満。</p>
+      <div class="mr-chart" id="chart-m" data-source="trend"></div>
+    </div>
+    <div class="mr-card" id="card-trend-l">
+      <h2>掲載会社別のロング利用料の推移</h2>
+      <p class="mr-note">ロングは7〜12ヶ月未満。</p>
+      <div class="mr-chart" id="chart-l" data-source="trend"></div>
+    </div>
+    <div class="mr-grid">
+      <div class="mr-card" id="card-layout-share">
+        <h2>掲載会社別 間取り構成比</h2>
+        <p class="mr-note">最新日の掲載物件</p>
+        <div class="mr-chart mr-tall" id="chart-layout-share" data-mr-listings></div>
+      </div>
+      <div class="mr-card" id="card-size-share">
+        <h2>掲載会社別 広さ構成比</h2>
+        <p class="mr-note">最新日の掲載物件</p>
+        <div class="mr-chart mr-tall" id="chart-size-share" data-mr-listings></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mr-page" id="list" hidden>
+    <div class="mr-card" id="card-list">
+      <h2>物件別 料金・掲載状況一覧</h2>
+      <p class="mr-note">利用料はショートの1日あたり賃料＋光熱費。前日との差額は前日も掲載があった物件だけ出ます。</p>
+      <div class="mr-tools">
+        <input type="search" id="mr-q" placeholder="物件名・物件IDで検索" aria-label="物件を検索">
+        <span id="mr-count"></span>
+      </div>
+      <div class="mr-scroll">
+        <table class="mr-table" id="mr-list" data-row-key="id" data-mr-listings>
+          <thead><tr>
+            <th class="mr-th" data-field="id" data-sort="id" tabindex="0">物件ID</th>
+            <th class="mr-th" data-field="name" data-sort="name" tabindex="0">プラン名</th>
+            <th class="mr-th" data-field="company" data-sort="company" tabindex="0">掲載会社</th>
+            <th class="mr-th mr-num" data-field="s" data-sort="s" tabindex="0">利用料</th>
+            <th class="mr-th mr-num" data-field="diff" data-sort="diff" tabindex="0">前日との差額</th>
+            <th class="mr-th mr-num" data-field="rate" data-sort="rate" tabindex="0">変化率</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <button class="mr-more" id="mr-more" hidden>さらに表示</button>
+    </div>
+  </section>
+
+  <section class="mr-page" id="city" hidden>
+    <div class="mr-card" id="card-pivot-city">
+      <h2>市区別 平均利用料（ショート）</h2>
+      <p class="mr-note">掲載数（カッコ内はキャンペーン実施中の件数）と、ショート利用料の平均（円/日）。色が濃いほど高い。</p>
+      <div class="mr-scroll" id="pivot-city" data-mr-listings></div>
+    </div>
+    <div class="mr-card" id="card-pivot-station">
+      <h2>最寄駅別 平均利用料（ショート）</h2>
+      <p class="mr-note">最寄駅は物件の1つ目の駅。バス利用の物件は乗車駅で数えます。</p>
+      <div class="mr-scroll" id="pivot-station" data-mr-listings></div>
+    </div>
+  </section>
+
+  <section class="mr-page" id="count" hidden>
+    <div class="mr-grid">
+      <div class="mr-card" id="card-layout-count">
+        <h2>掲載会社別 掲載数（間取り）</h2>
+        <div class="mr-chart mr-tall" id="chart-layout-count" data-mr-listings></div>
+      </div>
+      <div class="mr-card" id="card-size-count">
+        <h2>掲載会社別 掲載数（広さ）</h2>
+        <div class="mr-chart mr-tall" id="chart-size-count" data-mr-listings></div>
+      </div>
+      <div class="mr-card" id="card-layout-share2">
+        <h2>掲載会社別 間取り構成比</h2>
+        <div class="mr-chart mr-tall" id="chart-layout-share2" data-mr-listings></div>
+      </div>
+      <div class="mr-card" id="card-size-share2">
+        <h2>掲載会社別 広さ構成比</h2>
+        <div class="mr-chart mr-tall" id="chart-size-share2" data-mr-listings></div>
+      </div>
+    </div>
+    <div class="mr-card" id="card-city-count">
+      <h2>市区別 掲載数</h2>
+      <p class="mr-note">掲載数の多い上位30市区</p>
+      <div class="mr-chart mr-tall" id="chart-city-count" data-mr-listings></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const AREA_NAME = { kanto: '関東', tokai: '東海', kansai: '関西' };
+  // エリアごとの比較対象 (Looker Studio 版のレポートと同じ顔ぶれ)。データにない会社は出ません。
+  const WATCH = {
+    kanto: ['アットイン', 'OneLife', 'BraTTo', 'マイナビ', 'トラスト', 'リブ・マックス', 'ユニオン', 'matsuri', 'GV-Rent'],
+    tokai: ['アットイン', 'BraTTo', 'リアルエスト', 'マイナビ', 'リブ・マックス'],
+    kansai: ['アットイン', 'stokedlife', 'BraTTo', 'アパルトマン', 'マイナビ', 'リブ・マックス'],
+  };
+  const SIZE_ORDER = ['～15㎡', '15～20㎡', '20～25㎡', '25～30㎡', '30～35㎡', '35～40㎡', '40～45㎡', '45～50㎡', '50～55㎡', '55～60㎡', '60㎡以上', '不明'];
+  const DIMS = [
+    ['co', 'company', '掲載会社'], ['pref', 'pref', '都道府県'], ['city', 'city', '市区町村'],
+    ['layout', 'layout', '間取り'], ['size', 'size', '広さ'], ['line', 'line', '路線名'], ['station', 'station', '最寄駅'],
+  ];
+  const fmt = d3.format(',');
+  const fmtSigned = (v) => (v > 0 ? '+' : '') + fmt(v);
+  const fmtPct = d3.format('+.1%');
+  const parseDay = (s) => new Date(s + 'T00:00:00Z');
+  const dayStr = d3.utcFormat('%Y-%m-%d');
+  const color = (i) => (i < 8 ? dash.colors[i] : `color-mix(in srgb, ${dash.colors[i % 8]} 50%, var(--color-panel))`);
+  const P = () => dash.params();
+  const listingsId = () => 'listings_' + (P().area || 'kanto');
+
+  // ---------- データの準備 ----------
+  const cache = {};
+  function listingRows() {
+    const id = listingsId();
+    const d = dash.data(id);
+    if (d.status !== 'ok') return { status: d.status, rows: [] };
+    if (cache[id]?.src !== d.data) {
+      const num = (v) => (v === '' || v == null ? null : Number(v));
+      cache[id] = {
+        src: d.data,
+        rows: d.data.map((r) => ({ ...r, cp: Number(r.cp), s: num(r.s), m: num(r.m), l: num(r.l), diff: num(r.diff), rate: num(r.rate), walk: num(r.walk) })),
+      };
+    }
+    return { status: 'ok', rows: cache[id].rows };
+  }
+
+  function companiesOf(rows) {
+    const counts = d3.rollups(rows, (v) => v.length, (r) => r.company).sort((a, b) => b[1] - a[1]);
+    return counts.map((c) => c[0]);
+  }
+  function selectedCompanies(rows) {
+    const present = new Set(rows.map((r) => r.company));
+    const co = P().co;
+    if (Array.isArray(co) && co.length) return co.filter((c) => present.has(c));
+    const watch = WATCH[P().area || 'kanto'].filter((c) => present.has(c));
+    return watch.length ? watch : companiesOf(rows).slice(0, 8);
+  }
+  function applyFilters(rows, except) {
+    const p = P();
+    const cos = new Set(selectedCompanies(rows));
+    return rows.filter((r) => {
+      if (except !== 'co' && !cos.has(r.company)) return false;
+      for (const [k, field] of DIMS) {
+        if (k === 'co' || k === except) continue;
+        const v = p[k];
+        if (Array.isArray(v) && v.length && !v.includes(r[field])) return false;
+      }
+      return true;
+    });
+  }
+
+  // ---------- 共通の部品 ----------
+  function tipFor(box) {
+    let tip = box.querySelector(':scope > .mr-tip');
+    if (!tip) { tip = document.createElement('div'); tip.className = 'mr-tip'; tip.hidden = true; box.appendChild(tip); }
+    return tip;
+  }
+  function showTip(box, tip, title, lines, x, y) {
+    tip.replaceChildren();
+    const b = document.createElement('b'); b.textContent = title; tip.appendChild(b);
+    for (const [c, name, val] of lines) {
+      const row = document.createElement('div');
+      if (c) { const i = document.createElement('i'); i.style.background = c; row.appendChild(i); }
+      const n = document.createElement('span'); n.textContent = name; row.appendChild(n);
+      const v = document.createElement('span'); v.textContent = val; row.appendChild(v);
+      tip.appendChild(row);
+    }
+    tip.hidden = false;
+    const W = box.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.max(0, Math.min(W - tw, x + 12)) + 'px';
+    tip.style.top = Math.max(0, y - th - 8) + 'px';
+  }
+  function legend(box, items) {
+    const lg = document.createElement('div');
+    lg.className = 'mr-legend';
+    for (const [name, c] of items) {
+      const s = document.createElement('span');
+      const i = document.createElement('i'); i.style.background = c;
+      s.append(i, document.createTextNode(name));
+      lg.appendChild(s);
+    }
+    box.appendChild(lg);
+  }
+  function emptyBox(box, text, fail) {
+    box.replaceChildren();
+    const e = document.createElement('div');
+    e.className = 'mr-empty' + (fail ? ' mr-fail' : '');
+    e.textContent = text;
+    box.appendChild(e);
+  }
+  function stateBox(box, status) {
+    box.classList.toggle('dash-skeleton', status === 'loading');
+    if (status === 'loading') { box.replaceChildren(); return true; }
+    if (status !== 'ok') { emptyBox(box, status === 'error' ? 'Failed to load' : '読み込めません', true); return true; }
+    return false;
+  }
+  function measure(svg, texts) {
+    const t = svg.append('text').attr('font-size', 'var(--cds-font-size-caption)').style('font-size', 'var(--cds-font-size-caption)');
+    let max = 0;
+    for (const s of texts) { t.text(s); max = Math.max(max, t.node().getComputedTextLength()); }
+    t.remove();
+    return max;
+  }
+  const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+  function styleAxis(g) {
+    g.attr('font-size', null).attr('font-family', null);
+    g.selectAll('text').attr('fill', 'var(--color-fg-muted)').style('font-size', 'var(--cds-font-size-caption)');
+    g.selectAll('.domain').attr('stroke', 'var(--cds-chart-axis)');
+    g.selectAll('.tick line').attr('stroke', 'var(--cds-chart-axis)');
+  }
+
+  // ---------- 折れ線（料金推移） ----------
+  function lineChart(box, series, from, to) {
+    box.replaceChildren();
+    const all = series.flatMap((s) => s.points.map((p) => p.v));
+    if (!all.length) { emptyBox(box, 'この期間・条件の料金データがありません'); return; }
+    legend(box, series.map((s) => [s.name, s.color]));
+    const W = Math.max(280, box.clientWidth), H = 260;
+    const svg = d3.select(box).append('svg').attr('width', '100%').attr('viewBox', `0 0 ${W} ${H}`).attr('height', H);
+    let [lo, hi] = d3.extent(all);
+    if (lo === hi) { lo -= 500; hi += 500; }
+    const pad = (hi - lo) * 0.08;
+    const y0 = d3.scaleLinear([lo - pad, hi + pad], [H - 26, 8]).nice();
+    const ticks = y0.ticks(6);
+    const ml = measure(svg, ticks.map(fmt)) + 10;
+    let x0 = from, x1 = to;
+    if (+x0 === +x1) { x0 = d3.utcDay.offset(x0, -1); x1 = d3.utcDay.offset(x1, 1); }
+    const x = d3.scaleUtc([x0, x1], [ml + 8, W - 12]);
+    const days = d3.utcDay.count(x0, x1) + 1;
+    const every = Math.max(1, Math.ceil(days / Math.max(2, Math.floor((W - ml) / 64))));
+    svg.append('g').attr('transform', `translate(${ml},0)`).call(d3.axisLeft(y0).tickValues(ticks).tickFormat(fmt).tickSize(-(W - ml - 12)))
+      .call(styleAxis).call((g) => { g.select('.domain').remove(); g.selectAll('.tick line').attr('stroke', 'var(--cds-chart-grid)'); });
+    svg.append('g').attr('transform', `translate(0,${H - 26})`).call(d3.axisBottom(x).ticks(d3.utcDay.every(every)).tickFormat(d3.utcFormat('%-m/%-d')).tickSizeOuter(0)).call(styleAxis);
+    const line = d3.line().x((p) => x(p.d)).y((p) => y0(p.v));
+    for (const s of series) {
+      if (s.points.length > 1) svg.append('path').attr('d', line(s.points)).attr('fill', 'none').attr('stroke', s.color).attr('stroke-width', 2).attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+      svg.append('g').selectAll('circle').data(s.points).join('circle').attr('cx', (p) => x(p.d)).attr('cy', (p) => y0(p.v)).attr('r', 3).attr('fill', s.color);
+    }
+    const dates = [...new Set(series.flatMap((s) => s.points.map((p) => +p.d)))].sort((a, b) => a - b);
+    const rule = svg.append('line').attr('y1', 8).attr('y2', H - 26).attr('stroke', 'var(--cds-chart-reference)').attr('visibility', 'hidden');
+    const tip = tipFor(box);
+    svg.append('rect').attr('x', ml).attr('y', 0).attr('width', W - ml).attr('height', H).attr('fill', 'transparent')
+      .on('mousemove', (ev) => {
+        const [mx] = d3.pointer(ev);
+        const t = +x.invert(mx);
+        const d = dates.reduce((a, b) => (Math.abs(b - t) < Math.abs(a - t) ? b : a), dates[0]);
+        rule.attr('x1', x(d)).attr('x2', x(d)).attr('visibility', 'visible');
+        const lines = series.map((s) => [s, s.points.find((p) => +p.d === d)]).filter(([, p]) => p).sort((a, b) => b[1].v - a[1].v)
+          .map(([s, p]) => [s.color, s.name, fmt(p.v) + '円']);
+        const [px, py] = d3.pointer(ev, box);
+        showTip(box, tip, d3.utcFormat('%Y年%-m月%-d日')(new Date(d)), lines, px, py);
+      })
+      .on('mouseleave', () => { rule.attr('visibility', 'hidden'); tip.hidden = true; });
+  }
+
+  // ---------- 積み上げ棒 ----------
+  function stacked(box, cats, keys, colors, get, opts = {}) {
+    box.replaceChildren();
+    if (!cats.length) { emptyBox(box, '条件に合う物件がありません'); return; }
+    legend(box, keys.map((k, i) => [k, colors[i]]));
+    const W = Math.max(280, box.clientWidth), H = opts.height || 300;
+    const svg = d3.select(box).append('svg').attr('width', '100%');
+    const totals = cats.map((c) => d3.sum(keys, (k) => get(c, k)));
+    const labels = cats.map((c) => clip(c, opts.clip || 8));
+    const yMax = opts.percent ? 1 : d3.max(totals) || 1;
+    const y = d3.scaleLinear([0, yMax], [H, 8]);
+    if (!opts.percent) y.nice();
+    const tf = opts.percent ? d3.format('.0%') : fmt;
+    const ticks = y.ticks(5);
+    const yw = measure(svg, ticks.map(tf)) + 10;
+    const lw = measure(svg, labels);
+    let band = (W - yw - 12) / cats.length;
+    const rotate = lw + 8 > band;
+    const rad = (40 * Math.PI) / 180;
+    const ml = Math.max(yw, rotate ? lw * Math.cos(rad) - band / 2 + 6 : 0);
+    const x = d3.scaleBand(cats, [ml, W - 12]).padding(0.28);
+    band = x.step();
+    const mb = rotate ? lw * Math.sin(rad) + 18 : 24;
+    const TH = H + mb;
+    svg.attr('viewBox', `0 0 ${W} ${TH}`).attr('height', TH);
+    svg.append('g').attr('transform', `translate(${ml},0)`).call(d3.axisLeft(y).tickValues(ticks).tickFormat(tf).tickSize(-(W - ml - 12)))
+      .call(styleAxis).call((g) => { g.select('.domain').remove(); g.selectAll('.tick line').attr('stroke', 'var(--cds-chart-grid)'); });
+    const ax = svg.append('g').attr('transform', `translate(0,${H})`).call(d3.axisBottom(x).tickFormat((c) => clip(c, opts.clip || 8)).tickSizeOuter(0)).call(styleAxis);
+    if (rotate) ax.selectAll('.tick text').attr('text-anchor', 'end').attr('dx', '-0.4em').attr('dy', '0.6em').attr('transform', 'rotate(-40)');
+    const tip = tipFor(box);
+    cats.forEach((c, ci) => {
+      let acc = 0;
+      const tot = totals[ci] || 1;
+      keys.forEach((k, ki) => {
+        const v = get(c, k);
+        if (!v) return;
+        const vv = opts.percent ? v / tot : v;
+        svg.append('rect').attr('x', x(c)).attr('width', x.bandwidth()).attr('y', y(acc + vv)).attr('height', Math.max(0, y(acc) - y(acc + vv))).attr('fill', colors[ki]);
+        acc += vv;
+      });
+      svg.append('rect').attr('x', x(c) - (x.step() - x.bandwidth()) / 2).attr('width', x.step()).attr('y', 0).attr('height', H).attr('fill', 'transparent')
+        .on('mousemove', (ev) => {
+          const lines = keys.map((k, ki) => [colors[ki], k, get(c, k)]).filter((l) => l[2]).reverse()
+            .map(([col, k, v]) => [col, k, opts.percent ? d3.format('.1%')(v / tot) : fmt(v) + '件']);
+          const [px, py] = d3.pointer(ev, box);
+          showTip(box, tip, `${c}（${fmt(totals[ci])}件）`, lines, px, py);
+        })
+        .on('mouseleave', () => { tip.hidden = true; });
+    });
+  }
+
+  function composition(box, rows, cos, field, percent) {
+    let keys;
+    if (field === 'size') keys = SIZE_ORDER.filter((s) => rows.some((r) => r.size === s));
+    else {
+      const ranked = d3.rollups(rows, (v) => v.length, (r) => r[field]).sort((a, b) => b[1] - a[1]).map((d) => d[0]);
+      keys = ranked.slice(0, 9);
+      if (ranked.length > 9) keys.push('その他');
+    }
+    const top = new Set(keys);
+    const key = (r) => (top.has(r[field]) ? r[field] : 'その他');
+    const counts = d3.rollup(rows, (v) => v.length, (r) => r.company, key);
+    const cats = cos.filter((c) => counts.has(c)).sort((a, b) => d3.sum(counts.get(b).values()) - d3.sum(counts.get(a).values()));
+    stacked(box, cats, keys, keys.map((_, i) => color(i)), (c, k) => counts.get(c)?.get(k) || 0, { percent, height: 280 });
+  }
+
+  // ---------- ピボット表 ----------
+  function pivot(box, rows, field, label, cos, accent) {
+    box.replaceChildren();
+    const data = rows.filter((r) => r[field]);
+    if (!data.length) { emptyBox(box, '条件に合う物件がありません'); return; }
+    const g = d3.rollup(data, (v) => ({ n: v.length, cp: d3.sum(v, (r) => r.cp), avg: d3.mean(v, (r) => r.s) }), (r) => r[field], (r) => r.company);
+    const cols = cos.filter((c) => data.some((r) => r.company === c));
+    const keys = [...g.keys()].sort((a, b) => d3.sum(g.get(b).values(), (d) => d.n) - d3.sum(g.get(a).values(), (d) => d.n)).slice(0, 200);
+    const avgs = keys.flatMap((k) => cols.map((c) => g.get(k).get(c)?.avg).filter((v) => v != null));
+    const [lo, hi] = d3.extent(avgs);
+    const nMax = d3.max(keys.flatMap((k) => cols.map((c) => g.get(k).get(c)?.n || 0)));
+    const table = document.createElement('table');
+    table.className = 'mr-table mr-pivot';
+    const thead = table.createTHead();
+    const r1 = thead.insertRow(), r2 = thead.insertRow();
+    const h0 = document.createElement('th'); h0.rowSpan = 2; h0.textContent = label; r1.appendChild(h0);
+    for (const c of cols) {
+      const th = document.createElement('th'); th.colSpan = 2; th.className = 'mr-co'; th.textContent = c; r1.appendChild(th);
+      const a = document.createElement('th'); a.className = 'mr-num mr-gs'; a.textContent = '掲載数（CP）';
+      const b = document.createElement('th'); b.className = 'mr-num'; b.textContent = 'S利用料（平均）';
+      r2.append(a, b);
+    }
+    const tb = table.createTBody();
+    for (const k of keys) {
+      const tr = tb.insertRow();
+      const td0 = tr.insertCell(); td0.textContent = k; td0.title = k;
+      for (const c of cols) {
+        const d = g.get(k).get(c);
+        const a = tr.insertCell(); a.className = 'mr-num mr-gs';
+        const b = tr.insertCell(); b.className = 'mr-num';
+        if (!d) { a.textContent = '-'; b.textContent = '-'; continue; }
+        a.textContent = `${fmt(d.n)}（${fmt(d.cp)}）`;
+        a.style.background = `color-mix(in srgb, var(--color-fg-muted) ${Math.round(4 + 22 * (d.n / nMax))}%, transparent)`;
+        if (d.avg == null) { b.textContent = '-'; continue; }
+        b.textContent = fmt(Math.round(d.avg));
+        const t = hi > lo ? (d.avg - lo) / (hi - lo) : 0.5;
+        b.style.background = `color-mix(in srgb, ${accent} ${Math.round(14 + 56 * t)}%, transparent)`;
+      }
+    }
+    box.appendChild(table);
+  }
+
+  // ---------- 物件一覧 ----------
+  let listSort = { key: 'rate', dir: -1 };
+  let listLimit = 300;
+  function drawList(rows) {
+    const table = document.getElementById('mr-list');
+    const q = document.getElementById('mr-q').value.trim().toLowerCase();
+    let data = q ? rows.filter((r) => r.id.includes(q) || r.name.toLowerCase().includes(q)) : rows;
+    const { key, dir } = listSort;
+    const val = (r) => r[key];
+    data = data.slice().sort((a, b) => {
+      const va = val(a), vb = val(b);
+      if (va == null && vb == null) return (b.s ?? -1) - (a.s ?? -1);
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      const c = typeof va === 'number' ? va - vb : String(va).localeCompare(String(vb), 'ja');
+      return c ? c * dir : (b.s ?? -1) - (a.s ?? -1);
+    });
+    for (const th of table.querySelectorAll('th[data-sort]')) th.setAttribute('aria-sort', th.dataset.sort === key ? (dir > 0 ? 'ascending' : 'descending') : 'none');
+    const tb = table.tBodies[0];
+    tb.replaceChildren();
+    for (const r of data.slice(0, listLimit)) {
+      const tr = tb.insertRow();
+      tr.dataset.key = r.id;
+      tr.insertCell().textContent = r.id;
+      const n = tr.insertCell(); n.className = 'mr-name';
+      const a = document.createElement('a');
+      a.href = 'https://www.good-monthly.com/detail/?bukken_no=' + encodeURIComponent(r.id);
+      a.target = '_blank'; a.rel = 'noopener';
+      a.textContent = r.name;
+      n.appendChild(a);
+      tr.insertCell().textContent = r.company;
+      const s = tr.insertCell(); s.className = 'mr-num'; s.textContent = r.s == null ? '-' : fmt(r.s);
+      const d = tr.insertCell(); d.className = 'mr-num'; d.textContent = r.diff == null ? '-' : fmtSigned(r.diff);
+      if (r.diff) d.classList.add(r.diff > 0 ? 'mr-up' : 'mr-down');
+      const p = tr.insertCell(); p.className = 'mr-num'; p.textContent = r.rate == null ? '-' : r.rate === 0 ? '0%' : fmtPct(r.rate);
+      if (r.rate) p.classList.add(r.rate > 0 ? 'mr-up' : 'mr-down');
+    }
+    document.getElementById('mr-count').textContent = `${fmt(Math.min(listLimit, data.length))} / ${fmt(data.length)}件を表示`;
+    const more = document.getElementById('mr-more');
+    more.hidden = data.length <= listLimit;
+  }
+  document.getElementById('mr-list').tHead.addEventListener('click', (ev) => {
+    const th = ev.target.closest('th[data-sort]');
+    if (!th) return;
+    const k = th.dataset.sort;
+    listSort = { key: k, dir: listSort.key === k ? -listSort.dir : ['s', 'diff', 'rate'].includes(k) ? -1 : 1 };
+    render();
+  });
+  document.getElementById('mr-list').tHead.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); ev.target.click(); }
+  });
+  document.getElementById('mr-q').addEventListener('input', () => { listLimit = 300; render(); });
+  document.getElementById('mr-more').addEventListener('click', () => { listLimit += 500; render(); });
+
+  // ---------- 絞り込み ----------
+  const filterBox = document.getElementById('mr-filters');
+  const filterEls = {};
+  for (const [k, field, label] of DIMS) {
+    const det = document.createElement('details');
+    det.className = 'mr-f';
+    det.id = 'filter-' + k;
+    const sum = document.createElement('summary');
+    const l = document.createElement('span'); l.textContent = label;
+    const v = document.createElement('span'); v.className = 'mr-fv';
+    sum.append(l, v);
+    const pop = document.createElement('div'); pop.className = 'mr-pop';
+    const q = document.createElement('input'); q.type = 'search'; q.placeholder = '検索'; q.id = 'filter-q-' + k; q.setAttribute('aria-label', label + 'を検索');
+    const opts = document.createElement('div'); opts.className = 'mr-opts';
+    const act = document.createElement('div'); act.className = 'mr-popact';
+    const clear = document.createElement('button'); clear.className = 'mr-link';
+    clear.textContent = k === 'co' ? '標準の顔ぶれに戻す' : 'すべて表示';
+    clear.addEventListener('click', () => dash.setParams({ [k]: k === 'co' ? null : [] }));
+    act.appendChild(clear);
+    pop.append(q, opts, act);
+    det.append(sum, pop);
+    det.addEventListener('toggle', () => {
+      if (det.open) for (const o of Object.values(filterEls)) if (o.det !== det) o.det.open = false;
+      if (det.open) fillOptions(k);
+    });
+    q.addEventListener('input', () => fillOptions(k));
+    filterBox.appendChild(det);
+    filterEls[k] = { det, v, opts, q, field, label };
+  }
+  const reset = document.createElement('button');
+  reset.className = 'mr-link'; reset.textContent = '絞り込みをリセット';
+  reset.addEventListener('click', () => dash.setParams({ co: null, pref: [], city: [], layout: [], size: [], line: [], station: [] }));
+  filterBox.appendChild(reset);
+  document.addEventListener('click', (ev) => {
+    if (!ev.target.closest('.mr-f')) for (const o of Object.values(filterEls)) o.det.open = false;
+  });
+
+  function currentList(k, rows) {
+    if (k === 'co') return selectedCompanies(rows);
+    const v = P()[k];
+    return Array.isArray(v) ? v : [];
+  }
+  function fillOptions(k) {
+    const { rows, status } = listingRows();
+    const o = filterEls[k];
+    o.opts.replaceChildren();
+    if (status !== 'ok') return;
+    const base = applyFilters(rows, k);
+    let counts = d3.rollups(base, (v) => v.length, (r) => r[o.field]).filter((d) => d[0]);
+    if (k === 'size') counts.sort((a, b) => SIZE_ORDER.indexOf(a[0]) - SIZE_ORDER.indexOf(b[0]));
+    else counts.sort((a, b) => b[1] - a[1]);
+    const chosen = new Set(currentList(k, rows));
+    const term = o.q.value.trim();
+    if (term) counts = counts.filter((d) => d[0].includes(term));
+    for (const [name, n] of counts.slice(0, 400)) {
+      const lab = document.createElement('label');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = chosen.has(name);
+      cb.addEventListener('change', () => {
+        const now = new Set(currentList(k, listingRows().rows));
+        if (cb.checked) now.add(name); else now.delete(name);
+        dash.setParams({ [k]: [...now] });
+      });
+      const t = document.createElement('span'); t.textContent = name;
+      const c = document.createElement('span'); c.textContent = fmt(n);
+      lab.append(cb, t, c);
+      o.opts.appendChild(lab);
+    }
+  }
+  function drawFilterLabels(rows) {
+    for (const [k] of DIMS) {
+      const o = filterEls[k];
+      const list = currentList(k, rows);
+      const on = k === 'co' ? Array.isArray(P().co) && P().co.length > 0 : list.length > 0;
+      o.det.dataset.on = on ? '1' : '0';
+      o.v.textContent = k === 'co' ? `${list.length}社` : list.length ? (list.length === 1 ? list[0] : `${list.length}件`) : 'すべて';
+      if (o.det.open) fillOptions(k);
+    }
+  }
+
+  // ---------- エリア・ページ・期間 ----------
+  document.getElementById('mr-areas').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-area]');
+    if (b) dash.setParams({ area: b.dataset.area, co: null, pref: [], city: [], layout: [], size: [], line: [], station: [] });
+  });
+  document.getElementById('mr-tabs').addEventListener('click', (ev) => {
+    const b = ev.target.closest('button[data-page]');
+    if (b) { dash.setParams({ page: b.dataset.page }); dash.setLink(b.dataset.page); }
+  });
+  const fromEl = document.getElementById('mr-from'), toEl = document.getElementById('mr-to');
+  for (const [el, k] of [[fromEl, 'from'], [toEl, 'to']]) {
+    el.addEventListener('change', () => { if (el.value && el.validity.valid) dash.setParams({ [k]: el.value }); });
+    el.addEventListener('blur', () => render());
+  }
+  const pages = ['price', 'list', 'city', 'count'];
+  const hashPage = location.hash.slice(1);
+  if (pages.includes(hashPage)) dash.setParams({ page: hashPage });
+
+  // ---------- 描画 ----------
+  function render() {
+    const p = P();
+    const area = p.area || 'kanto';
+    const page = pages.includes(p.page) ? p.page : 'price';
+    for (const b of document.querySelectorAll('#mr-areas button')) b.setAttribute('aria-selected', b.dataset.area === area);
+    for (const b of document.querySelectorAll('#mr-tabs button')) b.setAttribute('aria-selected', b.dataset.page === page);
+    for (const id of pages) document.getElementById(id).hidden = id !== page;
+    const lid = listingsId();
+    for (const el of document.querySelectorAll('[data-mr-listings]')) el.setAttribute('data-source', lid);
+
+    const { rows, status } = listingRows();
+    const sub = document.getElementById('mr-sub');
+    sub.classList.toggle('dash-skeleton', status === 'loading');
+    drawFilterLabels(rows);
+    const cos = status === 'ok' ? selectedCompanies(rows) : [];
+    const filtered = status === 'ok' ? applyFilters(rows) : [];
+    if (status === 'ok') {
+      const tr = dash.data('trend');
+      const last = tr.status === 'ok' ? d3.max(tr.data, (r) => r.date) : null;
+      sub.textContent = `${AREA_NAME[area]}エリア ${fmt(rows.length)}件中、条件に合う ${fmt(filtered.length)}件（${cos.length}社）${last ? ` · ${last.replaceAll('-', '/')} 時点` : ''}`;
+    } else sub.textContent = status === 'loading' ? '' : 'データを読み込めませんでした';
+
+    const coColor = new Map(cos.map((c, i) => [c, color(i)]));
+
+    if (page === 'price') {
+      const tr = dash.data('trend');
+      const boxes = ['s', 'm', 'l'].map((k) => document.getElementById('chart-' + k));
+      if (tr.status !== 'ok' || status !== 'ok') {
+        for (const b of boxes) stateBox(b, tr.status !== 'ok' ? tr.status : status);
+      } else {
+        for (const b of boxes) b.classList.remove('dash-skeleton');
+        const prefs = Array.isArray(p.pref) && p.pref.length ? new Set(p.pref) : null;
+        const areaRows = tr.data.filter((r) => r.area === area && (!prefs || prefs.has(r.pref)) && coColor.has(r.company));
+        const dates = [...new Set(tr.data.map((r) => r.date))].sort();
+        const maxD = dates[dates.length - 1], minD = dates[0];
+        fromEl.min = toEl.min = minD; fromEl.max = toEl.max = maxD;
+        const to = p.to && p.to <= maxD ? p.to : maxD;
+        const defFrom = dayStr(d3.utcDay.offset(parseDay(to), -13));
+        const from = p.from && p.from <= to ? p.from : (defFrom < minD ? minD : defFrom);
+        if (document.activeElement !== fromEl) fromEl.value = from;
+        if (document.activeElement !== toEl) toEl.value = to;
+        const inRange = areaRows.filter((r) => r.date >= from && r.date <= to);
+        for (const k of ['s', 'm', 'l']) {
+          const agg = d3.rollup(inRange, (v) => {
+            const n = d3.sum(v, (r) => Number(r[k + '_n']));
+            return n ? Math.round(d3.sum(v, (r) => Number(r[k + '_sum'])) / n) : null;
+          }, (r) => r.company, (r) => r.date);
+          const series = cos.filter((c) => agg.has(c)).map((c) => ({
+            name: c, color: coColor.get(c),
+            points: [...agg.get(c)].filter(([, v]) => v != null).map(([d, v]) => ({ d: parseDay(d), v })).sort((a, b) => a.d - b.d),
+          }));
+          lineChart(document.getElementById('chart-' + k), series, parseDay(from), parseDay(to));
+        }
+      }
+      for (const [id, field] of [['chart-layout-share', 'layout'], ['chart-size-share', 'size']]) {
+        const box = document.getElementById(id);
+        if (!stateBox(box, status)) composition(box, filtered, cos, field, true);
+      }
+    }
+
+    if (page === 'list') {
+      const table = document.getElementById('mr-list');
+      table.classList.toggle('dash-skeleton', status === 'loading');
+      if (status === 'ok') drawList(filtered);
+      else { table.tBodies[0].replaceChildren(); document.getElementById('mr-count').textContent = ''; }
+    }
+
+    if (page === 'city') {
+      for (const [id, field, label, ci] of [['pivot-city', 'city', '市区町村', 2], ['pivot-station', 'station', '最寄駅', 1]]) {
+        const box = document.getElementById(id);
+        if (!stateBox(box, status)) pivot(box, filtered, field, label, cos, dash.colors[ci]);
+      }
+    }
+
+    if (page === 'count') {
+      for (const [id, field, pct] of [['chart-layout-count', 'layout', false], ['chart-size-count', 'size', false], ['chart-layout-share2', 'layout', true], ['chart-size-share2', 'size', true]]) {
+        const box = document.getElementById(id);
+        if (!stateBox(box, status)) composition(box, filtered, cos, field, pct);
+      }
+      const box = document.getElementById('chart-city-count');
+      if (!stateBox(box, status)) {
+        const counts = d3.rollup(filtered, (v) => v.length, (r) => r.city, (r) => r.company);
+        const cities = [...counts.keys()].sort((a, b) => d3.sum(counts.get(b).values()) - d3.sum(counts.get(a).values())).slice(0, 30);
+        const keys = cos.filter((c) => filtered.some((r) => r.company === c));
+        stacked(box, cities, keys, keys.map((c) => coColor.get(c)), (city, c) => counts.get(city)?.get(c) || 0, { height: 300, clip: 9 });
+      }
+    }
+  }
+
+  dash.onData(render);
+})();
+</script>
