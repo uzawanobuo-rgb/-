@@ -1,4 +1,5 @@
 <style>
+#dash-root .mr [hidden] { display: none !important; }
 #dash-root .mr { font-family: var(--font-anthropic-sans); display: grid; gap: var(--cds-gap-lg); min-width: 0; }
 .mr-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: var(--cds-gap-md); }
 .mr-head h1 { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; text-wrap: balance; }
@@ -28,7 +29,7 @@
 .mr-link { all: unset; cursor: pointer; font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); text-decoration: underline; }
 .mr-link:focus-visible { outline: 2px solid var(--color-fg); }
 .mr-page { display: grid; gap: var(--cds-gap-md); min-width: 0; }
-.mr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 24rem), 1fr)); gap: var(--cds-gap-md); }
+.mr-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 30rem), 1fr)); gap: var(--cds-gap-md); }
 .mr-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; position: relative; display: grid; gap: var(--cds-gap-sm); align-content: start; }
 .mr-card h2 { margin: 0; font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); }
 .mr-note { margin: 0; color: var(--color-fg-muted); font-size: var(--cds-font-size-caption); }
