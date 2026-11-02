@@ -94,7 +94,7 @@
     })().catch(e => alert('取得に失敗しました: ' + e));
   }
   root.AtinnPlanBM = planBookmarkletMain;
-  // ブックマークから読み込まれたときだけ実行する。ツールの場所は、このファイルの場所から求める
+  // ブックマークから読み込まれたときだけ実行する。ツールの場所は、このファイルの場所から求める（フォルダではなく index.html を開く）
   const cs = typeof document !== 'undefined' && document.currentScript;
-  if (cs && cs.dataset && cs.dataset.run) planBookmarkletMain(new URL('../', cs.src.split('?')[0]).href);
+  if (cs && cs.dataset && cs.dataset.run) planBookmarkletMain(new URL('../index.html', cs.src.split('?')[0]).href);
 })(typeof window !== 'undefined' ? window : globalThis);
