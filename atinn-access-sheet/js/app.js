@@ -147,7 +147,8 @@
   // 社内サーバーなど http で開いているときは、https の公式サイトから本体を読み込めない（ブラウザが止める）ので、
   // 本体をそのまま埋め込み、ツールの場所だけを渡す（本体を直したときは登録し直しが必要）。
   const LOADABLE = location.protocol === 'https:';
-  const TOOL_URL = /^https?:$/.test(location.protocol) ? new URL('./', location.href.split('#')[0]).href : '';
+  // フォルダ（…/access-sheet/）だと index.html を返さないサーバーがあるので、ページそのもの（…/index.html）を指す
+  const TOOL_URL = /^https?:$/.test(location.protocol) ? new URL('index.html', location.href.split('#')[0].split('?')[0]).href : '';
   const BOOKMARKLET = LOADABLE
     ? loaderFor('js/bm-atinn.js')
     : 'javascript:' + encodeURIComponent('(' + window.AtinnPlanBM.toString() + ')(' + JSON.stringify(TOOL_URL) + ')');
