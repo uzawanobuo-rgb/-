@@ -64,10 +64,24 @@
   .bar-in b { font-size:16px; }
   .bar button { min-height:40px; font-size:14px; padding:6px 12px; }
 
+  /* 印刷はA4縦1枚に収まるよう詰める */
+  @page { size:A4 portrait; margin:12mm; }
   @media print {
-    body { background:#fff; }
+    body { background:#fff; font-size:12px; }
+    main { max-width:none; padding:0; }
+    h1 { font-size:17px; margin:0 0 6px; }
+    h2 { font-size:13px; margin:0 0 4px; }
     .no-print, .bar, button { display:none !important; }
-    section { box-shadow:none; padding:0 0 8px; }
+    section { box-shadow:none; padding:0; margin-bottom:8px; border-radius:0; }
+    .total-input input { border:0; padding:0; min-height:0; font-size:16px; text-align:left; width:9em; field-sizing:content; }
+    .total-input { justify-content:flex-start; }
+    .unit { padding:5px 8px; font-size:12px; margin-bottom:4px; }
+    .unit b { font-size:13px; }
+    .res { padding:4px 0; break-inside:avoid; }
+    .res .amt { font-size:14px; }
+    .res .detail, .res .pct { font-size:11px; }
+    .res-total { padding:6px 0 0; font-size:14px; }
+    .note { font-size:10.5px; margin:4px 0 0; }
   }
 </style>
 </head>
