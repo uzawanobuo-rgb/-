@@ -154,6 +154,17 @@
     return `<div style="font-size:${size}px;line-height:1.35;font-weight:700;color:#C4531A;margin-top:2px;min-width:0;"><div>※キャンペーン価格</div>
 ${fitLine(t, size, '#C4531A', 700)}</div>`;
   }
+  // 1ヶ月未満のご利用の注記（提案書に出す）と、ツールの注意
+  function shortNote(SH, coIn, warnings) {
+    if (!SH) return '';
+    const md = x => { const d = new Date(Calc.parse(x)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
+    if (SH.ng) warnings.push(`1ヶ月未満のご利用：本日からのご契約は最短 ${md(SH.earliest)} までのため、チェックアウト ${md(coIn)} ではなく ${md(SH.earliest)} までの料金で計算しています（見積りは本日限り）`);
+    else warnings.push(`1ヶ月未満のご利用：ご契約は ${md(SH.start)}〜${md(SH.end)}（${SH.contractDays}日間）、ご請求は ${md(SH.billFrom)}〜${md(SH.billEnd)}（${SH.billDays}日間）で計算しています（見積りは本日限り）`);
+    return SH.ng
+      ? `※1ヶ月未満のご利用です。ご契約は最短1ヶ月のため、本日からのご契約は ${md(SH.start)}〜${md(SH.end)} となり、料金は ${md(SH.billFrom)}〜${md(SH.billEnd)}（${SH.billDays}日間）で計算しています。`
+      : `※1ヶ月未満のご利用です。ご契約は最短1ヶ月のため ${md(SH.start)}〜${md(SH.end)}（${SH.contractDays}日間）となり、ご使用されない期間（${md(SH.start)}〜${md(Calc.addDays(SH.billFrom, -1))}）のご利用料金はご請求時にお値引きします。`;
+  }
+
   // 利用期間がキャンペーン条件に当てはまらないときの注意（ツールの画面だけに出す）
   function campaignWarn(state, prop, ci, co, who, warnings) {
     const pv = prop.price || {};
@@ -200,7 +211,12 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
     const prop = p1.property || {};
     const resolve = makeResolver(state);
     const ci = state.checkIn || Calc.defaultCheckIn();
-    const co = state.checkOut || Calc.addDays(ci, 29);
+    const coIn = state.checkOut || Calc.addDays(ci, 29);
+    // 1ヶ月未満のご利用：契約は最短1ヶ月。料金はチェックインから契約終了日までで計算する
+    let SH = null;
+    try { SH = Calc.shortStay(ci, coIn, Calc.todayStr()); } catch (e) { SH = null; }
+    const co = SH ? SH.billEnd : coIn;
+    const stayNote = shortNote(SH, coIn, warnings);
 
     // 主要駅の選定：上限（初期値30分）を超える駅を外し、短い順に3つ
     const limit = n(p1.maxMin) || 30;
@@ -229,20 +245,6 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
     // 主な設備（メリットになるもの）。あれば地図の下に1行で出し、そのぶん地図を低くする
     const facs = meritFacilities(prop);
     if (prop.name && !prop.equipmentChecked) warnings.push('主な設備を出すには、プランページでもう一度「🏠プラン取込」を押してください（設備の「ある・なし」を読み取ります）');
-    const mapW = PORTRAIT ? PMAP : 1043, mapH = PORTRAIT ? 560 : 468; // 設備は地図の空いている場所に出す
-    let svg = '';
-    if (center) {
-      const routes = selected.map((x, i) => {
-        const mr = mapRoute(x.r, x.info, resolve, x.ms.name, x.ms, warnings, x.ms.name);
-        mr.callout = { title: x.ms.name, minutes: x.info.display, transfers: x.info.transfers };
-        mr.target = x.ms;
-        return mr;
-      });
-      svg = MapM.renderMap({ width: mapW, height: mapH, mode: 'p1', ring: AREA.ring, center, routes, facilities: facs, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
-    } else {
-      svg = `<svg width="${mapW}" height="${mapH}"><rect width="${mapW}" height="${mapH}" fill="#FBFAF6"/><text x="${mapW / 2}" y="${mapH / 2}" text-anchor="middle" font-size="16" fill="#8C959B">物件の座標を入力すると路線図が表示されます</text></svg>`;
-    }
-
     // 見出し
     const maxMin = selected.length ? Math.max.apply(null, selected.map(x => x.info.display)) : 30;
     const allCentral = selected.every(x => AREA.central.includes(x.ms.name));
@@ -294,7 +296,24 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const optLine = optN.length ? `<div>${esc(`※総額にはオプション（${optN.join('・')}）を含みます。`)}</div>` : '';
     const exP1 = excludedText([{ who: '', o: price && price.options }]);
     const exLine = exP1 ? `<div style="color:#C4531A;">${esc(exP1).replace(/\n/g, '<br>')}</div>` : '';
-    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${optLine}${exLine}${esc(state.note || autoNote)}</div>`;
+    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${stayNote ? `<div style="color:#C4531A;">${esc(stayNote)}</div>` : ''}${optLine}${exLine}${esc(state.note || autoNote)}</div>`;
+
+    // 注記が2行を超えるとき（1ヶ月未満・オプションの注意など）は、その分だけ地図を低くして料金の枠と重ならないようにする
+    const p1NoteLines = [stayNote, optN.length ? `※総額にはオプション（${optN.join('・')}）を含みます。` : '', ...exP1.split('\n'), state.note || autoNote]
+      .filter(Boolean).reduce((t, x) => t + Math.ceil(MapM.textW(x, 11) / 1043), 0);
+    const mapW = PORTRAIT ? PMAP : 1043, mapH = PORTRAIT ? 560 : 468 - Math.max(0, p1NoteLines - 2) * 16; // 設備は地図の空いている場所に出す
+    let svg = '';
+    if (center) {
+      const routes = selected.map((x, i) => {
+        const mr = mapRoute(x.r, x.info, resolve, x.ms.name, x.ms, warnings, x.ms.name);
+        mr.callout = { title: x.ms.name, minutes: x.info.display, transfers: x.info.transfers };
+        mr.target = x.ms;
+        return mr;
+      });
+      svg = MapM.renderMap({ width: mapW, height: mapH, mode: 'p1', ring: AREA.ring, center, routes, facilities: facs, ariaLabel: `物件から${selected.map(x => x.ms.name).join('・')}への路線概要図` });
+    } else {
+      svg = `<svg width="${mapW}" height="${mapH}"><rect width="${mapW}" height="${mapH}" fill="#FBFAF6"/><text x="${mapW / 2}" y="${mapH / 2}" text-anchor="middle" font-size="16" fill="#8C959B">物件の座標を入力すると路線図が表示されます</text></svg>`;
+    }
 
     const html = frame(header(title, sub, right) + panel(svg, mapH, '物件') + bottom + note);
     return { html, warnings, model: { title: autoTitle, sub: `${prop.name || '物件'}から主要駅へのアクセス概要図`, note: autoNote, selected: selected.map(x => x.ms.name), price, facilities: facs } };
@@ -335,7 +354,12 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const destName = p2.destName || '目的地';
     const label = p2.destLabel || 'お勤め先';
     const ci = state.checkIn || Calc.defaultCheckIn();
-    const co = state.checkOut || Calc.addDays(ci, 29);
+    const coIn = state.checkOut || Calc.addDays(ci, 29);
+    // 1ヶ月未満のご利用：契約は最短1ヶ月。料金はチェックインから契約終了日までで計算する
+    let SH = null;
+    try { SH = Calc.shortStay(ci, coIn, Calc.todayStr()); } catch (e) { SH = null; }
+    const co = SH ? SH.billEnd : coIn;
+    const stayNote = shortNote(SH, coIn, warnings);
     const props = (p2.properties || []).filter(p => p && (p.name || p.planUrl || p.lat));
     const letters = ['A', 'B', 'C', 'D', 'E'];
 
@@ -372,10 +396,10 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     const optLine = optNames.length ? `<div>${esc(`※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。`)}</div>` : '';
     const exP2 = excludedText(items.map(x => ({ who: x.letter, o: x.price && x.price.options })));
     const exLine = exP2 ? `<div style="color:#C4531A;">${esc(exP2).replace(/\n/g, '<br>')}</div>` : '';
-    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${optLine}${exLine}${esc(state.note || autoNote)}</div>`;
+    const note = `<div style="font-size:11px;color:#8C959B;line-height:1.4;">${stayNote ? `<div style="color:#C4531A;">${esc(stayNote)}</div>` : ''}${optLine}${exLine}${esc(state.note || autoNote)}</div>`;
 
     // 注記が3行以上になるとき（オプション・長い手入力の注記など）は、その分だけ地図を低くして、下の物件カードと重ならないようにする
-    const noteLines = [optNames.length ? `※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。` : '', ...exP2.split('\n'), state.note || autoNote]
+    const noteLines = [stayNote, optNames.length ? `※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。` : '', ...exP2.split('\n'), state.note || autoNote]
       .filter(Boolean).reduce((t, x) => t + Math.ceil(MapM.textW(x, 11) / 1043), 0);
     const mapHL = 440 - (PORTRAIT ? 0 : Math.max(0, noteLines - 2) * 16);
     // 4・5件目は、地図の右側に重ねて置く（下の段の C の上。4件のときは下の場所だけ使う）

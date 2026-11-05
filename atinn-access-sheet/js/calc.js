@@ -148,7 +148,33 @@
     return '';
   }
 
-  const M = { parseDateInput, showDate, campaignWindow, campaignMismatch, parse, fmt, addDays, daysInclusive, addMonthsClamp, insuranceMonths, calcPrice, planOneThree, defaultCheckIn, todayStr, num, yen };
+  // 1ヶ月未満のご利用（見積りExcel【一般用】(1ヶ月未満) と同じ決まり）
+  //   ・利用日数がチェックインした月の日数より少なければ「1ヶ月未満」
+  //   ・ご契約は最短1ヶ月：チェックアウト日を契約終了日とし、その1ヶ月前からを契約期間にする
+  //   ・ご請求はチェックインから契約終了日まで（使わない期間は請求時に値引き）
+  //   ・チェックアウトが「今日から1ヶ月後の前日」より前なら契約NG：契約は今日から最短終了日まで、請求も最短終了日まで
+  // 1ヶ月未満でなければ null（契約開始日がチェックインと同じになる場合も、ふつうの見積りと同じなので null）
+  function shortStay(ci, co, today) {
+    const days = daysInclusive(ci, co);
+    const d0 = new Date(parse(ci));
+    const dim = new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth() + 1, 0)).getUTCDate();
+    if (!(days < dim)) return null;
+    const t = today || todayStr();
+    if (parse(ci) < parse(t)) return null; // チェックインが過去（見本・前の見積り）なら当てはめない
+    const earliest = addDays(addMonthsClamp(t, 1), -1); // 契約できる最短の終了日
+    const ng = parse(co) < parse(earliest);
+    const end = ng ? earliest : co;
+    // 契約の長さ：終了日が月末ならその月の日数、そうでなければ前の月の日数（Excel の Z19）
+    const de = new Date(parse(end));
+    const y = de.getUTCFullYear(), m = de.getUTCMonth();
+    const monthEnd = new Date(Date.UTC(y, m + 1, 0)).getUTCDate() === de.getUTCDate();
+    const len = monthEnd ? de.getUTCDate() : new Date(Date.UTC(y, m, 0)).getUTCDate();
+    const start = ng ? t : addDays(end, -(len - 1));
+    if (!ng && parse(start) >= parse(ci)) return null;
+    return { start, end, contractDays: daysInclusive(start, end), billFrom: ci, billEnd: end, billDays: daysInclusive(ci, end), ng, earliest, today: t };
+  }
+
+  const M = { parseDateInput, showDate, shortStay, campaignWindow, campaignMismatch, parse, fmt, addDays, daysInclusive, addMonthsClamp, insuranceMonths, calcPrice, planOneThree, defaultCheckIn, todayStr, num, yen };
   if (typeof module === 'object' && module.exports) module.exports = M;
   else root.AtinnCalc = M;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

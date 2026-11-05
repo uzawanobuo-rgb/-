@@ -15,10 +15,12 @@
   }
 
   // 期間：パターン1・2共通の利用期間（未入力なら翌月1日から30日間）
-  function period(state) {
+  // 1ヶ月未満のご利用なら sh に契約期間・請求期間が入る（Excel【一般用】(1ヶ月未満) と同じ）
+  function period(state, today) {
     const ci = state.checkIn || Calc.defaultCheckIn();
-    const co = state.checkOut || Calc.addDays(ci, 29);
-    return { ci, co };
+    const coIn = state.checkOut || Calc.addDays(ci, 29);
+    const sh = Calc.shortStay(ci, coIn, today || Calc.todayStr());
+    return { ci, co: sh ? sh.billEnd : coIn, sh };
   }
 
   function block(prop, ci, co, state) {
@@ -64,10 +66,12 @@
   }
 
   function buildMailText(state, today) {
-    const { ci, co } = period(state);
+    const t = today || Calc.todayStr();
+    const { ci, co, sh } = period(state, t);
     const persons = Math.max(1, Math.round(Calc.num(state.persons) || 1));
     const days = Calc.daysInclusive(ci, co);
-    const until = Calc.addDays(today || Calc.todayStr(), 6);
+    // 1ヶ月未満は契約開始日が今日で決まるので、見積りの有効期限は本日
+    const until = sh ? t : Calc.addDays(t, 6);
     const out = [
       '◯ご利用期間',
       `${W}チェックイン${W}：${ymd(ci)}(10時)`,
@@ -76,6 +80,23 @@
       `※見積り有効期限： ${ymd(until)}`,
       W,
     ];
+    if (sh) {
+      const md = x => ymd(x).slice(5, 10);
+      out.push(
+        '●ご契約期間＿1ヶ月未満ご利用の場合',
+        `${W}契約開始日${W}：${ymd(sh.start)}(10時)`,
+        `${W}契約終了日${W}：${ymd(sh.end)}(15時)`,
+        `${W}${W}【合計：${yen(sh.contractDays)}日間】`,
+        W,
+      );
+      if (sh.ng) {
+        out.push('※ご契約は最短1ヶ月よりご案内をさせていただいております。');
+        out.push(`※本日でご契約が可能な契約は上記契約期間（最短終了日は${ymd(sh.earliest)}）となります。`);
+      }
+      if (Calc.parse(sh.start) < Calc.parse(ci)) out.push(`※ご使用されない期間（${md(sh.start)}～${md(Calc.addDays(ci, -1))}）のご利用料金はご請求時にお値引きをさせていただきます。`);
+      if (sh.ng) out.push('※お申込み日が本日以降となった場合は、ご契約最短終了日も同じく変更となりますのでご了承ください。');
+      out.push(W);
+    }
     const props = state.pattern === 'p2'
       ? (state.p2.properties || []).filter(p => p && (p.name || p.planName))
       : [state.p1.property].filter(p => p && (p.name || p.planName));
