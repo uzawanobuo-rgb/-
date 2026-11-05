@@ -41,3 +41,14 @@ test('メール用テキスト：2名なら 1,100円/日 のオプション料�
   assert.ok(t.includes('：149,010円（1室2名様利用）')); // 114,910 + 1,100×31
   assert.ok(t.includes('（月額目安：143,400 円）'));
 });
+
+test('メール用テキスト：1ヶ月未満は契約期間と値引きの案内を入れ、見積り有効期限は本日', () => {
+  const S = require('../js/samples.js');
+  const st = S.p1(); st.checkIn = '2026-12-01'; st.checkOut = '2026-12-20';
+  const t = require('../js/mailtext.js').buildMailText(st, '2026-11-05');
+  assert.match(t, /※見積り有効期限： 2026\/11\/05\(木\)/);
+  assert.match(t, /●ご契約期間＿1ヶ月未満ご利用の場合/);
+  assert.match(t, /契約開始日　：2026\/11\/21\(土\)\(10時\)/);
+  assert.match(t, /※ご使用されない期間（11\/21～11\/30）のご利用料金はご請求時にお値引きをさせていただきます。/);
+  assert.match(t, /【合計：20日間】/);
+});
