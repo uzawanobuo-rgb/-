@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>写真の説明文 抽出ツール（ブックマークレット）</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Meiryo", sans-serif; color: #222; max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; line-height: 1.8; }
+  h1 { font-size: 22px; border-bottom: 3px solid #f39800; padding-bottom: 8px; }
+  h2 { font-size: 18px; margin-top: 32px; }
+  .install { text-align: center; background: #fff8ec; border: 2px dashed #f39800; border-radius: 10px; padding: 24px; margin: 20px 0; }
+  .bm { display: inline-block; background: #f39800; color: #fff; font-weight: bold; text-decoration: none; padding: 12px 22px; border-radius: 8px; font-size: 17px; cursor: grab; }
+  .note { font-size: 13px; color: #666; }
+  ol li { margin-bottom: 6px; }
+  textarea { width: 100%; height: 90px; font-size: 12px; box-sizing: border-box; }
+  button { padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  code { background: #f3f3f3; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>写真の説明文 抽出ツール</h1>
+<p>アットインの物件ページで、写真の下に付いている説明文を<strong>全写真ぶん一括で</strong>取り出すツールです。スワイプは不要です。抽出した文章はコピーして、ClaudeなどのAIに貼り付ければ誤字脱字チェックができます。</p>
+
+<div class="install">
+  <p>↓ このボタンを<strong>ブックマークバーへドラッグ</strong>してください</p>
+  <a class="bm" href="{{HREF}}" onclick="alert('このボタンはクリックではなく、ブックマークバーへドラッグして登録してください。'); return false;">📝 写真の説明文を抽出</a>
+  <p class="note">ブックマークバーが見えないときは Ctrl+Shift+B（Macは ⌘+Shift+B）で表示できます。</p>
+</div>
+
+<h2>使い方</h2>
+<ol>
+  <li>アットインの物件ページ（例：<code>https://atinn.jp/plan/34063</code>）を開きます。</li>
+  <li>ブックマークバーの「📝 写真の説明文を抽出」をクリックします。</li>
+  <li>説明文が番号付きの一覧で表示されます。
+    <ul>
+      <li><strong>文章をコピー</strong>：番号付きの説明文だけをコピーします。</li>
+      <li><strong>誤字チェック用にコピー</strong>：チェックの依頼文を付けてコピーします。そのまま Claude などに貼り付けて送信してください。</li>
+    </ul>
+  </li>
+  <li>閉じるときは「閉じる」、Escキー、または画面の暗い部分をクリックします。</li>
+</ol>
+
+<h2>ドラッグで登録できないとき（スマホなど）</h2>
+<ol>
+  <li>下の「コードをコピー」を押します。</li>
+  <li>このページなど適当なページをブックマークし、ブックマークを編集して <strong>URL欄をコピーしたコードに置き換え</strong>、名前を「写真の説明文を抽出」などにして保存します。</li>
+  <li>スマホでは、物件ページを開いた状態でアドレスバーにブックマーク名を入力し、候補に出たブックマークをタップすると実行できます。</li>
+</ol>
+<textarea id="code" readonly>{{HREF_TEXT}}</textarea>
+<p><button type="button" onclick="var t=document.getElementById('code');t.select();navigator.clipboard?navigator.clipboard.writeText(t.value).then(function(){alert('コピーしました');}):(document.execCommand('copy'),alert('コピーしました'));">コードをコピー</button></p>
+
+<h2>補足</h2>
+<ul>
+  <li>表示中のページの内容を読むだけで、外部への送信は一切行いません。</li>
+  <li>サイトのページ構成が変わると、抽出できなくなる場合があります。</li>
+</ul>
+</body>
+</html>
