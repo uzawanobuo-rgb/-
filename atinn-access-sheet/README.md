@@ -55,6 +55,7 @@
 |---|---|---|
 | 2026-10-09 | `795a806`（main へは PR #106 の `ba89673`） | 設置済み（http://magi2.atinn.jp/access-sheet/index.html）。プラン取込で Not Found になる不具合あり |
 | 2026-11-02 | `2b95223`（PR #124） | 差し替え用に作成。プラン取込の Not Found を直した版（オプション・名古屋/大阪/京都対応なども含む） |
+| 2026-11-16 | `b8e7153`（PR #126 まで） | 差し替え用に作成。1ヶ月未満のご利用の見積りを追加した版 |
 
 - 置き場所：http://magi2.atinn.jp/access-sheet/index.html （フォルダのアドレスでは index.html を返さないので、ツールは index.html を開く）
 - 渡したもの：`index.html`・`view.html`・`css/`・`js/`・`img/`・`vendor/` を `access-sheet` フォルダに入れた ZIP（＋設置メモ）。
