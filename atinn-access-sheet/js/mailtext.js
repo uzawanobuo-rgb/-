@@ -89,12 +89,8 @@
         `${W}${W}【合計：${yen(sh.contractDays)}日間】`,
         W,
       );
-      if (sh.ng) {
-        out.push('※ご契約は最短1ヶ月よりご案内をさせていただいております。');
-        out.push(`※本日でご契約が可能な契約は上記契約期間（最短終了日は${ymd(sh.earliest)}）となります。`);
-      }
-      if (Calc.parse(sh.start) < Calc.parse(ci)) out.push(`※ご使用されない期間（${md(sh.start)}～${md(Calc.addDays(ci, -1))}）のご利用料金はご請求時にお値引きをさせていただきます。`);
-      if (sh.ng) out.push('※お申込み日が本日以降となった場合は、ご契約最短終了日も同じく変更となりますのでご了承ください。');
+      out.push('※ご契約は最短1ヶ月よりご案内をさせていただいております。');
+      out.push(`※ご使用されない期間（${md(sh.unusedFrom)}～${md(sh.unusedTo)}）のご利用料金はご請求時にお値引きをさせていただきます。`);
       out.push(W);
     }
     const props = state.pattern === 'p2'

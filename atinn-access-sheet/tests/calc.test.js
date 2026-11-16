@@ -193,12 +193,15 @@ test('キャンペーン条件：おためし（開始日〜終了日の期間�
 test('1ヶ月未満のご利用（見積りExcel【一般用】(1ヶ月未満) と同じ）', () => {
   const T = '2026-11-05';
   // 12/1〜12/20：契約は 11/21〜12/20（30日）、請求は 12/1〜12/20（20日）
-  assert.deepEqual(Calc.shortStay('2026-12-01', '2026-12-20', T), { start: '2026-11-21', end: '2026-12-20', contractDays: 30, billFrom: '2026-12-01', billEnd: '2026-12-20', billDays: 20, ng: false, earliest: '2026-12-04', today: T });
+  assert.deepEqual(Calc.shortStay('2026-12-01', '2026-12-20', T), { start: '2026-11-21', end: '2026-12-20', contractDays: 30, billFrom: '2026-12-01', billEnd: '2026-12-20', billDays: 20, after: false, unusedFrom: '2026-11-21', unusedTo: '2026-11-30', today: T });
   // 12/10〜1/5：終了日が月末でないので前の月（12月＝31日）の長さ → 契約 12/6〜1/5
   assert.equal(Calc.shortStay('2026-12-10', '2027-01-05', T).start, '2026-12-06');
-  // 契約NG：チェックアウトが最短終了日（今日から1ヶ月後の前日 12/4）より前 → 契約・請求とも 12/4 まで
-  const ng = Calc.shortStay('2026-11-10', '2026-11-30', T);
-  assert.deepEqual([ng.ng, ng.start, ng.end, ng.billDays], [true, T, '2026-12-04', 25]);
+  // 契約日（今日）より前にはさかのぼらない：今日契約・明日入居・実質10日間 → 契約は明日から1ヶ月、請求は10日分
+  const nx = Calc.shortStay('2026-11-06', '2026-11-15', T);
+  assert.deepEqual([nx.after, nx.start, nx.end, nx.billDays, nx.unusedFrom, nx.unusedTo], [true, '2026-11-06', '2026-12-05', 10, '2026-11-16', '2026-12-05']);
+  // 11/10〜11/30 も同じ（さかのぼると 11/1 で今日より前）→ 契約 11/10〜12/9、請求 21日分
+  const ny = Calc.shortStay('2026-11-10', '2026-11-30', T);
+  assert.deepEqual([ny.after, ny.start, ny.end, ny.billDays], [true, '2026-11-10', '2026-12-09', 21]);
   // 1ヶ月以上・契約開始がチェックインと同じ（12/1〜12/30）・チェックインが過去なら、ふつうの見積り
   assert.equal(Calc.shortStay('2026-12-01', '2026-12-31', T), null);
   assert.equal(Calc.shortStay('2026-12-01', '2026-12-30', T), null);
