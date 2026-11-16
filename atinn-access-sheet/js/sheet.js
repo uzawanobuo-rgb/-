@@ -447,7 +447,8 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
         : `<div style="width:80px;flex-shrink:0;border-radius:8px;background:#EDEAE2;display:flex;align-items:center;justify-content:center;font-size:11px;color:#8C959B;">${p.hidePhoto ? '' : '写真なし'}</div>`;
       const st = x.r.station ? `${esc(x.r.station)}${/停|前$/.test(x.r.station) ? '' : '駅'} 徒歩${x.info.walk ?? '–'}分` : '';
       const lines = x.info.legs.map(l => shortLine(l.line)).filter(Boolean);
-      const rideTxt = x.info.ride !== null ? `（${lines.length ? lines.join('・') : '乗車'}${x.info.ride}分）` : '';
+      // 目的地と同じ駅（電車なし）のときは「徒歩のみ」
+      const rideTxt = x.info.ride === 0 && !lines.length ? '（徒歩のみ）' : x.info.ride !== null ? `（${lines.length ? lines.join('・') : '乗車'}${x.info.ride}分）` : '';
       const tagList = (p.tag != null && p.tag !== '' ? String(p.tag).split(/[、,]/).map(s => s.trim()).filter(Boolean) : tags[x.i]);
       const pills = tagList.map(t => `<span style="padding:2px 8px;border-radius:999px;background:${col.fill};color:${TAG_TEXT[x.i % TAG_TEXT.length]};font-size:11px;font-weight:700;white-space:nowrap;">${esc(t)}</span>`).join('');
       const daily = x.price ? x.price.dailyApplied : null;
