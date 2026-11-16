@@ -207,3 +207,13 @@ test('1ヶ月未満のご利用（見積りExcel【一般用】(1ヶ月未満) �
   assert.equal(Calc.shortStay('2026-12-01', '2026-12-30', T), null);
   assert.equal(Calc.shortStay('2026-10-01', '2026-10-20', T), null);
 });
+
+test('目的地と同じ駅（徒歩のみ）：所要時間は徒歩だけ、カードは「徒歩のみ」', () => {
+  const Sheet = require('../js/sheet.js'), Samples = require('../js/samples.js');
+  const st = Samples.p2();
+  st.p2.destName = '大崎'; st.p2.destAddress = ''; st.p2.destLat = 35.6197; st.p2.destLng = 139.7286;
+  st.p2.routes[0] = { station: '大崎', walk: 10, legs: [], ride: 0, transfers: 0, display: '', walkOnly: true };
+  assert.equal(Sheet.routeInfo(st.p2.routes[0]).display, 10);
+  const r = Sheet.buildSheet(st, {});
+  assert.match(r.pages[0], /大崎まで 約10分（徒歩のみ）/);
+});

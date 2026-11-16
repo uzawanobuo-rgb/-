@@ -23,7 +23,7 @@
   function emptyProp() {
     return { planUrl: '', planName: '', name: '', address: '', lat: '', lng: '', stations: [], price: {}, campaignNote: '', cleaningCampaignNote: '', photos: [], photoIdx: 0, photoCustom: '', hidePhoto: false, tag: '', built: '', structure: '', floors: '', smoking: '', capacity: '', imported: null };
   }
-  function emptyRoute() { return { station: '', walk: '', legs: [{ mode: 'train', line: '', to: '' }], ride: '', display: '', transfers: '', source: '', note: '', exclude: false }; }
+  function emptyRoute() { return { station: '', walk: '', legs: [{ mode: 'train', line: '', to: '' }], ride: '', display: '', transfers: '', source: '', note: '', exclude: false, walkOnly: false }; }
   function defaultState() {
     return {
       v: 1, pattern: 'p1', persons: 1, options: [], baseDate: Calc.todayStr(), checkIn: '', checkOut: '', customer: '', // 利用期間・お客様名はパターン1・2で共通
@@ -571,6 +571,9 @@ ${stTable}
     return `<span class="btn primary small" aria-disabled="true" style="opacity:.45;cursor:not-allowed">Yahoo!乗換案内で検索</span><span class="muted">${esc(why)}</span>`;
   }
 
+  // 駅名をそろえて比べる（「駅」・(東京都) などを外す）
+  const stName = n => String(n || '').trim().replace(/[(（][^)）]*[)）]/g, '').replace(/駅$/, '');
+  const sameStation = (a, b) => !!stName(a) && stName(a) === stName(b);
   function renderRouteEditor(path, route, o) {
     const info = Sheet.routeInfo(route);
     const legs = (route.legs && route.legs.length ? route.legs : [{ mode: 'train', line: '', to: '' }]);
@@ -588,7 +591,13 @@ ${stTable}
 <div class="route-h">${o.head}
 <span class="total">合計 <b>${info.total ?? '–'}</b>分${info.display !== null && info.display !== info.total ? `（表示 ${info.display}分）` : ''}・${info.transfers === 0 ? '乗換なし' : info.transfers != null ? `乗換${info.transfers}回` : '–'}</span></div>
 <div class="transit-box">
-<div class="row">${searchLinks(route.station || stList[0], o.searchTo || o.toName, o.missing, path, o.searchCoord)}</div>
+<div class="row">${sameStation(route.station || stList[0], toName)
+  ? (route.walkOnly
+    ? `<span>✓ 目的地と同じ「${esc(stName(toName))}」駅なので、徒歩のみ（物件から徒歩${esc(route.walk === '' || route.walk == null ? '–' : route.walk)}分）で入れています</span>`
+    : `<span class="warn-t">乗車駅と目的地が同じ「${esc(stName(toName))}」駅のため、電車の経路はありません（Yahoo!乗換案内では検索できません）</span>
+<button type="button" class="btn primary small" data-action="walk-only" data-path="${path}">徒歩のみにする</button>
+<span class="muted">別の駅から電車に乗るときは、下の「乗車駅」を変えてください</span>`)
+  : searchLinks(route.station || stList[0], o.searchTo || o.toName, o.missing, path, o.searchCoord)}</div>
 <div class="row muted">${route.note && /Yahoo/.test(route.note) ? `<span>✓ ${esc(route.note)}</span>` : ''}
 ${(() => { const g = path.startsWith('p2.') && Sheet.routeEndGap(state, route); return g ? `<span class="warn-t">${g.arrive ? `Yahoo!の行き先「${esc(g.name)}」が目的地から約${g.km.toFixed(1)}km離れています → 行き先を確かめて検索し直してください` : `経路が「${esc(g.name)}」までのままです（目的地から約${g.km.toFixed(1)}km）→ 検索し直してください`}</span>` : ''; })()}
 <button type="button" class="linkish" data-action="transit-clip" data-path="${path}" data-to="${esc(o.searchTo || o.toName || '')}" title="「乗換取込」でコピーした経路を読み込みます">自動で入らないとき：コピーした経路を読み込む</button></div>
@@ -1218,6 +1227,7 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     if (route.station !== r.from) route.walk = near ? near.walk : '';
     else if (near && route.walk === '') route.walk = near.walk;
     route.station = r.from;
+    route.walkOnly = false;
     route.legs = r.legs.map(l => Object.assign({}, l));
     route.ride = r.ride;
     route.transfers = r.transfers;
@@ -1296,6 +1306,14 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
         state.stationCoords = Object.assign({}, old.stationCoords, state.stationCoords);
         if (!hasPatternContent(state, pat === 'p1' ? 'p2' : 'p1')) { state.persons = old.persons; state.baseDate = old.baseDate; state.checkIn = old.checkIn; state.checkOut = old.checkOut; state.customer = old.customer; }
         persist(); renderForm(); renderPreview(); autoResolveStations(); toast(`前回の${pat === 'p1' ? '1物件' : '複数物件'}の入力を復元しました`);
+        break;
+      }
+      case 'walk-only': {
+        // 乗車駅と目的地が同じ駅：電車なし。所要時間は物件からの徒歩だけ
+        const r = getPath(path);
+        Object.assign(r, { legs: [], ride: 0, transfers: 0, display: '', walkOnly: true, source: '', arrive: null, note: '目的地と同じ駅のため徒歩のみ' });
+        persist(); renderForm(); renderPreview();
+        toast('徒歩のみで入れました');
         break;
       }
       case 'opt-del': state.options.splice(+b.dataset.i, 1); persist(); renderForm(); renderPreview(); break;
