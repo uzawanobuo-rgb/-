@@ -398,7 +398,9 @@ ${perMonth !== null ? `<div style="display:flex;flex-direction:column;"><span st
     // 注記が3行以上になるとき（オプション・長い手入力の注記など）は、その分だけ地図を低くして、下の物件カードと重ならないようにする
     const noteLines = [stayNote, optNames.length ? `※総額にはオプション（${optNames.join('・')}）を含みます。料金は物件の地域の価格です。` : '', ...exP2.split('\n'), state.note || autoNote]
       .filter(Boolean).reduce((t, x) => t + Math.ceil(MapM.textW(x, 11) / 1043), 0);
-    const mapHL = 440 - (PORTRAIT ? 0 : Math.max(0, noteLines - 2) * 16);
+    // 物件カードにキャンペーン条件（2行）が入るときも、その分だけ地図を低くする
+    const anyCampLines = items.slice(0, 3).some(x => x.price && campaignText(x.prop));
+    const mapHL = 440 - (PORTRAIT ? 0 : Math.max(0, noteLines - 2) * 16 + (anyCampLines ? 16 : 0));
     // 4・5件目は、地図の右側に重ねて置く（下の段の C の上。4件のときは下の場所だけ使う）
     const SIDE = { left: 704, w: 327, h: Math.floor((mapHL - 30) / 2) };
     const extra = PORTRAIT ? [] : items.slice(3); // 縦型では全部を地図の下に並べる
