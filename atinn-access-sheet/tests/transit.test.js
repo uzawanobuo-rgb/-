@@ -91,3 +91,13 @@ test('1時間を超える経路（「1時間5分（乗車1時間1分）」）も
   const t = P.parseTransit(page('hachioji-tamachi.txt'));
   assert.ok(t && t.to === '田町');
 });
+
+test('駅からバス停まで歩くバスの経路より、歩き＋乗車が短い電車の経路を選ぶ（新馬場→大森）', () => {
+  const html = fs.readFileSync(path.join(__dirname, '../testdata/transit_pages/shinbanba-omori.srline.html'), 'utf8');
+  const r = P.parseTransit(JSON.stringify({ v: 2, bm: 3, url: 'u', html }));
+  const bus = r.routes.find(x => x.legs[0].mode === 'bus');
+  assert.ok(bus && bus.preRide >= 5, '新馬場駅→新馬場駅前の歩きを数える');
+  assert.equal(r.from, '新馬場');
+  assert.equal(r.legs[0].mode, 'train');
+  assert.equal(r.legs[r.legs.length - 1].to, '大森');
+});

@@ -317,10 +317,12 @@
       const f = rideIdx[0];
       const board = points[f], last = points[points.length - 1];
       const initialWalk = segs.slice(0, f).reduce((a, sg) => a + (sg.min || 0), 0);
+      // 乗るまでの歩き・待ち（経路を選ぶときに足す）。「徒歩」だけで分がないとき（駅からバス停までなど）は、出発時刻から乗る時刻まで
+      const preRide = f > 0 && points[0].dep != null && board.dep != null ? Math.max(initialWalk, (board.dep - points[0].dep + 1440) % 1440) : initialWalk;
       let ride = board.dep != null && last.arr != null ? last.arr - board.dep : +m[3];
       if (ride < 0) ride += 24 * 60;
       routes.push({
-        dep: m[1], arr: m[2], total: +m[3], ride, transfers: transfers ?? (rideIdx.length - 1), initialWalk,
+        dep: m[1], arr: m[2], total: +m[3], ride, transfers: transfers ?? (rideIdx.length - 1), initialWalk, preRide,
         from: board.name, to: last.name, toCoord: last.coord || null, fromCoord: board.coord || null,
         legs: rideIdx.map(k => ({ mode: /バス/.test(segs[k].line) ? 'bus' : 'train', line: cleanLine(segs[k].line), to: (points[k + 1] || last).name })),
       });
@@ -349,7 +351,7 @@
       .replace(/(\d{1,2}:\d{2})\s+(発|着)\s*$/gm, '$1\n$2');
   }
 
-  // 貼り付けられた内容（ブックマークレットのJSON またはページ全文）から、乗車時間がいちばん短い経路を選ぶ
+  // 貼り付けられた内容（ブックマークレットのJSON またはページ全文）から、乗る前の歩き＋乗車時間がいちばん短い経路を選ぶ
   function parseTransit(payload) {
     let p = payload;
     if (typeof p === 'string') {
@@ -359,7 +361,10 @@
     let routes = p.html ? parseTransitRoutes(htmlToText(p.html)) : [];
     if (!routes.length) routes = parseTransitRoutes(normalizeTransitText(p.text || ''));
     if (!routes.length) return null;
-    const best = routes.slice().sort((a, b) => a.ride - b.ride || a.transfers - b.transfers)[0];
+    // 乗る前の歩き（駅からバス停までなど）も足して比べる。同じなら電車から乗る経路を先にする
+    const cost = r => r.ride + (r.preRide || 0);
+    const busFirst = r => (r.legs[0] && r.legs[0].mode === 'bus') ? 1 : 0;
+    const best = routes.slice().sort((a, b) => cost(a) - cost(b) || busFirst(a) - busFirst(b) || a.transfers - b.transfers)[0];
     return Object.assign({ url: p.url || '', routes }, best);
   }
 
