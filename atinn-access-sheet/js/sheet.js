@@ -158,11 +158,8 @@ ${fitLine(t, size, '#C4531A', 700)}</div>`;
   function shortNote(SH, coIn, warnings) {
     if (!SH) return '';
     const md = x => { const d = new Date(Calc.parse(x)); return `${d.getUTCMonth() + 1}/${d.getUTCDate()}`; };
-    if (SH.ng) warnings.push(`1ヶ月未満のご利用：本日からのご契約は最短 ${md(SH.earliest)} までのため、チェックアウト ${md(coIn)} ではなく ${md(SH.earliest)} までの料金で計算しています（見積りは本日限り）`);
-    else warnings.push(`1ヶ月未満のご利用：ご契約は ${md(SH.start)}〜${md(SH.end)}（${SH.contractDays}日間）、ご請求は ${md(SH.billFrom)}〜${md(SH.billEnd)}（${SH.billDays}日間）で計算しています（見積りは本日限り）`);
-    return SH.ng
-      ? `※1ヶ月未満のご利用です。ご契約は最短1ヶ月のため、本日からのご契約は ${md(SH.start)}〜${md(SH.end)} となり、料金は ${md(SH.billFrom)}〜${md(SH.billEnd)}（${SH.billDays}日間）で計算しています。`
-      : `※1ヶ月未満のご利用です。ご契約は最短1ヶ月のため ${md(SH.start)}〜${md(SH.end)}（${SH.contractDays}日間）となり、ご使用されない期間（${md(SH.start)}〜${md(Calc.addDays(SH.billFrom, -1))}）のご利用料金はご請求時にお値引きします。`;
+    warnings.push(`1ヶ月未満のご利用：ご契約は ${md(SH.start)}〜${md(SH.end)}（${SH.contractDays}日間${SH.after ? '・契約日より前にさかのぼれないため、チェックインから1ヶ月' : ''}）、料金は実際のご利用 ${md(SH.billFrom)}〜${md(SH.billEnd)}（${SH.billDays}日間）で計算しています（見積りは本日限り）`);
+    return `※1ヶ月未満のご利用です。ご契約は最短1ヶ月のため ${md(SH.start)}〜${md(SH.end)}（${SH.contractDays}日間）となり、ご使用されない期間（${md(SH.unusedFrom)}〜${md(SH.unusedTo)}）のご利用料金はご請求時にお値引きします。`;
   }
 
   // 利用期間がキャンペーン条件に当てはまらないときの注意（ツールの画面だけに出す）
