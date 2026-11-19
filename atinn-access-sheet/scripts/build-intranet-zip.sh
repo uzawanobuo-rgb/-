@@ -16,4 +16,4 @@ mkdir "$WORK/access-sheet"
 git -C "$REPO" show "$REV:atinn-access-sheet/intranet/設置メモ.txt" > "$WORK/access-sheet/設置メモ.txt"
 rm -f "$OUT"
 (cd "$WORK" && zip -qr "$OUT" access-sheet)
-echo "作成：$OUT（コミット $SHORT、v=$(grep -o 'v=[0-9]*' "$WORK/access-sheet/index.html" | head -1)）"
+echo "作成：$OUT（コミット $SHORT、$(grep -o 'v=[0-9]*' "$WORK/access-sheet/index.html" | head -1)）"
