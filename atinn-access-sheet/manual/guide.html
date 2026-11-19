@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<title>アクセス案内シート作成ツール 使い方</title>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: 'M PLUS 1p', sans-serif; color: #1E2B33; background: #fff; }
+  .page { width: 794px; height: 1123px; padding: 34px 42px 30px; position: relative; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; gap: 12px; border-top: 10px solid #0F7C7A; }
+  .page:last-child { page-break-after: auto; }
+  body { counter-reset: pg; }
+  .page { counter-increment: pg; }
+  .pno::after { content: counter(pg); }
+  .foot { position: absolute; left: 42px; right: 42px; bottom: 16px; font-size: 10px; color: #9AA3A8; display: flex; justify-content: space-between; }
+  h1 { margin: 0; font-size: 30px; font-weight: 900; line-height: 1.25; }
+  h2 { margin: 0; font-size: 21px; font-weight: 900; display: flex; align-items: center; gap: 10px; }
+  h2 .no { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; padding: 0 8px; border-radius: 17px; background: #0F7C7A; color: #fff; font-size: 15px; }
+  h2 .no.prep { background: #E0662A; }
+  h3 { margin: 4px 0 0; font-size: 15px; font-weight: 900; }
+  p { margin: 0; font-size: 13px; line-height: 1.75; }
+  .lead { font-size: 14px; color: #3D4A52; }
+  ol, ul { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.75; }
+  b, .em { font-weight: 900; }
+  .key { display: inline-block; padding: 0 7px; border-radius: 5px; background: #1E2B33; color: #fff; font-weight: 700; font-size: 12px; line-height: 20px; white-space: nowrap; }
+  .btn { display: inline-block; padding: 0 8px; border-radius: 5px; background: #0F7C7A; color: #fff; font-weight: 700; font-size: 12px; line-height: 20px; white-space: nowrap; }
+  .shot { border: 1px solid #DDD8CC; border-radius: 10px; overflow: hidden; background: #F7F6F2; box-shadow: 0 2px 8px rgba(30,43,51,.08); }
+  .shot img { display: block; width: 100%; }
+  .cap { font-size: 11px; color: #6B767D; margin-top: 4px; }
+  .row { display: flex; gap: 14px; align-items: flex-start; }
+  .row > * { flex: 1; min-width: 0; }
+  .note { background: #FFF8F1; border: 1.5px solid #F1C9AE; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; line-height: 1.7; }
+  .note b { color: #C4531A; }
+  .tip { background: #E4F2F1; border-radius: 10px; padding: 10px 14px; font-size: 12.5px; line-height: 1.7; }
+  .crop { position: relative; overflow: hidden; border: 1px solid #DDD8CC; border-radius: 10px; }
+  .crop img { position: absolute; display: block; }
+  /* 表紙の流れ */
+  .flow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .flow .s { background: #F4F2EC; border-radius: 12px; padding: 12px 14px; }
+  .flow .s .n { font-size: 12px; font-weight: 900; color: #0F7C7A; }
+  .flow .s .t { font-size: 15px; font-weight: 900; margin: 2px 0 4px; }
+  .flow .s p { font-size: 12px; line-height: 1.6; }
+  .url { font-size: 15px; font-weight: 900; background: #1E2B33; color: #fff; border-radius: 10px; padding: 10px 16px; }
+  .url small { display: block; font-size: 11px; font-weight: 500; opacity: .8; }
+  /* ブラウザの見た目（説明用の図） */
+  .browser { border: 1px solid #C9C3B5; border-radius: 10px; overflow: hidden; background: #fff; font-size: 12px; }
+  .browser .bar1 { background: #E8EAED; padding: 7px 10px; display: flex; gap: 8px; align-items: center; }
+  .browser .addr { flex: 1; background: #fff; border-radius: 14px; padding: 3px 12px; color: #444; font-size: 11.5px; white-space: nowrap; overflow: hidden; }
+  .browser .bar2 { background: #fff; border-bottom: 1px solid #E3E3E3; padding: 5px 10px; display: flex; gap: 8px; align-items: center; color: #444; font-size: 10.5px; white-space: nowrap; }
+  .browser .bar2 .hl { background: #FFE7B8; border: 2px solid #E0662A; border-radius: 6px; padding: 1px 6px; font-weight: 700; color: #1E2B33; position: relative; }
+  .browser .body { padding: 14px; background: #F5F7F5; min-height: 120px; position: relative; }
+  .ytitle { font-size: 16px; font-weight: 700; background: #FFF3C4; padding: 8px 12px; border-radius: 4px; }
+  .yrow { display: flex; justify-content: space-between; border: 2px solid #5FB26E; border-top: none; background: #fff; padding: 6px 12px; font-size: 12.5px; }
+  .yrow:first-of-type { border-top: 2px solid #5FB26E; }
+  .toast { position: absolute; right: 14px; bottom: 14px; background: #0F7C7A; color: #fff; padding: 10px 14px; border-radius: 10px; font-size: 12px; line-height: 1.6; box-shadow: 0 4px 16px rgba(0,0,0,.25); }
+  .toast b { font-size: 14px; }
+  .arrow { color: #E0662A; font-weight: 900; font-size: 12px; }
+  table.faq { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  table.faq th, table.faq td { border: 1px solid #DDD8CC; padding: 8px 10px; text-align: left; vertical-align: top; line-height: 1.6; }
+  table.faq th { background: #F4F2EC; width: 34%; font-weight: 900; }
+</style></head>
+<body>
+
+<!-- 1 表紙 -->
+<section class="page">
+  <div style="font-size:13px;font-weight:700;color:#0F7C7A;">営業向け　使い方ガイド</div>
+  <h1>アクセス案内シート作成ツール　使い方</h1>
+  <p class="lead">お客様の目的地（お勤め先など）から、候補の部屋までの所要時間と料金を1枚にまとめた「ご提案シート」を作ります。物件の情報も経路も、ボタンで取り込めます。</p>
+  <div class="url">ツールの場所　http://magi2.atinn.jp/access-sheet/index.html<small>社内ネットワークで開きます。ブラウザは Chrome か Edge を使ってください。</small></div>
+  <h3>できあがり（例：大手町にお勤めの山田様へ、大崎・大井町・品川の3部屋をご提案）</h3>
+  <div class="shot"><img src="screenshots/g13-sheet.png"></div>
+  <h3>作り方の流れ</h3>
+  <div class="flow">
+    <div class="s"><div class="n">準備（最初の1回だけ）</div><div class="t">ブックマークを登録</div><p>「プラン取込」「乗換取込」をブックマークバーに登録します。</p></div>
+    <div class="s"><div class="n">手順1〜2</div><div class="t">部屋を選んで取り込む</div><p>MAGI で部屋を選び、公式サイトのプランページで「プラン取込」。</p></div>
+    <div class="s"><div class="n">手順3〜4</div><div class="t">目的地と経路</div><p>目的地を入れ、Yahoo!乗換案内で検索して「乗換取込」。</p></div>
+    <div class="s"><div class="n">手順5</div><div class="t">オプション（必要なら）</div><p>レンタル品・ペットなどを一覧から選ぶと、総額に入ります。</p></div>
+    <div class="s"><div class="n">手順6</div><div class="t">確認して保存</div><p>画像・PDFで保存。メール用の見積り文もコピーできます。</p></div>
+    <div class="s" style="background:#E4F2F1"><div class="n">所要時間のめやす</div><div class="t">3部屋で約5分</div><p>慣れれば、取込と経路の検索だけで作れます。</p></div>
+  </div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 2 準備 -->
+<section class="page">
+  <h2><span class="no prep">準備</span>ブックマークを登録する（最初の1回だけ）</h2>
+  <p>ツールを開くと、左上に「使い方・ブックマークレット」の欄があります。黒いボタン <span class="key">🏠プラン取込</span> と <span class="key">🚃乗換取込</span> を、マウスでつかんでブラウザの<b>ブックマークバー</b>まで引っぱって離します（クリックではなくドラッグ）。</p>
+  <div class="row">
+    <div><div class="shot"><img src="screenshots/g01-howto.png"></div><div class="cap">ツールの「使い方・ブックマークレット」の欄。黒い2つのボタンをドラッグします。</div></div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="browser"><div class="bar1"><span>←　→　⟳</span><div class="addr">magi2.atinn.jp/access-sheet/index.html</div></div>
+        <div class="bar2"><span>📁 よく使う</span><span class="hl">🏠プラン取込</span><span class="hl">🚃乗換取込</span><span>…</span></div>
+        <div class="body" style="min-height:60px;font-size:12px;color:#555;">登録できると、ブックマークバーにこの2つが並びます。</div></div>
+      <div class="tip"><b>ブックマークバーが見えないとき</b><br>Ctrl + Shift + B で表示されます。</div>
+      <div class="note"><b>ツールを更新したときは登録し直し</b><br>社内サーバー（http）のツールは、ブックマークの中にツールの本体が入っています。ツールが更新されたと連絡があったら、古い2つを削除して、もう一度ドラッグしてください。</div>
+    </div>
+  </div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 3 MAGI → 公式 -->
+<section class="page">
+  <h2><span class="no">1</span>MAGI の空室検索で部屋を選ぶ</h2>
+  <p>MAGI の「空室検索」で、表示期間・営業エリアなどを入れて検索し、ご提案する部屋（2〜5部屋）を決めます。</p>
+  <div class="shot"><img src="screenshots/u-magi.png"></div>
+  <div class="cap">MAGI の空室検索一覧と検索条件</div>
+  <h3>選んだ部屋の、公式サイトのプランページを開く</h3>
+  <p>選んだ部屋のプランページ（<b>atinn.jp/plan/番号</b>）を開きます。例：大崎 atinn.jp/plan/15449　大井町 atinn.jp/plan/13177　品川 atinn.jp/plan/15393</p>
+  <div class="shot" style="height:300px;"><img src="screenshots/g02-plan.png" style="margin-top:-2%;"></div>
+  <div class="cap">公式サイトのプランページ（例：アットインmini大崎5-1）</div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 4 プラン取込 -->
+<section class="page">
+  <h2><span class="no">2</span>プランページで「プラン取込」を押す</h2>
+  <ol>
+    <li>ツールは先に開いて、上のタブで<b>「複数物件」</b>を選んでおきます（1部屋だけのご提案なら「1物件」）。</li>
+    <li>プランページを開いた状態で、ブックマークバーの <span class="key">🏠プラン取込</span> を押します。</li>
+    <li>ツールの画面に切り替わり、<b>「どの物件に入れますか？」</b>と出るので、A・B・C から入れる枠を選びます。</li>
+    <li>物件名・住所・料金・最寄駅・写真・設備・地図の位置が自動で入ります。</li>
+  </ol>
+  <div class="shot"><img src="screenshots/g03-slot.png"></div>
+  <div class="cap">プラン取込を押すと、ツールで入れる枠を選ぶ画面が出ます。</div>
+  <div class="tip"><b>残りの部屋も同じように</b>：2部屋目のプランページで「プラン取込」→ B、3部屋目 → C。4部屋目・5部屋目は、ツールの「＋物件を追加」で枠を増やしてから取り込みます。</div>
+  <div class="note"><b>ツールに切り替わらないとき</b>：ブラウザがポップアップを止めていることがあります。内容はコピーされているので、ツールの画面で <span class="key">Ctrl + V</span> を押すと取り込めます。</div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 5 目的地 -->
+<section class="page">
+  <h2><span class="no">3</span>目的地・利用期間・人数を入れる</h2>
+  <p>「1 目的地と条件」の欄に入れます。目的地に駅名や地名を入れると、地図の位置が自動で入ります。</p>
+  <div class="row">
+    <div><div class="shot"><img src="screenshots/g04-dest.png"></div><div class="cap">目的地と条件の欄</div></div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <ul>
+        <li><b>お客様名</b>：入れると「〇〇様へのご提案」と出ます。</li>
+        <li><b>目的地</b>：シートに載る名前（例：大手町）。</li>
+        <li><b>目的地の種類</b>：お勤め先・学校・病院など。</li>
+        <li><b>チェックイン・チェックアウト</b>：10/5 のように入れます。空欄なら翌月1日から30日間。</li>
+        <li><b>人数</b>：2人以上は、2人目から1,100円/日が総額に入ります。</li>
+      </ul>
+      <div class="tip"><b>会社名・店名など、駅名でない目的地</b>は、「住所・GoogleマップのURL」を開き、Google マップでその場所を開いたときのアドレスを貼ると、正確な位置になります。</div>
+    </div>
+  </div>
+  <div class="note"><b>利用期間とキャンペーン</b>：プランのキャンペーン価格に「〇月〇日までにご利用開始の方限定」などの条件があると、提案書に条件が載ります。利用期間が条件に合わないときは、ツールに注意が出ます。</div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 6 経路 -->
+<section class="page">
+  <h2><span class="no">4</span>経路を「乗換取込」で入れる</h2>
+  <ol>
+    <li>各物件の欄の「〇〇までの所要時間」で <span class="btn">Yahoo!乗換案内で検索</span> を押します。</li>
+    <li>Yahoo!乗換案内の検索結果が新しいタブで開きます。ブックマークバーの <span class="key">🚃乗換取込</span> を押します。</li>
+    <li>「✓ ツールに入れました」と出て、Yahoo!のタブは自動で閉じます。乗車駅・路線・乗車時間・乗換回数が入ります（乗るまでの歩き・待ちも含めて、いちばん早い経路）。</li>
+  </ol>
+  <div class="row">
+    <div><div class="shot"><img src="screenshots/g05-prop-before.png" style="margin-top:-62%;"></div><div class="cap">物件の欄の「Yahoo!乗換案内で検索」ボタン</div></div>
+    <div>
+      <div class="browser"><div class="bar1"><span>←　→　⟳</span><div class="addr">transit.yahoo.co.jp/search/result?from=大崎駅&amp;to=大手町駅…</div></div>
+        <div class="bar2"><span>🏠プラン取込</span><span class="hl">🚃乗換取込</span><span class="arrow">←押す</span></div>
+        <div class="body" style="min-height:250px;">
+          <div class="ytitle">大崎 → 大手町(東京都)</div>
+          <div style="height:8px"></div>
+          <div class="yrow"><span>ルート1　10:03→10:31　28分</span><span>乗換：1回</span></div>
+          <div class="yrow"><span>ルート2　10:05→10:35　30分</span><span>乗換：1回</span></div>
+          <div class="yrow"><span>ルート3　10:08→10:38　30分</span><span>乗換：2回</span></div>
+          <div class="toast"><b>✓ ツールに入れました</b><br>大崎 → 大手町：乗車28分・乗換1回<br>このタブは閉じます</div>
+        </div></div>
+      <div class="cap">Yahoo!乗換案内の結果ページ（説明用の図）</div>
+    </div>
+  </div>
+  <div class="row">
+    <div><div class="shot" style="height:250px;"><img src="screenshots/g08-prop-after.png" style="margin-top:-58%;"></div><div class="cap">取り込んだあと：乗車駅・徒歩・乗車時間・経路が入ります</div></div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="tip"><b>徒歩の分数</b>は、プランページの最寄駅の「徒歩〇分」が自動で入ります。別の駅から乗る経路になったときは、徒歩（分）を入れてください。</div>
+      <div class="note"><b>入らないとき</b>：結果はコピーされています。物件の欄の「自動で入らないとき：コピーした経路を読み込む」を押してください。</div>
+    </div>
+  </div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 7 オプション -->
+<section class="page">
+  <h2><span class="no">5</span>オプションを選ぶ（必要なときだけ）</h2>
+  <p>「オプション（レンタル品・ペット・割引など）」の欄で、<b>＋ 一覧から追加</b> から選ぶと、物件の地域の料金で提案書とメール用テキストの総額に入ります。</p>
+  <div class="shot"><img src="screenshots/g09-opts.png"></div>
+  <div class="cap">オプションの欄（例：モバイルデータ通信端末）</div>
+  <ul>
+    <li><b>一覧</b>：公式サイトのオプション一覧の品目が五十音順に並びます。ペット追加（1,320円/日）は先頭にあります。</li>
+    <li><b>手入力の項目</b>：一覧にないもの・割引（マイナスの金額）は「＋ 手入力の項目」で入れます。</li>
+    <li><b>提供エリア</b>：関東は東京23区・横浜市・川崎市、関西は大阪市・江坂。エリア外の物件でも総額には入れ、提案書に「ご用意できない場合があります」と注意書きが出ます。</li>
+    <li><b>名古屋市外の物件</b>：総額に入れたうえで、ツールに「在庫・提供できるかを確認」と出ます。在庫を確認してください。</li>
+  </ul>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 画面の見かた・設備比較 -->
+<section class="page">
+  <h2><span class="no" style="background:#2F74B5">i</span>入力の進み具合を見る</h2>
+  <p>画面のいちばん上に、丸い印が並んでいます。入力が済んだところは <b>✓（緑）</b>、まだのところは <b>○（グレー）</b> になります。全部 ✓ になれば、提案書を作るのに必要な入力はそろっています。</p>
+  <div class="shot" style="padding:8px 10px;background:#fff;"><img src="screenshots/g16-progress-partial.png"></div>
+  <div class="cap">例：C の「乗換」がまだ（経路を取り込んでいない）</div>
+  <div class="row">
+    <ul style="flex:1.4">
+      <li><b>目的地</b>：目的地の名前と、地図の位置が入っている</li>
+      <li><b>A・B・C の物件</b>：物件名と地図の位置が入っている（プラン取込で入ります）</li>
+      <li><b>A・B・C の乗換</b>：目的地までの所要時間が入っている（乗換取込で入ります）</li>
+      <li><b>1物件のとき</b>は「物件」と「主要駅 〇駅」の2つになります。</li>
+    </ul>
+    <div class="tip"><b>印を押すと、その入力欄へ移動します。</b>○ のところを押して、足りない入力を入れてください。</div>
+  </div>
+
+  <h2 style="margin-top:6px;"><span class="no" style="background:#2F74B5">i</span>2ページ目に「設備比較」の表を付ける（任意）</h2>
+  <p>複数物件のとき、物件の欄の下にあるチェックを入れると、提案書の2ページ目に物件どうしを比べる表が付きます。</p>
+  <div class="shot" style="background:#fff;"><img src="screenshots/g14-compare-check.png"></div>
+  <div class="row">
+    <div style="flex:1.5"><div class="shot"><img src="screenshots/g15-compare-sheet.png"></div><div class="cap">2ページ目の「設備比較」の表（例）</div></div>
+    <div><ul>
+      <li>住所・最寄駅・目的地までの時間・総額・建物（築年・構造・階数）を横に並べます。</li>
+      <li><b>全物件にあり</b>：どの部屋にもある設備をまとめて1行に。</li>
+      <li><b>主な設備</b>：部屋によって違う設備だけ。✓ はあり、薄い字はなし。</li>
+      <li>PDF・印刷は2ページ、PNG は2枚で保存されます。</li>
+    </ul></div>
+  </div>
+  <div class="note"><b>設備が出ないとき</b>：設備は「プラン取込」で入ります。古いブックマークで取り込んだ物件は、プランページでもう一度プラン取込をしてください。</div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 8 確認・保存 -->
+<section class="page">
+  <h2><span class="no">6</span>確認して保存する</h2>
+  <p>画面の右側にプレビューが出ます。<b>黄色の注意</b>が出ていたら内容を確認し、見出し・所要時間・料金を確かめてから保存します。</p>
+  <div class="shot"><img src="screenshots/g10-tool-full.png"></div>
+  <div class="cap">ツールの画面。右上のボタンで保存します。上の丸い印（目的地・A〜Cの物件・乗換）が全部 ✓ になれば入力完了です。</div>
+  <ul>
+    <li><span class="btn">PNG</span> 横長の画像　<span class="btn">PNG（縦）</span> スマホで見やすい縦長の画像　<span class="btn">PDF</span> 印刷用</li>
+    <li>ファイル名は「山田 様_大手町_ご提案3物件_日付」のように自動で付きます。</li>
+    <li>見出しや注記を変えたいときは「見出し・注記の修正（任意）」の欄で直せます。</li>
+  </ul>
+  <h3>メール用の見積り文</h3>
+  <div class="row">
+    <div><div class="shot" style="height:250px;"><img src="screenshots/g12-mail.png"></div></div>
+    <div><p>「メール用テキスト」の欄に、見積りExcel【一般用】と同じ形の料金内訳が出ます。<span class="btn">コピー</span> を押して、メール本文に貼ってください。オプションやキャンペーン条件も入ります。</p>
+      <div class="note" style="margin-top:10px;"><b>共有リンクは使わないでください</b>：社内サーバーのツールなので、お客様は開けません。画像・PDF・メール用テキストで送ってください。</div></div>
+  </div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+
+<!-- 9 困ったとき -->
+<section class="page">
+  <h2><span class="no" style="background:#5B6770">？</span>困ったとき</h2>
+  <table class="faq">
+    <tr><th>プラン取込で「Not Found」になる</th><td>古いブックマークのままです。古い「プラン取込」「乗換取込」を削除し、ツールの使い方の欄からもう一度ドラッグしてください。</td></tr>
+    <tr><th>プラン取込を押してもツールに切り替わらない</th><td>ポップアップが止められています。内容はコピーされているので、ツールで Ctrl + V を押してください。ブラウザのアドレスバー右の「ポップアップをブロックしました」から、atinn.jp を許可すると次からは切り替わります。</td></tr>
+    <tr><th>乗換取込で「経路を読み取れませんでした」</th><td>Yahoo!乗換案内の「検索結果」のページで押しているか確認してください。トップページや時刻表のページでは読み取れません。</td></tr>
+    <tr><th>行き先が目的地から離れていると注意が出る</th><td>Yahoo!が同じ名前の別の場所で検索しています。目的地の住所か Google マップのアドレスを入れてから、もう一度「Yahoo!乗換案内で検索」を押してください。</td></tr>
+    <tr><th>地図に「座標が不明です」と出る</th><td>表にない駅は、ツールが自動で位置を調べます。しばらく待っても出るときは、駅名の書き方（「〇〇駅」の「駅」なしなど）を確認してください。</td></tr>
+    <tr><th>キャンペーン条件に当てはまらないと注意が出る</th><td>利用開始日がキャンペーンの期間外です。定価で出すときは、物件の「料金・写真・強みタグ」でキャンペーンの料金欄を空にしてください。</td></tr>
+    <tr><th>前に作った内容に戻したい</th><td>ツールは開くたびに新しく始まります。前回の入力は、画面上の「前回の入力を復元」で戻せます。残しておきたいときは「その他」→「データ保存」でファイルに保存できます。</td></tr>
+    <tr><th>名古屋・大阪・京都の物件</th><td>そのまま使えます。物件・目的地の場所から地域を自動で判断し、主要駅・地図・オプションの料金が切り替わります。</td></tr>
+  </table>
+  <div class="tip">分からないことや、うまく作れないシートがあったら、画面のスクリーンショットを付けて担当者まで連絡してください。</div>
+  <div class="foot"><span>アットイン　アクセス案内シート作成ツール</span><span class="pno"></span></div>
+</section>
+</body></html>

@@ -1,0 +1,17 @@
+{
+  "name": "atinn-access-sheet-manual",
+  "private": true,
+  "description": "アクセス案内シート作成ツールの説明資料（PowerPoint・PDF）を作る",
+  "scripts": {
+    "pptx": "node build-pptx.js",
+    "pdf": "node render-pdf.js"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "pptxgenjs": "^3.12.0",
+    "sharp": "^0.33.5"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}
