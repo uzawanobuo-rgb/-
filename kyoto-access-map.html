@@ -55,6 +55,14 @@
   #mapBusy ul { list-style: none; margin: 14px 0 6px; padding: 0; font-size: 14px; line-height: 1.9; }
   #mapBusy li span { display: inline-block; width: 1.6em; }
   #mapBusy .sub { font-size: 12px; color: #bfe3e0; }
+  .citybtns { display: flex; gap: 8px; margin-bottom: 4px; }
+  .citybtns button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px;
+    background: #fff; color: #13706b; border: 2px solid #b9d9d6; border-radius: 8px; }
+  .citybtns button b { font-size: 20px; }
+  .citybtns button small { font-size: 11px; color: #6b7a7e; white-space: normal; }
+  .citybtns button:hover { background: #eef7f6; }
+  .citybtns button.on { background: #13928c; color: #fff; border-color: #13928c; }
+  .citybtns button.on small { color: #d8f1ee; }
   button:disabled { opacity: .45; cursor: not-allowed; }
   #preview svg { width: 100%; height: auto; display: block; cursor: crosshair; }
   .dl { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
@@ -73,10 +81,10 @@
     <div class="box">
       <h2>① 物件</h2>
       <label>エリア</label>
-      <select id="city">
-        <option value="kyoto">京都（京都河原町・四条烏丸・京都駅）</option>
-        <option value="sendai">仙台（一番町・勾当台公園・仙台駅）</option>
-      </select>
+      <div class="citybtns" id="city">
+        <button type="button" data-city="kyoto"><b>京都</b><small>京都河原町・四条烏丸・京都駅</small></button>
+        <button type="button" data-city="sendai"><b>仙台</b><small>一番町・勾当台公園・仙台駅</small></button>
+      </div>
       <label>物件ページURL（アットイン等）</label>
       <div class="row">
         <input type="text" id="url" placeholder="https://atinn.jp/building/3840">
@@ -3900,13 +3908,13 @@ $('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); })
 $('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
 // ---- エリアの切り替え ----
 function updateCityUI() {
-  $('city').value = CITY.key;
+  document.querySelectorAll('#city button').forEach(b => b.classList.toggle('on', b.dataset.city === CITY.key));
   $('destTitle').textContent = `② 行き先（${CITY.dests.map(d => d.short).join('・')}）`;
   $('bname').placeholder = CITY.namePlaceholder;
   $('addr').placeholder = CITY.addrPlaceholder;
 }
-$('city').addEventListener('change', () => {
-  const key = $('city').value;
+document.querySelectorAll('#city button').forEach(btn => btn.addEventListener('click', () => setCity(btn.dataset.city)));
+function setCity(key) {
   if (key === CITY.key) return;
   applyCityData(key);
   state.city = key;
@@ -3927,7 +3935,7 @@ $('city').addEventListener('change', () => {
   renderDests();
   refresh();
   if (hasProp()) scheduleBus();
-});
+}
 updateCityUI();
 renderDests();
 refresh();
