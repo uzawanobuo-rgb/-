@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>京都アクセスマップ作成ツール</title>
+<title>アクセスマップ作成ツール（京都・仙台）</title>
 <style>
   * { box-sizing: border-box; }
   body {
@@ -66,13 +66,18 @@
 </style>
 </head>
 <body>
-<h1>京都アクセスマップ作成ツール</h1>
+<h1>アクセスマップ作成ツール（京都・仙台）</h1>
 <div class="app">
   <div class="left-panel">
 
     <div class="box">
       <h2>① 物件</h2>
-      <label>物件ページURL（アットイン等・京都市内の物件）</label>
+      <label>エリア</label>
+      <select id="city">
+        <option value="kyoto">京都（京都河原町・四条烏丸・京都駅）</option>
+        <option value="sendai">仙台（一番町・勾当台公園・仙台駅）</option>
+      </select>
+      <label>物件ページURL（アットイン等）</label>
       <div class="row">
         <input type="text" id="url" placeholder="https://atinn.jp/building/3840">
         <button class="fix" id="btnFetch">読み込み</button>
@@ -96,7 +101,7 @@
     </div>
 
     <div class="box">
-      <h2>② 行き先（京都河原町・四条烏丸・京都駅）</h2>
+      <h2 id="destTitle">② 行き先</h2>
       <div class="row" style="margin:0 0 8px;align-items:flex-start">
         <div class="status" id="busStatus" style="margin:0"></div>
         <button class="fix sub" id="btnBus" title="バス・電車の経路をもう一度調べる">経路を再検索</button>
@@ -108,7 +113,7 @@
         ② ①がなければ<b>電車</b>（直通または乗換1回。駅までの徒歩・待ち・乗換時間を含む）<br>
         ③ どちらもなければ、道路の経路距離から推定<br>
         時間はいずれも<b>目安</b>です。数字を入れればその値を使います。<br>
-        QRは、京都市バスの路線が見つかればその系統の時刻表ページ、それ以外はGoogleマップの経路検索（公共交通）を開きます。URLを入れれば差し替えられます。<br>
+        QRは、京都で京都市バスの路線が見つかればその系統の時刻表ページ、それ以外はGoogleマップの経路検索（公共交通）を開きます。URLを入れれば差し替えられます。<br>
         OSMのデータは有志の登録なので、抜けや古い情報があることがあります。公開前に路線を確認してください。
       </div>
     </div>
@@ -160,7 +165,7 @@
       <button class="sub" id="btnSvg">SVG保存</button>
     </div>
     <div class="hint" style="margin-top:6px">
-      地図・イラストはこのツールが京都の通りや川の位置から描いた図で、外部の地図画像や素材は使っていません。そのまま公開の場で使えます。<br>
+      地図・イラストはこのツールが通りや川の位置から描いた図で、外部の地図画像や素材は使っていません。そのまま公開の場で使えます。<br>
       デフォルメ図ですが縮尺は正しく、同心円は物件からの直線距離（1km刻み）です。
     </div>
   </div>
@@ -2457,85 +2462,169 @@ var qrcode = function() {
 }();
 </script>
 <script>
-// ===================================================================
-// 地理データ（京都市中心部）: 手入力の概略座標
-// ===================================================================
-const STREETS_EW = [ // [名前, 緯度, 西端経度, 東端経度, 主要?]
-  ['北大路通', 35.0437, 135.725, 135.785, 1],
-  ['今出川通', 35.0293, 135.725, 135.800, 1],
-  ['丸太町通', 35.0168, 135.715, 135.790, 1],
-  ['御池通',   35.0105, 135.720, 135.773, 1],
-  ['三条通',   35.0088, 135.700, 135.790, 0],
-  ['四条通',   35.0037, 135.690, 135.779, 1],
-  ['五条通',   34.9960, 135.700, 135.790, 1],
-  ['七条通',   34.9892, 135.715, 135.775, 0],
-  ['塩小路通', 34.9866, 135.735, 135.772, 0],
-  ['九条通',   34.9800, 135.715, 135.790, 1],
-];
-const STREETS_NS = [ // [名前, 経度, 南端緯度, 北端緯度, 主要?]
-  ['西大路通', 135.7320, 34.965, 35.050, 1],
-  ['千本通',   135.7428, 34.960, 35.050, 0],
-  ['堀川通',   135.7508, 34.970, 35.055, 1],
-  ['烏丸通',   135.7597, 34.965, 35.055, 1],
-  ['河原町通', 135.7691, 34.975, 35.032, 1],
-  ['川端通',   135.7728, 34.978, 35.032, 0],
-  ['東大路通', 135.7792, 34.965, 35.045, 1],
-  ['白川通',   135.7940, 35.010, 35.055, 0],
-];
-const RIVERS = [
-  { name: '鴨川', w: 14, pts: [[35.060,135.7555],[35.050,135.7600],[35.0420,135.7650],[35.0350,135.7700],[35.0300,135.7718],
-      [35.0230,135.7716],[35.0168,135.7713],[35.0088,135.7722],[35.0037,135.7717],[34.9960,135.7706],[34.9892,135.7694],
-      [34.9820,135.7672],[34.9740,135.7630],[34.9650,135.7570],[34.9550,135.7500]] },
-  { name: '', w: 9, pts: [[35.0300,135.7718],[35.0360,135.7760],[35.0440,135.7800],[35.0550,135.7850]] }, // 高野川
-  { name: '桂川', w: 16, pts: [[35.030,135.6720],[35.0130,135.6800],[34.9990,135.6960],[34.9850,135.7080],[34.9700,135.7160],[34.9500,135.7250]] },
-];
-const RAILS = [
-  { name: 'JR', pts: [[34.9750,135.7050],[34.9820,135.7250],[34.9855,135.7400],[34.9858,135.7588],[34.9868,135.7700],[34.9860,135.7800],[34.9830,135.7950]] },
-  { name: 'JR嵯峨野線', pts: [[34.9858,135.7560],[34.9868,135.7470],[34.9900,135.7425],[34.9960,135.7415],[35.0108,135.7414],[35.0183,135.7326],[35.0200,135.7200],[35.0180,135.7000]] },
-];
-const PARKS = [ // [名前, 南, 西, 北, 東]
-  ['京都御苑', 35.0170, 135.7600, 35.0335, 135.7660],
-  ['二条城',   35.0120, 135.7455, 35.0160, 135.7512],
-  ['梅小路公園', 34.9855, 135.7440, 34.9895, 135.7495],
-  ['岡崎公園', 35.0130, 135.7800, 35.0170, 135.7850],
-];
-const LANDMARKS = [ // [名前, 緯度, 経度, 種類]
-  ['二条城', 35.0142, 135.7482, 'castle'],
-  ['京都御所', 35.0254, 135.7621, 'palace'],
-  ['京都タワー', 34.9875, 135.7593, 'tower'],
-  ['東寺', 34.9806, 135.7478, 'pagoda'],
-  ['西本願寺', 34.9917, 135.7514, 'temple'],
-  ['東本願寺', 34.9912, 135.7580, 'temple'],
-  ['八坂神社', 35.0037, 135.7785, 'torii'],
-  ['清水寺', 34.9949, 135.7850, 'pagoda'],
-  ['平安神宮', 35.0160, 135.7824, 'torii'],
-  ['金閣寺', 35.0394, 135.7292, 'gold'],
-  ['銀閣寺', 35.0270, 135.7982, 'temple'],
-  ['下鴨神社', 35.0390, 135.7727, 'torii'],
-  ['伏見稲荷', 34.9671, 135.7727, 'torii'],
-  ['北野天満宮', 35.0312, 135.7350, 'torii'],
-  ['三十三間堂', 34.9880, 135.7717, 'temple'],
-];
 const COLORS = ['#13928c', '#e8692e', '#3b82c4', '#8a5cc2'];
+// ===================================================================
+// 地理データ（都市ごと）: 手入力の概略座標
+//   streetsEW: [名前, 緯度, 西端経度, 東端経度, 主要?]   streetsNS: [名前, 経度, 南端緯度, 北端緯度, 主要?]
+//   parks: [名前, 南, 西, 北, 東]   landmarks: [名前, 緯度, 経度, 種類]   station: 駅ビルの範囲 [北, 西, 南, 東]
+// ===================================================================
+const CITY_DATA = {
+  kyoto: {
+    key: 'kyoto', label: '京都',
+    title: '京都の主要エリアへのアクセス', directTitle: '京都の主要エリアへ、バスで乗換なし',
+    namePlaceholder: 'アットイン京都10', addrPlaceholder: '京都府京都市下京区…', addrRe: /(?:京都府)?京都市[^\s<>|｜「」（）()、,]{3,40}/,
+    center: [35.0036, 135.7597],
+    dests: [
+      { name: '京都河原町駅周辺', short: '京都河原町', lat: 35.0036, lng: 135.7690, radius: 350 },
+      { name: '四条烏丸', short: '四条烏丸', lat: 35.0036, lng: 135.7597, radius: 350 },
+      { name: '京都駅', short: '京都駅', lat: 34.9858, lng: 135.7588, radius: 450 },
+    ],
+    streetsEW: [
+      ['北大路通', 35.0437, 135.725, 135.785, 1],
+      ['今出川通', 35.0293, 135.725, 135.800, 1],
+      ['丸太町通', 35.0168, 135.715, 135.790, 1],
+      ['御池通',   35.0105, 135.720, 135.773, 1],
+      ['三条通',   35.0088, 135.700, 135.790, 0],
+      ['四条通',   35.0037, 135.690, 135.779, 1],
+      ['五条通',   34.9960, 135.700, 135.790, 1],
+      ['七条通',   34.9892, 135.715, 135.775, 0],
+      ['塩小路通', 34.9866, 135.735, 135.772, 0],
+      ['九条通',   34.9800, 135.715, 135.790, 1],
+    ],
+    streetsNS: [
+      ['西大路通', 135.7320, 34.965, 35.050, 1],
+      ['千本通',   135.7428, 34.960, 35.050, 0],
+      ['堀川通',   135.7508, 34.970, 35.055, 1],
+      ['烏丸通',   135.7597, 34.965, 35.055, 1],
+      ['河原町通', 135.7691, 34.975, 35.032, 1],
+      ['川端通',   135.7728, 34.978, 35.032, 0],
+      ['東大路通', 135.7792, 34.965, 35.045, 1],
+      ['白川通',   135.7940, 35.010, 35.055, 0],
+    ],
+    rivers: [
+      { name: '鴨川', w: 14, pts: [[35.060,135.7555],[35.050,135.7600],[35.0420,135.7650],[35.0350,135.7700],[35.0300,135.7718],
+          [35.0230,135.7716],[35.0168,135.7713],[35.0088,135.7722],[35.0037,135.7717],[34.9960,135.7706],[34.9892,135.7694],
+          [34.9820,135.7672],[34.9740,135.7630],[34.9650,135.7570],[34.9550,135.7500]] },
+      { name: '', w: 9, pts: [[35.0300,135.7718],[35.0360,135.7760],[35.0440,135.7800],[35.0550,135.7850]] }, // 高野川
+      { name: '桂川', w: 16, pts: [[35.030,135.6720],[35.0130,135.6800],[34.9990,135.6960],[34.9850,135.7080],[34.9700,135.7160],[34.9500,135.7250]] },
+    ],
+    rails: [
+      { name: 'JR', pts: [[34.9750,135.7050],[34.9820,135.7250],[34.9855,135.7400],[34.9858,135.7588],[34.9868,135.7700],[34.9860,135.7800],[34.9830,135.7950]] },
+      { name: 'JR嵯峨野線', pts: [[34.9858,135.7560],[34.9868,135.7470],[34.9900,135.7425],[34.9960,135.7415],[35.0108,135.7414],[35.0183,135.7326],[35.0200,135.7200],[35.0180,135.7000]] },
+    ],
+    parks: [
+      ['京都御苑', 35.0170, 135.7600, 35.0335, 135.7660],
+      ['二条城',   35.0120, 135.7455, 35.0160, 135.7512],
+      ['梅小路公園', 34.9855, 135.7440, 34.9895, 135.7495],
+      ['岡崎公園', 35.0130, 135.7800, 35.0170, 135.7850],
+    ],
+    landmarks: [
+      ['二条城', 35.0142, 135.7482, 'castle'],
+      ['京都御所', 35.0254, 135.7621, 'palace'],
+      ['京都タワー', 34.9875, 135.7593, 'tower'],
+      ['東寺', 34.9806, 135.7478, 'pagoda'],
+      ['西本願寺', 34.9917, 135.7514, 'temple'],
+      ['東本願寺', 34.9912, 135.7580, 'temple'],
+      ['八坂神社', 35.0037, 135.7785, 'torii'],
+      ['清水寺', 34.9949, 135.7850, 'kiyomizu'],
+      ['平安神宮', 35.0160, 135.7824, 'torii'],
+      ['金閣寺', 35.0394, 135.7292, 'gold'],
+      ['銀閣寺', 35.0270, 135.7982, 'temple'],
+      ['下鴨神社', 35.0390, 135.7727, 'torii'],
+      ['伏見稲荷', 34.9671, 135.7727, 'torii'],
+      ['北野天満宮', 35.0312, 135.7350, 'torii'],
+      ['三十三間堂', 34.9880, 135.7717, 'temple'],
+    ],
+    // 山並み（東山・北山・西山）
+    hills: [
+      [[35.080, 135.782], [35.058, 135.786], [35.045, 135.790], [35.032, 135.793], [35.022, 135.788], [35.010, 135.787], [34.998, 135.789],
+        [34.986, 135.783], [34.972, 135.780], [34.955, 135.778], [34.930, 135.782], [34.930, 135.900], [35.080, 135.900]],
+      [[35.052, 135.640], [35.054, 135.700], [35.050, 135.722], [35.054, 135.745], [35.052, 135.765], [35.058, 135.782], [35.100, 135.782], [35.100, 135.640]],
+      [[35.060, 135.600], [35.030, 135.668], [35.000, 135.675], [34.970, 135.690], [34.930, 135.700], [34.930, 135.600]],
+    ],
+    daimonji: [35.0255, 135.8005],
+    station: [34.9878, 135.7552, 34.9861, 135.7628],
+    riverLabel: '鴨川',
+  },
+  sendai: {
+    key: 'sendai', label: '仙台',
+    title: '仙台の主要エリアへのアクセス', directTitle: '仙台の主要エリアへ、バスで乗換なし',
+    namePlaceholder: 'アットイン仙台1', addrPlaceholder: '宮城県仙台市青葉区…', addrRe: /(?:宮城県)?仙台市[^\s<>|｜「」（）()、,]{3,40}/,
+    center: [38.2630, 140.8770],
+    dests: [
+      { name: '一番町周辺', short: '一番町', lat: 38.2614, lng: 140.8737, radius: 350 },
+      { name: '勾当台公園', short: '勾当台公園', lat: 38.2683, lng: 140.8711, radius: 350 },
+      { name: '仙台駅', short: '仙台駅', lat: 38.2601, lng: 140.8824, radius: 450 },
+    ],
+    streetsEW: [
+      ['北四番丁通', 38.2742, 140.855, 140.892, 1],
+      ['定禅寺通',   38.2672, 140.861, 140.880, 1],
+      ['広瀬通',     38.2637, 140.862, 140.884, 1],
+      ['青葉通',     38.2600, 140.860, 140.882, 1],
+      ['宮城野通',   38.2600, 140.886, 140.902, 0],
+      ['南町通',     38.2570, 140.866, 140.882, 0],
+      ['五橋通',     38.2520, 140.866, 140.896, 0],
+    ],
+    streetsNS: [
+      ['西公園通',   140.8640, 38.255, 38.272, 0],
+      ['晩翠通',     140.8678, 38.250, 38.282, 1],
+      ['東二番丁通', 140.8765, 38.245, 38.282, 1],
+      ['愛宕上杉通', 140.8798, 38.238, 38.288, 1],
+      ['東七番丁通', 140.8905, 38.248, 38.272, 0],
+    ],
+    rivers: [
+      { name: '広瀬川', w: 16, pts: [[38.2900,140.8300],[38.2800,140.8460],[38.2720,140.8540],[38.2650,140.8590],[38.2590,140.8585],
+          [38.2530,140.8610],[38.2485,140.8680],[38.2450,140.8760],[38.2420,140.8830],[38.2380,140.8880],[38.2330,140.8950],[38.2250,140.9050]] },
+    ],
+    rails: [
+      { name: 'JR東北本線', pts: [[38.3000,140.8930],[38.2850,140.8880],[38.2700,140.8840],[38.2601,140.8824],[38.2500,140.8810],[38.2400,140.8800],[38.2250,140.8770],[38.2050,140.8750]] },
+      { name: 'JR仙山線', pts: [[38.2650,140.8833],[38.2720,140.8850],[38.2775,140.8858],[38.2830,140.8760],[38.2860,140.8700],[38.2900,140.8580],[38.2950,140.8450]] },
+    ],
+    parks: [
+      ['勾当台公園', 38.2672, 140.8700, 38.2695, 140.8722],
+      ['西公園',     38.2620, 140.8605, 38.2700, 140.8640],
+      ['榴岡公園',   38.2600, 140.8955, 38.2625, 140.8995],
+      ['錦町公園',   38.2660, 140.8780, 38.2675, 140.8800],
+    ],
+    landmarks: [
+      ['仙台城跡', 38.2526, 140.8566, 'castle'],
+      ['大崎八幡宮', 38.2722, 140.8492, 'torii'],
+      ['瑞鳳殿', 38.2508, 140.8663, 'temple'],
+      ['仙台東照宮', 38.2782, 140.8812, 'torii'],
+      ['榴岡天満宮', 38.2637, 140.8955, 'torii'],
+      ['輪王寺', 38.2832, 140.8690, 'pagoda'],
+    ],
+    // 青葉山・八木山（広瀬川の西〜南西）
+    hills: [
+      [[38.2950, 140.7900], [38.2800, 140.8380], [38.2700, 140.8470], [38.2620, 140.8540], [38.2560, 140.8545], [38.2500, 140.8585],
+        [38.2440, 140.8640], [38.2380, 140.8700], [38.2300, 140.8720], [38.2150, 140.8650], [38.2150, 140.7900]],
+    ],
+    daimonji: null,
+    station: [38.2618, 140.8805, 38.2588, 140.8845],
+    riverLabel: '広瀬川',
+  },
+};
+let CITY, STREETS_EW, STREETS_NS, RIVERS, RAILS, PARKS, LANDMARKS, HILLS, DAIMONJI;
+function applyCityData(key) {
+  CITY = CITY_DATA[key] || CITY_DATA.kyoto;
+  ({ streetsEW: STREETS_EW, streetsNS: STREETS_NS, rivers: RIVERS, rails: RAILS, parks: PARKS, landmarks: LANDMARKS, hills: HILLS, daimonji: DAIMONJI } = CITY);
+}
+function cityDests() { return CITY.dests.map((d, i) => ({ ...d, color: COLORS[i], min: '', qr: '' })); }
+const ALL_AUTO_TITLES = Object.values(CITY_DATA).flatMap(c => [c.title, c.directTitle]).concat(['京都の主要エリアへ、バスでアクセス']);
 
 // ===================================================================
 // 状態
 // ===================================================================
 const DEFAULTS = {
-  title: '京都の主要エリアへのアクセス',
   subtitle: '物件から主要エリアへのアクセス概要図',
   btitle: '行き先別の所要時間と時刻表',
   bsub: 'QRを読み取ると、物件からの経路とバスの発車時刻を確認できます',
 };
 let state = {
   name: '', addr: '', lat: null, lng: null, url: '', stop: '',
-  title: DEFAULTS.title, subtitle: DEFAULTS.subtitle, btitle: DEFAULTS.btitle, bsub: DEFAULTS.bsub,
+  city: 'kyoto', title: '', subtitle: DEFAULTS.subtitle, btitle: DEFAULTS.btitle, bsub: DEFAULTS.bsub,
   zoom: 1, rings: true, marks: true, streets: true, speed: 12, overhead: 4,
-  dests: [
-    { name: '京都河原町駅周辺', short: '京都河原町', lat: 35.0036, lng: 135.7690, radius: 350, color: COLORS[0], min: '', qr: '' },
-    { name: '四条烏丸', short: '四条烏丸', lat: 35.0036, lng: 135.7597, radius: 350, color: COLORS[1], min: '', qr: '' },
-    { name: '京都駅', short: '京都駅', lat: 34.9858, lng: 135.7588, radius: 450, color: COLORS[2], min: '', qr: '' },
-  ],
+  dests: [],
 };
 // 保存の仕組み：
 //  ・物件ごとの内容（物件名・住所・位置・経路の結果・所要分やQRの上書き など）はタブごとに保存（sessionStorage）
@@ -2553,17 +2642,27 @@ function readJSON(store, key) { try { const v = JSON.parse(store.getItem(key) ||
     if (old) SHARED_FIELDS.forEach(k => { if (k in old) shared[k] = old[k]; });
   }
   SHARED_FIELDS.forEach(k => { if (k in shared) state[k] = shared[k]; });
-  if (shared.title && shared.title !== '京都の主要エリアへ、バスでアクセス') state.title = shared.title;
   const tab = readJSON(sessionStorage, TAB_KEY);
+  // エリア（京都・仙台）：このタブで選んでいたもの → 最後に使ったもの → 京都
+  applyCityData((tab && tab.city) || shared.city || 'kyoto');
+  state.city = CITY.key;
+  state.title = sharedTitle(shared) || CITY.title;
+  state.dests = cityDests();
   if (tab) {
     const fixed = state.dests;
     state = Object.assign(state, tab);
+    state.city = CITY.key;
     // 行き先は3か所固定。保存済みの入力（所要分・QR）だけ引き継ぐ
     state.dests = fixed.map((d, i) => {
       const o = (tab.dests || [])[i] || {};
       return Object.assign(d, { min: o.min || '', qr: o.qr || '' });
     });
   }
+}
+// 手で入れたタイトルはエリアごとに共有（自動のタイトルは共有しない）
+function sharedTitle(shared) {
+  const t = shared['title.' + CITY.key] || (CITY.key === 'kyoto' ? shared.title : '');
+  return t && !ALL_AUTO_TITLES.includes(t) ? t : '';
 }
 function save() { try { sessionStorage.setItem(TAB_KEY, JSON.stringify(state)); } catch (e) {} }
 // 共有の設定は、その項目を変えたときだけ書き込む（ほかのタブの変更を上書きしないように）
@@ -2625,14 +2724,6 @@ function textW(str, size, weight) {
   measureCtx.font = `${weight || 400} ${size}px ${FONT}`;
   return measureCtx.measureText(str).width;
 }
-// 山並み（東山・北山・西山）の概略
-const HILLS = [
-  [[35.080, 135.782], [35.058, 135.786], [35.045, 135.790], [35.032, 135.793], [35.022, 135.788], [35.010, 135.787], [34.998, 135.789],
-    [34.986, 135.783], [34.972, 135.780], [34.955, 135.778], [34.930, 135.782], [34.930, 135.900], [35.080, 135.900]],
-  [[35.052, 135.640], [35.054, 135.700], [35.050, 135.722], [35.054, 135.745], [35.052, 135.765], [35.058, 135.782], [35.100, 135.782], [35.100, 135.640]],
-  [[35.060, 135.600], [35.030, 135.668], [35.000, 135.675], [34.970, 135.690], [34.930, 135.700], [34.930, 135.600]],
-];
-const DAIMONJI = [35.0255, 135.8005];
 
 // 物件と3つの行き先がちょうど収まる縮尺にする（余白を最小に）
 let proj = null;
@@ -2815,7 +2906,7 @@ function qrSvg(text, x, y, size) {
 }
 function bottomLine(i) {
   const m = modeOf(i), b = busOf(i);
-  if (m === 'bus') return 'バス乗換なし ｜ QRで時刻表 ▶';
+  if (m === 'bus') return b.qrUrl ? 'バス乗換なし ｜ QRで時刻表 ▶' : 'バス乗換なし ｜ QRで経路・時刻表 ▶';
   if (m === 'train') return `電車：${trainSummary(b.train)} ▶`;
   return 'QRで経路・時刻表 ▶';
 }
@@ -2826,6 +2917,30 @@ function inMap(r, pad = 8) {
   return r.x >= MAP.x + pad && r.y >= MAP.y + pad && r.x + r.w <= MAP.x + MAP.w - pad && r.y + r.h <= MAP.y + MAP.h - pad;
 }
 
+// 仙台：青葉山と仙台城、定禅寺通のケヤキ並木、街のビル
+function headerArtSendai() {
+  let t = '', b = '';
+  [[1090, 192, 12], [1122, 194, 14], [1156, 192, 12], [1190, 194, 14], [1224, 192, 12], [1258, 194, 13]].forEach(([x, y, r], i) => { t += tree(x, y, r, i % 2); });
+  [[1520, 188, 13], [1548, 192, 11], [1440, 192, 10]].forEach(([x, y, r], i) => { t += tree(x, y, r, i % 2); });
+  // ビル
+  [[1300, 120, 34, 76], [1338, 98, 30, 98], [1372, 132, 40, 64], [1416, 112, 26, 84]].forEach(([x, y, w, h], i) => {
+    let win = '';
+    for (let yy = y + 8; yy < y + h - 10; yy += 12) for (let xx = x + 5; xx < x + w - 6; xx += 9) win += `<rect x="${xx}" y="${yy}" width="5" height="6" fill="#e6f1f7"/>`;
+    b += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${['#9fb3c2', '#8aa1b3', '#a9bccb', '#93aabb'][i]}"/>${win}`;
+  });
+  return `<g>
+    <circle cx="1240" cy="66" r="42" fill="#f7c873"/><circle cx="1240" cy="66" r="56" fill="#f7c873" opacity=".2"/>
+    <path d="M1090,60 q14,-20 34,-8 q16,-14 34,2 q20,0 18,14 h-96 q-8,-8 10,-8 z" fill="#dde9ef"/>
+    <path d="M1440,40 q14,-16 30,-4 q14,-8 26,6 h-66 z" fill="#dde9ef"/>
+    <path d="M1030,200 Q1100,110 1180,128 Q1240,96 1300,140 L1300,200 Z" fill="#b8ddb0"/>
+    <path d="M1050,200 Q1120,150 1200,160 Q1260,150 1310,172 L1310,200 Z" fill="#96cb91"/>
+    <path d="M1112,150 L1188,150 L1196,170 L1104,170 Z" fill="#a9a59a"/>
+    <g transform="translate(1150,146) scale(1.9)">${icon('castle', 0, 0)}</g>
+    ${b}
+    <rect x="1290" y="194" width="270" height="6" fill="#96cb91"/>
+    ${t}
+  </g>`;
+}
 function headerArt() {
   let t = '';
   [[1120, 186, 11], [1150, 190, 13], [1182, 186, 10], [1250, 190, 12], [1282, 186, 10], [1395, 190, 12], [1425, 186, 10],
@@ -2901,7 +3016,7 @@ function renderOnce(fit) {
   <rect width="${W}" height="12" fill="#13928c"/>`);
 
   // ヘッダー
-  out.push(headerArt());
+  out.push(CITY.key === 'sendai' ? headerArtSendai() : headerArt());
   out.push(`<text x="90" y="100" font-size="56" font-weight="700" fill="#16323a">${esc(state.title)}</text>`);
   out.push(`<text x="92" y="152" font-size="26" fill="#5c6b70">${esc(state.subtitle)}</text>`);
 
@@ -2923,8 +3038,8 @@ function renderOnce(fit) {
   const scaleBox = corner(sbSide);
   const fixedBoxes = [scaleBox, { x: MAP.x + MAP.w - 96, y: MAP.y + 12, w: 80, h: 100 }]; // 縮尺・方位（何も重ねない）
   occupied.push(...fixedBoxes);
-  const [sx1, sy1] = P(34.9878, 135.7552), [sx2, sy2] = P(34.9861, 135.7628);
-  const stationBox = { x: sx1 - 6, y: sy1 - 8, w: sx2 - sx1 + 12, h: Math.max(22, sy2 - sy1) + 16 }; // 京都駅ビル
+  const [sx1, sy1] = P(CITY.station[0], CITY.station[1]), [sx2, sy2] = P(CITY.station[2], CITY.station[3]);
+  const stationBox = { x: sx1 - 6, y: sy1 - 8, w: sx2 - sx1 + 12, h: Math.max(22, sy2 - sy1) + 16 }; // 駅ビル
   const railPts = [];
   for (const r of RAILS) for (let k = 0; k < r.pts.length - 1; k++) {
     const [ax, ay] = P(r.pts[k][0], r.pts[k][1]), [bx, by] = P(r.pts[k + 1][0], r.pts[k + 1][1]);
@@ -3038,7 +3153,7 @@ function renderOnce(fit) {
         const r = { x: dx + c * f - cw / 2, y: dy + sn * f - ch / 2, w: cw, h: ch };
         let score = inMap(r) ? 0 : 5000;
         for (const o of fixedBoxes) if (overlaps(r, o, 6)) score += 5000;
-        if (overlaps(r, stationBox, 6)) score += 600; // 京都駅ビルにかぶせない
+        if (overlaps(r, stationBox, 6)) score += 600; // 駅ビルにかぶせない
         score += countIn(r, railPts, 2) * 8;          // 線路にもなるべくかぶせない
         score += countIn(r, routePts, 10) * 400; // 点線にかぶるのは最優先で避ける
         for (const o of occupied) if (overlaps(r, o, 6)) score += 300;
@@ -3154,9 +3269,9 @@ function renderOnce(fit) {
     out.push(`<path d="${d}" stroke="#6d7479" stroke-width="9" fill="none" stroke-linejoin="round"/>`);
     out.push(`<path d="${d}" stroke="#ffffff" stroke-width="4.5" stroke-dasharray="15 15" fill="none" stroke-linejoin="round"/>`);
   }
-  // 京都駅ビル
+  // 駅ビル
   {
-    const [x1, y1] = P(34.9878, 135.7552), [x2, y2] = P(34.9861, 135.7628);
+    const [x1, y1] = P(CITY.station[0], CITY.station[1]), [x2, y2] = P(CITY.station[2], CITY.station[3]);
     const w = x2 - x1, h = Math.max(22, y2 - y1);
     let win = '';
     for (let xx = x1 + 6; xx < x2 - 8; xx += 12) win += `<rect x="${xx.toFixed(1)}" y="${(y1 + 5).toFixed(1)}" width="7" height="${(h - 10).toFixed(1)}" fill="#cfe2ee"/>`;
@@ -3200,7 +3315,7 @@ function renderOnce(fit) {
   out.push(treeSvg.map(t => t[1]).join(''));
 
   // 大文字
-  { const [x, y] = P(DAIMONJI[0], DAIMONJI[1]); const r = { x: x - 22, y: y - 22, w: 44, h: 44 };
+  if (DAIMONJI) { const [x, y] = P(DAIMONJI[0], DAIMONJI[1]); const r = { x: x - 22, y: y - 22, w: 44, h: 44 };
     if (inMap(r) && !occupied.some(o => overlaps(r, o))) out.push(`<text x="${x.toFixed(1)}" y="${(y + 15).toFixed(1)}" font-size="44" font-weight="900" text-anchor="middle" fill="#fff" opacity=".9">大</text>`); }
 
   // 距離の同心円
@@ -3240,7 +3355,7 @@ function renderOnce(fit) {
     }
     const kp = riverPx[0].q.find(([x, y]) => y > MAP.y + MAP.h * 0.55 && x > MAP.x + 20 && x < MAP.x + MAP.w - 80);
     if (kp) { const r = { x: kp[0] + 12, y: kp[1] - 13, w: 44, h: 24 };
-      if (!occupied.some(o => overlaps(r, o))) labels.push(`<text x="${(kp[0] + 14).toFixed(1)}" y="${(kp[1] + 6).toFixed(1)}" font-size="18" font-weight="700" fill="#3f86ad" stroke="#fff" stroke-width="4" paint-order="stroke">鴨川</text>`); }
+      if (!occupied.some(o => overlaps(r, o))) labels.push(`<text x="${(kp[0] + 14).toFixed(1)}" y="${(kp[1] + 6).toFixed(1)}" font-size="18" font-weight="700" fill="#3f86ad" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(CITY.riverLabel)}</text>`); }
   }
 
   out.push(labels.join(''));
@@ -3349,7 +3464,8 @@ function bindText(id, key, num) {
   el.addEventListener('input', () => {
     if (el.type === 'checkbox') state[key] = el.checked;
     else state[key] = num ? parseFloat(el.value) : el.value;
-    if (key === 'title' || SHARED_FIELDS.includes(key)) saveShared(key, state[key]);
+    if (key === 'title') saveShared('title.' + CITY.key, state.title);
+    if (SHARED_FIELDS.includes(key)) saveShared(key, state[key]);
     if (key === 'zoom') $('zoomLabel').textContent = `×${(1 / state.zoom).toFixed(2)}`;
     if (key === 'speed' || key === 'overhead') { $('spdLabel').textContent = state.speed; updateEstimatePlaceholders(); }
     refresh();
@@ -3469,7 +3585,7 @@ node(r.r)->.s;
 }
 // 京都市バスの系統番号 → 系統別時刻表ページ（例: 204号系統 → 20400.htm、23号系統 → 02300.htm）
 function timetableUrl(route) {
-  if (!route) return null;
+  if (!route || CITY.key !== 'kyoto') return null; // 時刻表ページのURLが分かっているのは京都市バスのみ
   const who = `${route.operator} ${route.network} ${route.name}`;
   const m = String(route.ref || '').trim().match(/^(\d{1,3})$/);
   if (m && /京都市|市バス|市営/.test(who)) return `https://www2.city.kyoto.lg.jp/kotsu/busdia/keitou/kto/${m[1].padStart(3, '0')}00.htm`;
@@ -3599,7 +3715,6 @@ async function roadRoutes(lat, lng) {
   if (res.every(x => !x)) throw new Error('取得できませんでした');
   return res;
 }
-const DIRECT_TITLE = '京都の主要エリアへ、バスで乗換なし';
 let busTimer = null, busSeq = 0;
 function scheduleBus() { clearTimeout(busTimer); busTimer = setTimeout(detectBus, 500); }
 async function detectBus() {
@@ -3641,8 +3756,8 @@ async function detectBus() {
   st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
     + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所 ／ その他: ${dests.length - nBus - nTrain}か所`
     + (errList.length ? `\n（${errList.join('・')}のデータを取得できませんでした。その分は距離からの目安で表示）` : '');
-  if (nBus === dests.length && state.title === DEFAULTS.title) { state.title = DIRECT_TITLE; $('title').value = state.title; }
-  if (nBus < dests.length && state.title === DIRECT_TITLE) { state.title = DEFAULTS.title; $('title').value = state.title; }
+  if (nBus === dests.length && state.title === CITY.title) { state.title = CITY.directTitle; $('title').value = state.title; }
+  if (nBus < dests.length && state.title === CITY.directTitle) { state.title = CITY.title; $('title').value = state.title; }
   renderDests();
   refresh();
   setBusy(false);
@@ -3704,7 +3819,7 @@ function parseProperty(html) {
   }
   if (!out.addr) {
     const text = doc.body?.textContent.replace(/\s+/g, ' ') || '';
-    const m = text.match(/(?:京都府)?京都市[^\s<>|｜「」（）()、,]{3,40}/) || text.match(PREF_RE);
+    const m = text.match(CITY.addrRe) || text.match(PREF_RE);
     if (m) out.addr = m[0];
   }
   // 地図埋め込みの座標
@@ -3783,6 +3898,37 @@ $('btnFetch').onclick = loadUrl;
 $('btnGeo').onclick = geocode;
 $('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); });
 $('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
+// ---- エリアの切り替え ----
+function updateCityUI() {
+  $('city').value = CITY.key;
+  $('destTitle').textContent = `② 行き先（${CITY.dests.map(d => d.short).join('・')}）`;
+  $('bname').placeholder = CITY.namePlaceholder;
+  $('addr').placeholder = CITY.addrPlaceholder;
+}
+$('city').addEventListener('change', () => {
+  const key = $('city').value;
+  if (key === CITY.key) return;
+  applyCityData(key);
+  state.city = key;
+  saveShared('city', key); // 次に開くタブはこのエリアから
+  state.dests = cityDests();
+  state.bus = null;
+  // タイトルが自動のもの（または前のエリアの名前入り）なら、このエリアの初期タイトルへ
+  if (!state.title || ALL_AUTO_TITLES.includes(state.title)) state.title = sharedTitle(readJSON(localStorage, SHARED_KEY) || {}) || CITY.title;
+  $('title').value = state.title;
+  // 物件がこのエリアから遠い（別の都市の物件）なら、物件の入力を空にする
+  if (hasProp() && kmBetween({ lat: CITY.center[0], lng: CITY.center[1] }, state) > 30) {
+    Object.assign(state, { name: '', addr: '', url: '', stop: '', lat: null, lng: null });
+    ['bname', 'addr', 'url', 'stop', 'plat', 'plng'].forEach(id => { $(id).value = ''; });
+    setStatus(`${CITY.label}に切り替えました。物件のURLか住所を入れてください。`, 'ok');
+  } else setStatus(`${CITY.label}に切り替えました。`, 'ok');
+  $('busStatus').textContent = '';
+  updateCityUI();
+  renderDests();
+  refresh();
+  if (hasProp()) scheduleBus();
+});
+updateCityUI();
 renderDests();
 refresh();
 $('btnBus').onclick = () => { if (hasProp()) detectBus(); else setStatus('先に物件の位置を指定してください', 'err'); };
