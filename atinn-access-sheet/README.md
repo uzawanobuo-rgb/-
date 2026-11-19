@@ -60,9 +60,12 @@
 
 - 置き場所：http://magi2.atinn.jp/access-sheet/index.html （フォルダのアドレスでは index.html を返さないので、ツールは index.html を開く）
 - 渡したもの：`index.html`・`view.html`・`css/`・`js/`・`img/`・`vendor/` を `access-sheet` フォルダに入れた ZIP（＋設置メモ）。
-- 同じものを作り直すとき：`git archive <コミット> atinn-access-sheet` で取り出し、上のファイルだけを使う。
+- ZIP の作り方：`bash atinn-access-sheet/scripts/build-intranet-zip.sh <コミット>`（設置メモは `intranet/設置メモ.txt`）。
 - 更新するとき：新しい内容で同じ構成の ZIP を作り、フォルダごと差し替える。http のサーバーでは、ブックマーク（プラン取込・乗換取込）の登録し直しも必要。
 - 社内サーバーでは共有リンクは社外から開けないので、お客様へは画像・PDF・メール用テキストで送る。
+
+## 説明資料
+- 使い方ガイド（PDF）と、初回準備と使い方（PowerPoint）は [`manual/output/`](manual/output/) にあります。作り直し方は [`CLAUDE.md`](CLAUDE.md) の「説明資料」。
 
 ## 開発
 ```
