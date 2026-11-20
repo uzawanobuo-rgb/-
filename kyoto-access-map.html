@@ -2585,8 +2585,16 @@ const CITY_DATA = {
           [38.2530,140.8610],[38.2485,140.8680],[38.2450,140.8760],[38.2420,140.8830],[38.2380,140.8880],[38.2330,140.8950],[38.2250,140.9050]] },
     ],
     rails: [
-      { name: 'JR東北本線', pts: [[38.3000,140.8930],[38.2850,140.8880],[38.2700,140.8840],[38.2601,140.8824],[38.2500,140.8810],[38.2400,140.8800],[38.2250,140.8770],[38.2050,140.8750]] },
-      { name: 'JR仙山線', pts: [[38.2650,140.8833],[38.2720,140.8850],[38.2775,140.8858],[38.2830,140.8760],[38.2860,140.8700],[38.2900,140.8580],[38.2950,140.8450]] },
+      // 東北本線は仙台駅の北で北東（東仙台）へ曲がる。南は長町へ少し東寄りに下る
+      { name: 'JR東北本線', pts: [[38.2790,140.9300],[38.2760,140.9100],[38.2710,140.8930],[38.2660,140.8860],[38.2601,140.8824],[38.2500,140.8832],[38.2400,140.8848],[38.2263,140.8853],[38.2050,140.8830]] },
+      { name: 'JR仙山線', pts: [[38.2660,140.8860],[38.2720,140.8835],[38.2780,140.8826],[38.2830,140.8760],[38.2848,140.8690],[38.2900,140.8580],[38.2950,140.8450]] },
+      // 地下鉄（色付きの細い実線。経路の点線と見分けやすいように。labelAt は路線名を置く候補を順に。置けなければ線上の点を順に試す）
+      { name: '地下鉄南北線', subway: true, color: '#3f9a54', label: '地下鉄南北線', labelAt: [[38.2440, 140.8808], [38.2880, 140.8790], [38.2330, 140.8812]],
+        pts: [[38.2985,140.8800],[38.2908,140.8790],[38.2843,140.8718],[38.2738,140.8722],[38.2683,140.8713],[38.2635,140.8760],[38.2603,140.8800],
+          [38.2527,140.8806],[38.2468,140.8808],[38.2398,140.8800],[38.2330,140.8812],[38.2262,140.8835],[38.2150,140.8800]] },
+      { name: '地下鉄東西線', subway: true, color: '#2f9fcf', label: '地下鉄東西線', labelAt: [[38.2545, 140.8990], [38.2600, 140.8540], [38.2500, 140.8420]],
+        pts: [[38.2441,140.8451],[38.2562,140.8394],[38.2622,140.8506],[38.2608,140.8590],[38.2618,140.8642],[38.2600,140.8720],[38.2600,140.8810],
+          [38.2588,140.8880],[38.2531,140.8935],[38.2541,140.9020],[38.2507,140.9180]] },
     ],
     parks: [
       ['勾当台公園', 38.2672, 140.8700, 38.2695, 140.8722],
@@ -3274,6 +3282,10 @@ function renderOnce(fit) {
   const railPx = RAILS.map(r => r.pts.map(p => P(p[0], p[1])));
   for (const r of RAILS) {
     const d = polyline(r.pts, P);
+    if (r.subway) { // 地下鉄：色付きの細い実線（経路の点線と見分けやすく、控えめに）
+      out.push(`<path d="${d}" stroke="${r.color}" stroke-width="4" stroke-opacity="0.55" fill="none" stroke-linejoin="round" stroke-linecap="round"/>`);
+      continue;
+    }
     out.push(`<path d="${d}" stroke="#6d7479" stroke-width="9" fill="none" stroke-linejoin="round"/>`);
     out.push(`<path d="${d}" stroke="#ffffff" stroke-width="4.5" stroke-dasharray="15 15" fill="none" stroke-linejoin="round"/>`);
   }
@@ -3360,6 +3372,14 @@ function renderOnce(fit) {
       const r = { x: x - 10, y: yy, w: 20, h: nm.length * 16 };
       const chars = [...nm].map((c, i) => `<tspan x="${x.toFixed(1)}" dy="${i ? 16 : 0}">${esc(c)}</tspan>`).join('');
       if (inMap(r) && !occupied.some(o => overlaps(r, o, 2))) labels.push(`<text y="${(yy + 13).toFixed(1)}" font-size="15" text-anchor="middle" fill="#8b9086" stroke="#fff" stroke-width="4" paint-order="stroke">${chars}</text>`);
+    }
+    for (const r of RAILS) { // 地下鉄の路線名
+      if (!r.label || !r.labelAt) continue;
+      const w = textW(r.label, 14) + 6;
+      const at = r.labelAt.concat(r.pts).map(([la, ln]) => P(la, ln)).find(([x, y]) => { const box = { x: x + 8, y: y - 11, w, h: 20 }; return inMap(box) && !occupied.some(o => overlaps(box, o, 2)); });
+      if (!at) continue;
+      const [x, y] = at; occupied.push({ x: x + 8, y: y - 11, w, h: 20 });
+      labels.push(`<text x="${(x + 11).toFixed(1)}" y="${(y + 4).toFixed(1)}" font-size="14" font-weight="700" fill="${r.color}" stroke="#fff" stroke-width="4" paint-order="stroke">${esc(r.label)}</text>`);
     }
     const kp = riverPx[0].q.find(([x, y]) => y > MAP.y + MAP.h * 0.55 && x > MAP.x + 20 && x < MAP.x + MAP.w - 80);
     if (kp) { const r = { x: kp[0] + 12, y: kp[1] - 13, w: 44, h: 24 };
