@@ -97,6 +97,8 @@
         <input type="text" id="addr" placeholder="京都府京都市下京区…">
         <button class="fix" id="btnGeo">位置を検索</button>
       </div>
+      <label>最寄りバス停（空欄なら自動で調べます）</label>
+      <input type="text" id="stop" placeholder="例: 上七軒（入れるとこのバス停から乗る経路で時間を出します）">
       <details>
         <summary>緯度・経度を直接入力</summary>
         <div class="row">
@@ -117,7 +119,7 @@
       <div id="dests"></div>
       <div class="hint" style="margin-top:6px">
         物件の位置が決まると、OpenStreetMapの路線データから次の順で経路を調べます：<br>
-        ① <b>バスで乗換なし</b>（バス停までの徒歩＋路線に沿った距離÷平均時速 約<span id="spdLabel"></span>km/h）<br>
+        ① <b>バスで乗換なし</b>（①の「最寄りバス停」に入れたときはそのバス停から乗る経路だけ。バス停までの徒歩＋路線に沿った距離÷平均時速 約<span id="spdLabel"></span>km/h）<br>
         ② ①がなければ<b>電車</b>（直通または乗換1回。駅までの徒歩・待ち・乗換時間を含む）<br>
         ③ どちらもなければ、道路の経路距離から推定<br>
         時間はいずれも<b>目安</b>です。数字を入れればその値を使います。<br>
@@ -136,8 +138,6 @@
       <input type="text" id="btitle">
       <label>下段の補足</label>
       <input type="text" id="bsub">
-      <label>最寄りバス停（空欄なら自動、物件名の下に表示）</label>
-      <input type="text" id="stop" placeholder="自動で表示されます（例: 四条大宮 徒歩3分）">
       <label>地図の範囲 <span id="zoomLabel"></span></label>
       <input type="range" id="zoom" min="0.5" max="2.5" step="0.05" value="1" style="width:100%">
       <div class="row" style="margin-top:6px">
@@ -3470,10 +3470,10 @@ function renderDests() {
       : b.mode === 'walk'
       ? `🚶 歩いた方が早いため徒歩（直線で約${b.walkM}m）　QR：Googleマップの道順（徒歩）`
       : b.mode === 'train'
-      ? `🚃 ${b.busFailed ? 'バスの情報を取得できなかったため電車（自動で再検索します）' : 'バスの乗換なし路線がないため電車'}：<br>${b.train.legs.map(l => `${esc(l.line)}　${esc(stationName(l.from))} → ${esc(stationName(l.to))}`).join('<br>乗換 → ')}<br>（駅まで徒歩約${b.train.walk}分を含む）　QR：Googleマップの経路検索`
+      ? `🚃 ${b.busFailed ? 'バスの情報を取得できなかったため電車（自動で再検索します）' : (state.bus && state.bus.from ? `${esc(state.bus.from)}から乗換なしのバスがないため電車` : 'バスの乗換なし路線がないため電車')}：<br>${b.train.legs.map(l => `${esc(l.line)}　${esc(stationName(l.from))} → ${esc(stationName(l.to))}`).join('<br>乗換 → ')}<br>（駅まで徒歩約${b.train.walk}分を含む）　QR：Googleマップの経路検索`
       : b.mode === 'road'
       ? `${b.dataOk ? 'バス・電車の路線が見つからないため' : '路線データを取得できなかったため'}、道路の経路距離（${b.roadKm.toFixed(1)}km）から推定`
-      : '路線データを取得できなかったため、距離からの目安';
+      : b.dataOk ? 'バス・電車の路線が見つからず、道路の経路も取得できなかったため、距離からの目安' : '路線データを取得できなかったため、距離からの目安';
     el.innerHTML = `
       <div style="font-weight:700;color:${esc(d.color)}">${esc(d.name)}</div>
       ${info ? `<div class="hint" style="margin:2px 0 4px;color:${(b.mode === 'bus' || b.mode === 'train' || b.mode === 'walk') && !b.busFailed ? '#13706b' : '#b25a1f'}">${info}</div>` : ''}
@@ -3585,12 +3585,24 @@ const TRAIN_WAIT = 4, TRANSFER_MIN = 6;
 const RAIL_SPEED = { train: 42, subway: 32, light_rail: 25, monorail: 30, tram: 15 };
 const RAIL_MODES = 'train|subway|light_rail|monorail|tram';
 const STOP_ROLE = /^(stop|platform)?(_entry_only|_exit_only)?$/;
+const STOP_RADIUS_SET = 1000; // バス停を指定したときは、物件から1kmまで探す
+// 最寄りバス停の欄から名前だけを取り出す（「上七軒 徒歩3分」→「上七軒」）
+// 全角の数字・かっこ・スペースは半角にそろえる（「徒歩３分」「上七軒（徒歩3分）」なども扱えるように）
+function stopInput() { return String(state.stop || '').normalize('NFKC').trim(); }
+const STOP_WALK_RE = /\s*\(?\s*(?:まで)?\s*(?:徒歩|歩いて)?\s*約?\s*\d+\s*分.*$/;
+function stopName() { return stopInput().replace(STOP_WALK_RE, '').replace(/(?:バス停|停留所)$/, '').trim(); }
+function stopHasWalk() { return /\d+\s*分/.test(stopInput()); }
+let busStopQ = null; // いちばん最近の検索で使った（使っている）指定のバス停名
+function stopNorm(n) { return stationKey(n).replace(/(?:バス停|停留所)$/, ''); }
 function propKey() { return hasProp() ? state.lat.toFixed(5) + ',' + state.lng.toFixed(5) : ''; }
 function busOf(i) { return state.bus && state.bus.key === propKey() ? state.bus.dests[i] : null; }
 function nearestStop() { return state.bus && state.bus.key === propKey() ? state.bus.nearest : null; }
 function stopLabel() {
-  if (String(state.stop || '').trim()) return state.stop.trim();
+  // 欄を書き換えて、まだ検索し直していないときは、入れた文字をそのまま出す（前のバス停を出さない）
+  if (state.bus && (state.bus.stopQ || '') !== stopName()) return stopInput();
   const n = nearestStop();
+  // 指定したバス停：見つかれば徒歩の分数を自動で付ける（自分で「徒歩◯分」と書いたときはそのまま）
+  if (stopInput()) return !stopHasWalk() && n && n.picked ? `${n.name} 徒歩${n.walk}分` : stopInput();
   return n ? `${n.name} 徒歩${n.walk}分` : '';
 }
 function modeOf(i) { const b = busOf(i); return b ? b.mode : null; }
@@ -3619,8 +3631,8 @@ async function overpass(q, signal) {
   }
   throw lastErr || new Error('取得できませんでした');
 }
-function busQuery(lat, lng) {
-  const a = `around:${ORIGIN_RADIUS},${lat},${lng}`;
+function busQuery(lat, lng, want) {
+  const a = `around:${want ? STOP_RADIUS_SET : ORIGIN_RADIUS},${lat},${lng}`;
   return `[out:json][timeout:30];
 (node(${a})[highway=bus_stop];node(${a})[public_transport=platform][bus=yes];node(${a})[public_transport=stop_position][bus=yes];)->.near;
 .near out body;
@@ -3665,19 +3677,26 @@ function routeStops(r, nodes, dedupe) {
   for (let k = 0; k < out.length; k++) out[k].cum = k ? out[k - 1].cum + kmBetween(out[k - 1], out[k]) * 1000 : 0;
   return out;
 }
-function analyzeBus(js, lat, lng) {
+function analyzeBus(js, lat, lng, wantName) {
   const here = { lat, lng };
   const nodes = new Map();
   for (const e of js.elements || []) if (e.type === 'node') nodes.set(e.id, e);
   const rels = (js.elements || []).filter(e => e.type === 'relation');
+  // 指定のバス停：名前が同じもの → なければ名前を含むもの（1km以内）
+  const want = wantName ? stopNorm(wantName) : '';
+  const named = [...nodes.values()].filter(n => (n.tags || {}).name && kmBetween(here, ll(n)) * 1000 <= STOP_RADIUS_SET);
+  let picked = want ? named.filter(n => stopNorm(n.tags.name) === want) : [];
+  if (want && !picked.length && want.length >= 2) picked = named.filter(n => stopNorm(n.tags.name).includes(want));
+  const pickedNames = new Set(picked.map(n => stopNorm(n.tags.name)));
+  const usable = seqStop => pickedNames.size ? pickedNames.has(stopNorm(seqStop.name)) && kmBetween(here, seqStop) * 1000 <= STOP_RADIUS_SET : kmBetween(here, seqStop) * 1000 <= ORIGIN_RADIUS;
   let nearest = null;
-  for (const n of nodes.values()) {
+  for (const n of pickedNames.size ? picked : nodes.values()) {
     const t = n.tags || {};
-    if (!t.name || !(t.highway === 'bus_stop' || t.public_transport === 'platform')) continue;
+    if (!t.name || (!pickedNames.size && !(t.highway === 'bus_stop' || t.public_transport === 'platform'))) continue;
     const m = kmBetween(here, ll(n)) * 1000;
-    if (m <= ORIGIN_RADIUS && (!nearest || m < nearest.m)) nearest = { name: t.name.replace(/[（(].*?[）)]$/, ''), m };
+    if ((pickedNames.size || m <= ORIGIN_RADIUS) && (!nearest || m < nearest.m)) nearest = { name: t.name.replace(/[（(].*?[）)]$/, ''), m };
   }
-  if (nearest) nearest.walk = Math.max(1, Math.round(nearest.m * 1.25 / WALK_M_PER_MIN));
+  if (nearest) { nearest.walk = Math.max(1, Math.round(nearest.m * 1.25 / WALK_M_PER_MIN)); nearest.picked = pickedNames.size > 0; }
   const speed = Number(state.speed) || 12;
   const dests = state.dests.map(d => {
     const cands = [];
@@ -3689,7 +3708,7 @@ function analyzeBus(js, lat, lng) {
       let best = null;
       for (let i = 0; i < seq.length; i++) {
         const walkM = kmBetween(here, seq[i]) * 1000;
-        if (walkM > ORIGIN_RADIUS) continue;
+        if (!usable(seq[i])) continue;
         for (let j = 0; j < seq.length; j++) {
           if (j === i || (oneWay && j < i)) continue;
           if (kmBetween(d, seq[j]) * 1000 > d.radius) continue;
@@ -3716,7 +3735,7 @@ function analyzeBus(js, lat, lng) {
       qrUrl: qrRoute ? timetableUrl(qrRoute) : null, qrRef: qrRoute ? qrRoute.ref : '',
     };
   });
-  return { nearest, dests };
+  return { nearest, dests, want: wantName, found: pickedNames.size > 0 };
 }
 function analyzeTrain(js, lat, lng) {
   const here = { lat, lng };
@@ -3784,6 +3803,7 @@ async function detectBus(auto) {
   if (busAbort) busAbort.abort(); // 前の検索の問い合わせは止める（混雑時の回数制限にかからないように）
   const ctl = busAbort = new AbortController(), signal = ctl.signal;
   const key = propKey(), seq = ++busSeq, lat = state.lat, lng = state.lng;
+  const stopQ = busStopQ = stopName(); // 検索の最初に決める（途中で欄を変えても、この検索の中では変えない）
   if (auto !== true || retry.key !== key) retry = { key, n: 0 };
   const st = $('busStatus');
   const got = {}, failed = {}, names = { bus: 'バスの路線', train: '電車の路線', road: '道路の経路' };
@@ -3801,7 +3821,7 @@ async function detectBus(auto) {
   const run = (k, p) => p.then(v => { got[k] = v; }, () => { failed[k] = true; }).then(showBusy);
   // 同じサーバーに同時に送らないよう、バス → 電車の順に問い合わせる（道路は別のサーバーなので並行）
   await Promise.all([
-    run('bus', overpass(busQuery(lat, lng), signal).then(js => analyzeBus(js, lat, lng)))
+    run('bus', overpass(busQuery(lat, lng, stopQ), signal).then(js => analyzeBus(js, lat, lng, stopQ)))
       .then(() => run('train', overpass(trainQuery(lat, lng), signal).then(js => analyzeTrain(js, lat, lng)))),
     run('road', roadRoutes(lat, lng, signal)),
   ]);
@@ -3812,7 +3832,7 @@ async function detectBus(auto) {
   const speed = Number(state.speed) || 12, over = Number(state.overhead) || 0;
   const busFailed = !B || !T; // バスか電車の路線データを取れなかった（「路線がない」とは区別する）
   const dests = state.dests.map((d, i) => {
-    let r = { mode: null };
+    let r = { mode: null, dataOk: !busFailed };
     if (B && B.dests[i]) r = B.dests[i];
     else if (T && T[i]) r = Object.assign({}, T[i], { busFailed: !B });
     else if (R && R[i]) r = { mode: 'road', minutes: Math.max(3, Math.round(R[i].km / speed * 60 + over)), roadKm: R[i].km, path: R[i].path, dataOk: !busFailed };
@@ -3824,11 +3844,12 @@ async function detectBus(auto) {
   const nWalk = dests.filter(x => x.mode === 'walk').length;
   // 取得に失敗したものがあれば「完了」にしない（再読み込みしたとき・自動の再検索でもう一度調べる）
   const willRetry = Object.keys(failed).length > 0 && retry.n < RETRY_MAX;
-  state.bus = { key, nearest: B ? B.nearest : null, dests, complete: !Object.keys(failed).length };
+  state.bus = { key, nearest: B ? B.nearest : null, from: B && B.found ? B.nearest.name : '', stopQ, dests, complete: !Object.keys(failed).length };
   const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
   const errs = { bus: 'バス', train: '電車', road: '道路経路' }, errList = Object.keys(failed).map(k => errs[k]);
   st.className = errList.length ? 'status err' : 'status ok';
-  st.textContent = (B && B.nearest ? `最寄りバス停: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
+  st.textContent = (B && B.want && !B.found ? `指定のバス停「${B.want}」が物件から1km以内に見つからなかったため、バスは近くのバス停から自動で調べました\n` : '')
+    + (B && B.nearest ? `${B.found ? '指定のバス停' : '最寄りバス停'}: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
     + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所` + (nWalk ? ` ／ 徒歩: ${nWalk}か所` : '') + ` ／ その他: ${dests.length - nBus - nTrain - nWalk}か所`
     + (errList.length ? `\n（${errList.join('・')}のデータを取得できませんでした。取得できたデータだけで表示しています。`
       + (willRetry ? `${RETRY_SEC}秒後にもう一度調べます）` : '少し時間をおいて「経路を再検索」を押してください）') : '');
@@ -3914,6 +3935,7 @@ async function loadUrl() {
   try {
     const html = await fetchHtml(url);
     const p = parseProperty(html);
+    if (p.name && p.name !== state.name) { state.stop = ''; $('stop').value = ''; } // 別の物件なら指定のバス停は空に
     if (p.name) { state.name = p.name; $('bname').value = p.name; }
     if (p.addr) { state.addr = p.addr; $('addr').value = p.addr; }
     if (p.lat && p.lng && p.lat > 20 && p.lat < 50) { setProp(p.lat, p.lng, `読み込みました: ${p.name || ''}\n${p.addr || ''}（ページ内の地図の座標を使用）`); return; }
@@ -3971,6 +3993,7 @@ $('spdLabel').textContent = state.speed;
   const la = parseFloat($('plat').value), ln = parseFloat($('plng').value);
   if (Number.isFinite(la) && Number.isFinite(ln)) { state.lat = la; state.lng = ln; updateEstimatePlaceholders(); refresh(); scheduleBus(); }
 }));
+$('stop').addEventListener('change', () => { if (hasProp() && busStopQ !== stopName()) detectBus(false); });
 $('btnFetch').onclick = loadUrl;
 $('btnGeo').onclick = geocode;
 $('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); });
@@ -4010,7 +4033,8 @@ updateCityUI();
 renderDests();
 refresh();
 $('btnBus').onclick = () => { if (hasProp()) detectBus(false); else setStatus('先に物件の位置を指定してください', 'err'); };
-if (hasProp() && (!busOf(0) || !state.bus.complete)) scheduleBus();
+busStopQ = state.bus ? (state.bus.stopQ || '') : null;
+if (hasProp() && (!busOf(0) || !state.bus.complete || (state.bus.stopQ || '') !== stopName())) scheduleBus();
 </script>
 </body>
 </html>
