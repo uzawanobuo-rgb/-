@@ -3815,9 +3815,11 @@ async function detectBus(auto) {
     const sec = Math.round((Date.now() - t0) / 1000);
     $('busyTime').textContent = `${sec}秒経過` + (sec >= 15 ? '　混雑時は1分ほどかかることがあります' : '');
   };
-  setBusy(true); showBusy();
-  const timer = setInterval(showBusy, 1000);
-  st.className = 'status'; st.textContent = 'バス・電車の経路を調べています…';
+  // 自動の調べ直しは裏で静かに行う（地図に「調べています」を重ねず、ほかの作業を止めない）
+  const quiet = auto === true;
+  if (!quiet) { setBusy(true); showBusy(); }
+  const timer = quiet ? null : setInterval(showBusy, 1000);
+  st.className = 'status'; st.textContent = quiet ? '取得できなかった路線データを、自動で調べ直しています…' : 'バス・電車の経路を調べています…';
   const run = (k, p) => p.then(v => { got[k] = v; }, () => { failed[k] = true; }).then(showBusy);
   // 同じサーバーに同時に送らないよう、バス → 電車の順に問い合わせる（道路は別のサーバーなので並行）
   await Promise.all([
@@ -3843,8 +3845,10 @@ async function detectBus(auto) {
   });
   const nWalk = dests.filter(x => x.mode === 'walk').length;
   // 取得に失敗したものがあれば「完了」にしない（再読み込みしたとき・自動の再検索でもう一度調べる）
-  const willRetry = Object.keys(failed).length > 0 && retry.n < RETRY_MAX;
-  state.bus = { key, nearest: B ? B.nearest : null, from: B && B.found ? B.nearest.name : '', stopQ, dests, complete: !Object.keys(failed).length };
+  // 自動で調べ直すのは、バス・電車の路線データが取れなかったときだけ（道路の経路だけの失敗では調べ直さない）
+  const routeFailed = !!(failed.bus || failed.train);
+  const willRetry = routeFailed && retry.n < RETRY_MAX;
+  state.bus = { key, nearest: B ? B.nearest : null, from: B && B.found ? B.nearest.name : '', stopQ, dests, complete: !routeFailed };
   const nBus = dests.filter(x => x.mode === 'bus').length, nTrain = dests.filter(x => x.mode === 'train').length;
   const errs = { bus: 'バス', train: '電車', road: '道路経路' }, errList = Object.keys(failed).map(k => errs[k]);
   st.className = errList.length ? 'status err' : 'status ok';
