@@ -64,7 +64,10 @@
   .citybtns button.on { background: #13928c; color: #fff; border-color: #13928c; }
   .citybtns button.on small { color: #d8f1ee; }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  #preview svg { width: 100%; height: auto; display: block; cursor: crosshair; }
+  #preview svg { width: 100%; height: auto; display: block; cursor: default; }
+  #preview.picking svg { cursor: crosshair; }
+  #preview.picking { box-shadow: 0 0 0 3px #e8692e; }
+  button.picking, button.picking:hover { background: #e8692e; color: #fff; }
   .dl { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
   @media (max-width: 900px) {
     .app { flex-direction: column; }
@@ -107,7 +110,10 @@
         </div>
       </details>
       <div class="status" id="status"></div>
-      <div class="hint">プレビューの地図をクリックすると、その場所に物件の位置を置き直せます。</div>
+      <div class="row" style="margin-top:8px">
+        <button class="fix sub" id="btnPick" type="button">📍 地図で位置を直す</button>
+        <div class="hint" id="pickHint" style="margin:0">位置がずれていたら、このボタンを押してから地図の上をクリックします。</div>
+      </div>
     </div>
 
     <div class="box">
@@ -2636,6 +2642,7 @@ const DEFAULTS = {
   btitle: '行き先別の所要時間と時刻表',
   bsub: 'QRを読み取ると、物件からの経路とバスの発車時刻を確認できます',
 };
+let picking = false; // 「地図で位置を直す」を押している間だけ true
 let state = {
   name: '', addr: '', lat: null, lng: null, url: '', stop: '',
   city: 'kyoto', title: '', subtitle: DEFAULTS.subtitle, btitle: DEFAULTS.btitle, bsub: DEFAULTS.bsub,
@@ -3452,6 +3459,7 @@ function renderOnce(fit) {
 let renderTimer = null;
 function refresh() {
   save();
+  if ($('btnPick')) setPicking(picking);
   clearTimeout(renderTimer);
   renderTimer = setTimeout(() => { $('preview').innerHTML = render(); }, 60);
 }
@@ -3561,11 +3569,11 @@ async function geocode() {
   try {
     for (const q of addressCandidates(a)) {
       const r = await gsiSearch(q);
-      if (r) { setProp(r.lat, r.lng, `見つかりました: ${r.title}\n位置がずれていたら、地図をクリックして直せます。`); return; }
+      if (r) { setProp(r.lat, r.lng, `見つかりました: ${r.title}\n位置がずれていたら「地図で位置を直す」で直せます。`); return; }
     }
-    setStatus('住所から位置が見つかりませんでした。町名までに短くするか、地図をクリックして指定してください。', 'err');
+    setStatus('住所から位置が見つかりませんでした。町名までに短くするか、「地図で位置を直す」を押して地図の上をクリックしてください。', 'err');
   } catch (e) {
-    setStatus('位置検索に失敗しました（' + e.message + '）。地図をクリックして指定してください。', 'err');
+    setStatus('位置検索に失敗しました（' + e.message + '）。「地図で位置を直す」を押して地図の上をクリックしてください。', 'err');
   }
 }
 
@@ -3952,14 +3960,27 @@ async function loadUrl() {
 }
 
 // ---- 地図クリックで物件位置 ----
+// 物件の位置が決まったあとは、「地図で位置を直す」を押したときだけクリックで動かす（うっかり触って動かないように）
+function canPick() { return picking || !hasProp(); }
+function setPicking(on) {
+  picking = !!on;
+  $('btnPick').classList.toggle('picking', picking);
+  $('btnPick').textContent = picking ? '✕ やめる' : '📍 地図で位置を直す';
+  $('pickHint').textContent = picking ? '地図の上の、物件の場所をクリックしてください。'
+    : hasProp() ? '位置がずれていたら、このボタンを押してから地図の上をクリックします。' : '住所で見つからないときは、地図の上をクリックしても位置を指定できます。';
+  $('preview').classList.toggle('picking', canPick());
+}
+$('btnPick').onclick = () => setPicking(!picking);
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && picking) setPicking(false); });
 $('preview').addEventListener('click', ev => {
   const svg = $('preview').querySelector('svg');
-  if (!svg || !proj) return;
+  if (!svg || !proj || !canPick()) return;
   const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY;
   const p = pt.matrixTransform(svg.getScreenCTM().inverse());
   if (p.x < MAP.x || p.x > MAP.x + MAP.w || p.y < MAP.y || p.y > MAP.y + MAP.h) return;
   const ll = proj.inv(p.x, p.y);
   setProp(ll.lat, ll.lng, `地図上で位置を指定しました（${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}）`);
+  setPicking(false);
 });
 
 // ---- 保存 ----
