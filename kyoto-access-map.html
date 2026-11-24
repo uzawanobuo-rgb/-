@@ -91,17 +91,17 @@
       <label>物件ページURL（アットイン等）</label>
       <div class="row">
         <input type="text" id="url" placeholder="https://atinn.jp/building/3840">
-        <button class="fix" id="btnFetch">読み込み</button>
       </div>
       <label>物件名</label>
       <input type="text" id="bname" placeholder="アットイン京都10">
       <label>住所</label>
       <div class="row">
         <input type="text" id="addr" placeholder="京都府京都市下京区…">
-        <button class="fix" id="btnGeo">位置を検索</button>
       </div>
       <label>最寄りバス停（空欄なら自動で調べます）</label>
       <input type="text" id="stop" placeholder="例: 上七軒（入れるとこのバス停から乗る経路で時間を出します）">
+      <button id="btnSearch" type="button" style="width:100%;margin-top:10px;padding:10px;font-size:15px;font-weight:700">🔍 検索する</button>
+      <div class="hint" style="margin-top:4px">URL・住所・最寄りバス停のうち、変えたところから順に調べます（URL → 物件名・住所 → 位置 → 経路）。何も変えずに押すと、経路だけ調べ直します。</div>
       <details>
         <summary>緯度・経度を直接入力</summary>
         <div class="row">
@@ -118,10 +118,7 @@
 
     <div class="box">
       <h2 id="destTitle">② 行き先</h2>
-      <div class="row" style="margin:0 0 8px;align-items:flex-start">
-        <div class="status" id="busStatus" style="margin:0"></div>
-        <button class="fix sub" id="btnBus" title="バス・電車の経路をもう一度調べる">経路を再検索</button>
-      </div>
+      <div class="status" id="busStatus" style="margin:0 0 8px"></div>
       <div id="dests"></div>
       <div class="hint" style="margin-top:6px">
         物件の位置が決まると、OpenStreetMapの路線データから次の順で経路を調べます：<br>
@@ -3569,7 +3566,7 @@ async function geocode() {
   try {
     for (const q of addressCandidates(a)) {
       const r = await gsiSearch(q);
-      if (r) { setProp(r.lat, r.lng, `見つかりました: ${r.title}\n位置がずれていたら「地図で位置を直す」で直せます。`); return; }
+      if (r) { state.geoAddr = a; setProp(r.lat, r.lng, `見つかりました: ${r.title}\n位置がずれていたら「地図で位置を直す」で直せます。`); return; }
     }
     setStatus('住所から位置が見つかりませんでした。町名までに短くするか、「地図で位置を直す」を押して地図の上をクリックしてください。', 'err');
   } catch (e) {
@@ -3864,7 +3861,7 @@ async function detectBus(auto) {
     + (B && B.nearest ? `${B.found ? '指定のバス停' : '最寄りバス停'}: ${B.nearest.name}（徒歩${B.nearest.walk}分）\n` : '')
     + `バス乗換なし: ${nBus}か所 ／ 電車: ${nTrain}か所` + (nWalk ? ` ／ 徒歩: ${nWalk}か所` : '') + ` ／ その他: ${dests.length - nBus - nTrain - nWalk}か所`
     + (errList.length ? `\n（${errList.join('・')}のデータを取得できませんでした。取得できたデータだけで表示しています。`
-      + (willRetry ? `${RETRY_SEC}秒後にもう一度調べます）` : '少し時間をおいて「経路を再検索」を押してください）') : '');
+      + (willRetry ? `${RETRY_SEC}秒後にもう一度調べます）` : '少し時間をおいて「検索する」を押してください）') : '');
   if (willRetry) { retry.n++; retryTimer = setTimeout(() => { if (propKey() === key) detectBus(true); }, RETRY_SEC * 1000); }
   if (nBus === dests.length && state.title === CITY.title) { state.title = CITY.directTitle; $('title').value = state.title; }
   if (nBus < dests.length && state.title === CITY.directTitle) { state.title = CITY.title; $('title').value = state.title; }
@@ -3874,7 +3871,7 @@ async function detectBus(auto) {
 }
 function setBusy(on) {
   $('mapBusy').hidden = !on;
-  ['btnPng', 'btnPng2', 'btnSvg', 'btnBus'].forEach(id => { $(id).disabled = on; });
+  ['btnPng', 'btnPng2', 'btnSvg', 'btnSearch'].forEach(id => { $(id).disabled = on; });
 }
 
 // ---- URL → 物件名・住所 ----
@@ -3950,12 +3947,13 @@ async function loadUrl() {
     if (p.name && p.name !== state.name) { state.stop = ''; $('stop').value = ''; } // 別の物件なら指定のバス停は空に
     if (p.name) { state.name = p.name; $('bname').value = p.name; }
     if (p.addr) { state.addr = p.addr; $('addr').value = p.addr; }
-    if (p.lat && p.lng && p.lat > 20 && p.lat < 50) { setProp(p.lat, p.lng, `読み込みました: ${p.name || ''}\n${p.addr || ''}（ページ内の地図の座標を使用）`); return; }
+    state.loadedUrl = url;
+    if (p.lat && p.lng && p.lat > 20 && p.lat < 50) { state.geoAddr = p.addr || state.addr; setProp(p.lat, p.lng, `読み込みました: ${p.name || ''}\n${p.addr || ''}（ページ内の地図の座標を使用）`); return; }
     if (p.addr) { await geocode(); return; }
     setStatus('物件名は読み込めましたが、住所が見つかりませんでした。住所を手入力してください。', 'err');
     refresh();
   } catch (e) {
-    setStatus('ページを読み込めませんでした（サイト側の制限の可能性があります）。\n物件名と住所をコピーして貼り付け、「位置を検索」を押してください。', 'err');
+    setStatus('ページを読み込めませんでした（サイト側の制限の可能性があります）。\n物件名と住所をコピーして貼り付け、URLの欄を空にして「検索する」を押してください。', 'err');
   }
 }
 
@@ -4018,11 +4016,18 @@ $('spdLabel').textContent = state.speed;
   const la = parseFloat($('plat').value), ln = parseFloat($('plng').value);
   if (Number.isFinite(la) && Number.isFinite(ln)) { state.lat = la; state.lng = ln; updateEstimatePlaceholders(); refresh(); scheduleBus(); }
 }));
-$('stop').addEventListener('change', () => { if (hasProp() && busStopQ !== stopName()) detectBus(false); });
-$('btnFetch').onclick = loadUrl;
-$('btnGeo').onclick = geocode;
-$('url').addEventListener('keydown', e => { if (e.key === 'Enter') loadUrl(); });
-$('addr').addEventListener('keydown', e => { if (e.key === 'Enter') geocode(); });
+// 検索ボタン（1つにまとめる）：変えたところから順に調べる
+async function searchAll() {
+  const url = $('url').value.trim(), addr = $('addr').value.trim();
+  if (url && url !== state.loadedUrl) return loadUrl();           // URL → 物件名・住所 → 位置 → 経路
+  if (addr && addr !== state.geoAddr) return geocode();           // 住所 → 位置 → 経路
+  if (hasProp()) return detectBus(false);                         // 経路だけ（地図で直した位置はそのまま）
+  if (url) return loadUrl();
+  if (addr) return geocode();
+  setStatus('物件ページのURLか住所を入れて「検索する」を押してください', 'err');
+}
+$('btnSearch').onclick = searchAll;
+['url', 'addr', 'stop'].forEach(id => $(id).addEventListener('keydown', e => { if (e.key === 'Enter') searchAll(); }));
 // ---- エリアの切り替え ----
 function updateCityUI() {
   document.querySelectorAll('#city button').forEach(b => b.classList.toggle('on', b.dataset.city === CITY.key));
@@ -4044,7 +4049,7 @@ function setCity(key) {
   $('title').value = state.title;
   // 物件がこのエリアから遠い（別の都市の物件）なら、物件の入力を空にする
   if (hasProp() && kmBetween({ lat: CITY.center[0], lng: CITY.center[1] }, state) > 30) {
-    Object.assign(state, { name: '', addr: '', url: '', stop: '', lat: null, lng: null });
+    Object.assign(state, { name: '', addr: '', url: '', stop: '', lat: null, lng: null, loadedUrl: '', geoAddr: '' });
     ['bname', 'addr', 'url', 'stop', 'plat', 'plng'].forEach(id => { $(id).value = ''; });
     setStatus(`${CITY.label}に切り替えました。物件のURLか住所を入れてください。`, 'ok');
   } else setStatus(`${CITY.label}に切り替えました。`, 'ok');
@@ -4057,7 +4062,8 @@ function setCity(key) {
 updateCityUI();
 renderDests();
 refresh();
-$('btnBus').onclick = () => { if (hasProp()) detectBus(false); else setStatus('先に物件の位置を指定してください', 'err'); };
+// 以前の保存内容：位置が決まっていれば、そのURL・住所は調べ済みとみなす（押しても位置を上書きしない）
+if (hasProp() && state.loadedUrl === undefined) { state.loadedUrl = state.url || ''; state.geoAddr = state.addr || ''; }
 busStopQ = state.bus ? (state.bus.stopQ || '') : null;
 if (hasProp() && (!busOf(0) || !state.bus.complete || (state.bus.stopQ || '') !== stopName())) scheduleBus();
 </script>
