@@ -3421,7 +3421,7 @@ function renderOnce(fit) {
     <text x="${sx}" y="${sy - 18}" font-size="13" fill="#6b7a7e">徒歩 約${Math.round(sbKm * 1000 / 80)}分</text>`);
   if (!hasProp()) {
     out.push(`<rect x="${MAP.x + MAP.w / 2 - 330}" y="${MAP.y + MAP.h / 2 - 34}" width="660" height="68" rx="34" fill="#12303a" opacity=".85"/>
-      <text x="${MAP.x + MAP.w / 2}" y="${MAP.y + MAP.h / 2 + 9}" font-size="24" fill="#fff" text-anchor="middle">住所を検索するか、地図をクリックして物件の位置を指定</text>`);
+      <text x="${MAP.x + MAP.w / 2}" y="${MAP.y + MAP.h / 2 + 9}" font-size="24" fill="#fff" text-anchor="middle">URLか住所を入れて「検索する」を押してください</text>`);
   }
   out.push(`</g>`);
   out.push(`<rect x="${MAP.x}" y="${MAP.y}" width="${MAP.w}" height="${MAP.h}" rx="24" fill="none" stroke="#dde3d6" stroke-width="2"/>`);
@@ -3959,13 +3959,13 @@ async function loadUrl() {
 
 // ---- 地図クリックで物件位置 ----
 // 物件の位置が決まったあとは、「地図で位置を直す」を押したときだけクリックで動かす（うっかり触って動かないように）
-function canPick() { return picking || !hasProp(); }
+function canPick() { return picking; } // 位置が決まる前も後も、ボタンを押したときだけ（住所を入れていてもクリックで決まってしまわないように）
 function setPicking(on) {
   picking = !!on;
   $('btnPick').classList.toggle('picking', picking);
   $('btnPick').textContent = picking ? '✕ やめる' : '📍 地図で位置を直す';
   $('pickHint').textContent = picking ? '地図の上の、物件の場所をクリックしてください。'
-    : hasProp() ? '位置がずれていたら、このボタンを押してから地図の上をクリックします。' : '住所で見つからないときは、地図の上をクリックしても位置を指定できます。';
+    : hasProp() ? '位置がずれていたら、このボタンを押してから地図の上をクリックします。' : '住所で見つからないときは、このボタンを押してから地図の上をクリックします。';
   $('preview').classList.toggle('picking', canPick());
 }
 $('btnPick').onclick = () => setPicking(!picking);
@@ -3977,7 +3977,7 @@ $('preview').addEventListener('click', ev => {
   const p = pt.matrixTransform(svg.getScreenCTM().inverse());
   if (p.x < MAP.x || p.x > MAP.x + MAP.w || p.y < MAP.y || p.y > MAP.y + MAP.h) return;
   const ll = proj.inv(p.x, p.y);
-  setProp(ll.lat, ll.lng, `地図上で位置を指定しました（${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}）`);
+  setProp(ll.lat, ll.lng, `地図で位置を直しました（${ll.lat.toFixed(5)}, ${ll.lng.toFixed(5)}）。住所の欄はそのままです。`);
   setPicking(false);
 });
 
