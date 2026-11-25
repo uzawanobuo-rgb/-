@@ -1006,36 +1006,6 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
     for (let i = 0; i < n; i++) download(await toPng(i, true), fileBase() + (i ? '_設備比較' : '_縦') + '.png');
     toast(n > 1 ? '縦型のPNGと設備比較を保存しました' : '縦型のPNGを保存しました');
   }
-  // 共有リンク：中身を URL の「#」以降に入れたリンクを作り、コピーして見せる
-  async function makeShareLink() {
-    const st = viewState();
-    const hash = await window.AtinnShare.encode(st);
-    const url = new URL('view.html', location.href.split('#')[0].split('?')[0]).href + '#' + hash;
-    let copied = false;
-    try { await navigator.clipboard.writeText(url); copied = true; } catch (e) { /* 下の欄からコピーしてもらう */ }
-    const props = st.pattern === 'p2' ? st.p2.properties : [st.p1.property];
-    // 手元で差し替えた写真や、場所（URL）のない写真はリンクに入らない
-    const lostPhoto = props.some(p => { if (!p || !p.name || p.hidePhoto) return false; const ph = (p.photos || [])[p.photoIdx || 0]; return !!p.photoCustom || !!(ph && !/^https?:\/\//.test(ph.src || '')); });
-    const old = $('#share-pop'); if (old) old.remove();
-    const o = document.createElement('div');
-    o.id = 'share-pop'; o.className = 'slot-pick';
-    o.innerHTML = `<div class="slot-box" role="dialog" aria-label="共有リンク">
-<div class="slot-t">共有リンク${copied ? 'をコピーしました' : ''}</div>
-<div class="muted">メールやLINEに貼って送れます。スマホでは縦、パソコンでは横の形で表示されます。</div>
-<textarea readonly rows="4" style="width:100%;font-size:12px;">${esc(url)}</textarea>
-<div class="muted" style="font-size:12px;line-height:1.7">・${url.length.toLocaleString()}文字のリンクです。料金などは今の内容で固定されます（あとで直したら、作り直して送ってください）。<br>・リンクを知っている人は誰でも見られます。${lostPhoto ? '<br>・手元から差し替えた写真は入りません（公式サイトの写真のみ）。' : ''}</div>
-<div class="row" style="justify-content:flex-end;gap:8px"><a class="btn small" href="${esc(url)}" target="_blank" rel="noopener">開いて確認</a><button type="button" class="btn small primary" data-copy>コピー</button><button type="button" class="btn small" data-cancel>閉じる</button></div></div>`;
-    document.body.appendChild(o);
-    o.addEventListener('click', async ev => {
-      if (ev.target.closest('[data-copy]')) {
-        const ta = o.querySelector('textarea');
-        try { await navigator.clipboard.writeText(ta.value); } catch (e) { ta.select(); document.execCommand('copy'); }
-        toast('共有リンクをコピーしました');
-      }
-      if (ev.target.closest('[data-cancel]') || ev.target === o) o.remove();
-    });
-    if (copied) toast('共有リンクをコピーしました');
-  }
   async function exportPdf() {
     const pdf = new window.jspdf.jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4', compress: true });
     const n = exportPages().length;
@@ -1325,7 +1295,6 @@ ${field('料金の基準日', dateInp('baseDate', ''))}
       case 'save-json': saveJson(); break;
       case 'png': busy(b, exportPng); break;
       case 'png-portrait': busy(b, exportPngPortrait); break;
-      case 'share': busy(b, makeShareLink); break;
       case 'pdf': busy(b, exportPdf); break;
       case 'print': busy(b, doPrint); break;
       case 'import': { const t = $(`textarea[data-paste="${path}"]`); importInto(path, t && t.value); break; }
